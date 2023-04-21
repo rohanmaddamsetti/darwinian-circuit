@@ -294,7 +294,7 @@ projdir <- file.path("..")
 
 
 ## helper function for adding metadata for RM7.140.31-60.
-Sample.ID.to.Plasmid <- function(sample.id) {
+Evolved.Sample.ID.to.Plasmid <- function(sample.id) {
     ## get rid of the prefix and turn the rest into a number.
     sample.num <- strtoi(str_replace(sample.id, "^RM7-140-", "" ))
     if (sample.num <= 40)
@@ -308,8 +308,9 @@ Sample.ID.to.Plasmid <- function(sample.id) {
     return(plasmid.type)
 }
 
+
 ## helper function for adding metadata for RM7.140.31-60.
-Sample.ID.to.Population <- function(sample.id) {
+Evolved.Sample.ID.to.Population <- function(sample.id) {
     ## get rid of the prefix and turn the rest into a number.
     sample.num <- strtoi(str_replace(sample.id, "^RM7-140-", "" ))
     population.num <- ((sample.num - 30) %% 10)
@@ -319,20 +320,43 @@ Sample.ID.to.Population <- function(sample.id) {
 }
 
 
-evolved.clone.data.dir <- file.path(projdir, "results", "nine-day-GFP-barcode-expt-genome-analysis")
-all.clones <- list.files(evolved.clone.data.dir,pattern='^RM7')
-all.clone.paths <- sapply(all.clones, function(x) file.path(evolved.clone.data.dir,x))
-evolved.clone.input.df <- data.frame(Sample=all.clones, path=all.clone.paths)
+clone.data.dir <- file.path(projdir, "results", "nine-day-GFP-barcode-expt-genome-analysis")
+## don't match the GFF files.
+all.clones <- Filter(function(x) return(!str_detect(x, "gff")), list.files(clone.data.dir,pattern='^RM7'))
+all.clone.paths <- sapply(all.clones, function(x) file.path(clone.data.dir,x))
+clone.input.df <- data.frame(Sample=all.clones, path=all.clone.paths)
 
-## generate metadata from the Sample column.
+ancestral.clone.input.df <- filter(clone.input.df, !str_detect(Sample, "^RM7-140-"))
+evolved.clone.input.df <- filter(clone.input.df, str_detect(Sample, "^RM7-140-"))
+
+## generate evolved clone metadata from the Sample column.
 evolved.clone.metadata <- evolved.clone.input.df %>%
     select(Sample) %>%
     ## get the plasmid type from the sample ID.
-    mutate(Plasmid = sapply(Sample, Sample.ID.to.Plasmid)) %>%
+    mutate(Plasmid = sapply(Sample, Evolved.Sample.ID.to.Plasmid)) %>%
     ## get the population number from the sample ID.
-    mutate(Population = sapply(Sample, Sample.ID.to.Population)) %>%
+    mutate(Population = sapply(Sample, Evolved.Sample.ID.to.Population)) %>%
     ## need a GFF file for annotating chromosomal amplifications.
     mutate(gff_path = "../results/nine-day-GFP-barcode-expt-genome-analysis/LCA.gff3")
+
+## The no plasmid ancestor clones are RM7.107.3,4,5,6,7,8,9,10,11,13.
+## The p15A ancestor clones are RM7.106.3,5,6,7,8,10,11,12,13,15.
+## The pUC ancestor clones are RM7.107.38,39,41,42,44,45,46,48,49,56.
+ancestral.clone.metadata <- data.frame(
+    Sample = c(
+        "RM7-107-3","RM7-107-4","RM7-107-5","RM7-107-6","RM7-107-7",
+        "RM7-107-8","RM7-107-9","RM7-107-10","RM7-107-11","RM7-107-13",
+        "RM7-106-3","RM7-106-5","RM7-106-6","RM7-106-7","RM7-106-8",
+        "RM7-106-10","RM7-106-11","RM7-106-12","RM7-106-13","RM7-106-15",
+        "RM7-107-38","RM7-107-39","RM7-107-41","RM7-107-42","RM7-107-44",
+        "RM7-107-45","RM7-107-46","RM7-107-48","RM7-107-49","RM7-107-56"),
+    Plasmid = c(
+        rep("No plasmid",10), rep("p15A",10), rep("pUC",10)),
+    Population = c(
+        seq(1:10), seq(1:10), seq(1:10)),
+    ## need a GFF file for annotating chromosomal amplifications.
+    gff_path = rep("../results/nine-day-GFP-barcode-expt-genome-analysis/LCA.gff3", 30))
+
 
 ######################################################################
 ## Plot the plasmid/chromosome and transposon/chromosome ratio in each sample.
@@ -345,12 +369,14 @@ transposon.coverage.df <- read.csv(transposon.coverage.file) %>%
     dplyr::rename(mean = TransposonCoverage) %>%
     dplyr::mutate(replicon = "transposon") 
 
+ancestral.transposon.coverage.df <- filter(transposon.coverage.df, Sample %in% ancestral.clone.input.df$Sample)
+evolved.transposon.coverage.df <- filter(transposon.coverage.df, Sample %in% evolved.clone.input.df$Sample)
 
 evolved.replicon.coverage.df <- map_dfr(.x = evolved.clone.input.df$path, .f = coverage.nbinom.from.html) %>%
     ## I am not examining dispersion or variance at this point.
     select(Sample, mean, replicon) %>%
-    ## add transposon coverage data.
-    full_join(transposon.coverage.df) %>%
+    ## add transposon coverage data
+    bind_rows(evolved.transposon.coverage.df) %>%
     ## set NA coverage values to zero.
     mutate(mean=sapply(mean, function(x) ifelse(is.na(x), 0,x))) %>%
     ## and add metadata.
@@ -514,3 +540,51 @@ parallel.amplified.genes <- annotated.amps %>%
 
 acrABR.amps <- annotated.amps %>%
     filter(str_detect(gene, "acr"))
+
+########################################################
+## let's examine copy number in the ancestral clones.
+## these were directly streaked from glycerol stock onto LB plates, and then
+## the plates were sent for sequencing. So no selection was applied to maintain
+## the p15A or pUC plasmids in the ancestral clones on the plate.
+
+ancestral.transposon.coverage.df <- filter(transposon.coverage.df, Sample %in% ancestral.clone.input.df$Sample)
+
+ancestral.replicon.coverage.df <- map_dfr(.x = ancestral.clone.input.df$path, .f = coverage.nbinom.from.html) %>%
+    ## I am not examining dispersion or variance at this point.
+    select(Sample, mean, replicon) %>%
+    ## add transposon coverage data
+    bind_rows(ancestral.transposon.coverage.df) %>%
+    ## set NA coverage values to zero.
+    mutate(mean=sapply(mean, function(x) ifelse(is.na(x), 0,x))) %>%
+    ## and add metadata.
+    full_join(ancestral.clone.metadata)
+
+
+ancestral.replicon.coverage.ratio.df <- ancestral.replicon.coverage.df %>%
+    pivot_wider(names_from = replicon, values_from = mean, names_prefix = "mean_") %>%
+    group_by(Sample, Plasmid, Population) %>%
+    summarise(transposons.per.chromosome = (mean_transposon/mean_chromosome),
+              plasmids.per.chromosome = (mean_plasmid/mean_chromosome),
+              transposons.per.plasmid = (mean_transposon/mean_plasmid)) %>%
+    pivot_longer(cols = c(transposons.per.chromosome,plasmids.per.chromosome,transposons.per.plasmid),
+                 names_to = "ratio_type", values_to = "ratio")
+
+
+ancestralFig1I.df <- ancestral.replicon.coverage.ratio.df %>%
+    ## we don't need transposons per plasmid, since we can get
+    ## that from the other two ratios.
+    filter(ratio_type != "transposons.per.plasmid") %>%
+    mutate(ratio_type = fct_recode(as.factor(ratio_type),
+                                       `Transposon copy number` = "transposons.per.chromosome",
+                                   `Plasmid copy number` = "plasmids.per.chromosome")) %>%
+    mutate(`Copy number` = ratio) %>%
+    mutate(Population = as.factor(Population)) %>%
+    ## log-transform copy number.
+    mutate(`log(copy number)` = log2(ratio))
+
+ancestralFig1I <- ggplot(data=ancestralFig1I.df, aes(x=Population, y=`Copy number`, fill=ratio_type)) +
+    geom_bar(stat="identity", position=position_dodge()) +
+    theme_classic() +
+    facet_wrap(.~Plasmid, scales="free") +
+    theme(legend.title=element_blank(), legend.position="bottom")
+ggsave("../results/ancestralFig1I.pdf", ancestralFig1I, width=8, height=3.5)

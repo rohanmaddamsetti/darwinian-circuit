@@ -53,14 +53,15 @@ def main():
 
     breseq_dir = "../results/nine-day-GFP-barcode-expt-genome-analysis"
 
-    evolved_clone_paths = [os.path.join(breseq_dir, x) for x in os.listdir(breseq_dir) if x.startswith("RM7")]
+    ## note: this includes both evolved clones and ancestral clones.
+    clone_paths = [os.path.join(breseq_dir, x) for x in os.listdir(breseq_dir) if x.startswith("RM7") and not x.endswith("gff3")]
 
     sample_vec = []
     transposon_vec = []
     transposon_coverage_vec = []
             
     ## walk through the file structure for the evolved samples.
-    for p in sorted(evolved_clone_paths):
+    for p in sorted(clone_paths):
         my_sample, my_transposon_coverage = get_transposon_coverage_for_sample(p)
         sample_vec.append(my_sample)
         transposon_coverage_vec.append(my_transposon_coverage)
