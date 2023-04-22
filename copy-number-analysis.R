@@ -449,15 +449,8 @@ rank.ordered.Fig1I <- ggplot(data=rank.ordered.Fig1I.df, aes(x=Rank, y=`Copy num
 ggsave("../results/Fig1I-rank-ordered.pdf", rank.ordered.Fig1I, width=8, height=3.5)
 
 ## 3) Plot plasmid-copy-number against transposon-copy-number.
-transposon.plasmid.copy.correlation.df <- evolved.replicon.coverage.df %>%
-    pivot_wider(names_from = replicon, values_from = mean, names_prefix = "mean_") %>%
-    group_by(Sample, Plasmid, Population) %>%
-    summarise(transposons.per.chromosome = (mean_transposon/mean_chromosome),
-              plasmids.per.chromosome = (mean_plasmid/mean_chromosome),
-              transposons.per.plasmid = (mean_transposon/mean_plasmid))
-
 ## let's calculate lines of best fit for p15A and pUC separately.
-p15A.transposon.plasmid.copy.df <- transposon.plasmid.copy.correlation.df %>%
+p15A.transposon.plasmid.copy.df <- evolved.replicon.coverage.ratio.df %>%
     filter(Plasmid == "p15A")
 
 p15A.transposon.plasmid.correlation <- lm(
@@ -481,7 +474,7 @@ p15A.transposon.plasmid.correlation.plot <- ggplot(
     guides(color="none")
 
 
-pUC.transposon.plasmid.copy.df <- transposon.plasmid.copy.correlation.df %>%
+pUC.transposon.plasmid.copy.df <- evolved.replicon.coverage.ratio.df %>%
     filter(Plasmid == "pUC")
 
 pUC.transposon.plasmid.correlation <- lm(
@@ -524,7 +517,7 @@ evolved.amps <- map2_df(evolved.clone.input.df$path,
 annotated.amps <- annotate.amplifications(evolved.amps) %>%
     ## get the plasmid type from the sample ID.
     ## we need this for the function plot.amp.segments.
-    mutate(Plasmid = sapply(Sample, Sample.ID.to.Plasmid))
+    mutate(Plasmid = sapply(Sample, Evolved.Sample.ID.to.Plasmid))
 
 ## make a figure of the significant amplifications found with the bonferroni method.
 amp.segment.plot <- plot.amp.segments(annotated.amps)
@@ -588,3 +581,66 @@ ancestralFig1I <- ggplot(data=ancestralFig1I.df, aes(x=Population, y=`Copy numbe
     facet_wrap(.~Plasmid, scales="free") +
     theme(legend.title=element_blank(), legend.position="bottom")
 ggsave("../results/ancestralFig1I.pdf", ancestralFig1I, width=8, height=3.5)
+
+########################################################
+## Make the full transposon-plasmid correlation plot that LC asked for,
+## including DH5a mixed population data.
+
+## add columns to merge datasets.
+K12.ancestral.clone.plasmid.transposon.ratio.df <- ancestral.replicon.coverage.ratio.df %>%
+    mutate(Strain = "K12") %>%
+    mutate(SampleType = "Clone") %>%
+    mutate(Tet=0) %>%
+    mutate(Transposon="B30")
+
+K12.evolved.clone.plasmid.transposon.ratio.df <- evolved.replicon.coverage.ratio.df %>%
+    mutate(Strain = "K12") %>%
+    mutate(SampleType = "Clone") %>%
+    mutate(Tet=50) %>%
+    mutate(Transposon="B30")
+
+DH5a.evolved.mixed.pop.replicon.coverage.ratio.df <- read.csv(
+    "../../transposon-plasmid-evolution/results/draft-manuscript-1A/plasmid-transposon-coverage-ratios.csv") %>%
+    mutate(SampleType = "MixedPop") %>%
+    mutate(Strain = "DH5a")
+
+full.replicon.coverage.ratio.df <-
+    K12.ancestral.clone.plasmid.transposon.ratio.df %>%
+    bind_rows(K12.evolved.clone.plasmid.transposon.ratio.df) %>%
+    bind_rows(DH5a.evolved.mixed.pop.replicon.coverage.ratio.df) %>%
+    mutate(Population = as.factor(Population)) %>%
+    mutate(Tet = as.factor(Tet)) %>%
+    ## this is to fix discrepancies between labeling of DH5a and K-12 samples.
+    mutate(Plasmid = replace(Plasmid, Plasmid == "None", "No plasmid"))
+
+
+newFig1.df <- full.replicon.coverage.ratio.df %>%
+    ## we don't need transposons per plasmid, since we can get
+    ## that from the other two ratios.
+    filter(ratio_type != "transposons.per.plasmid") %>%
+    mutate(ratio_type = fct_recode(as.factor(ratio_type),
+                                   `Transposon copy number` = "transposons.per.chromosome",
+                                   `Plasmid copy number` = "plasmids.per.chromosome")) %>%
+    pivot_wider(names_from = ratio_type, values_from = ratio) %>%
+    ## set no plasmid treatment copy number to 0.
+    mutate(`Plasmid copy number` = replace_na(`Plasmid copy number`, 0)) %>%
+    ## unite the Strain, SampleType, Tet, Transposon columns together
+        unite("Treatment", Strain:Transposon, sep="-", remove = FALSE)
+
+
+newFig1 <- ggplot(data=newFig1.df,
+                  aes(x=`Plasmid copy number`, y=`Transposon copy number`, color=Treatment, shape=Plasmid)) +
+    geom_point() +
+    theme_classic() +
+#    facet_wrap(SampleType~Tet) +
+    geom_abline(slope=1,
+                intercept=0,
+                color="gray",linetype="dashed",size=0.5)
+ggsave("../results/newFig1.pdf", newFig1, height=3.5)
+
+log.newFig1 <- newFig1 +
+    scale_x_continuous(trans='log10') +
+    scale_y_continuous(trans='log10')
+ggsave("../results/log-newFig1.pdf", log.newFig1, height=3.5)
+
+              

@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
 """
-process_subtracted_gdiffs.py by Rohan Maddamsetti.
+process_gdiffs.py by Rohan Maddamsetti.
 
 I take the evolved genomes, and write out evolved-mutations.csv for
 downstream analysis in R.
 
-Usage: python process_subtracted_gdiffs.py
+Usage: python process_gdiffs.py
 
 """
 
@@ -39,14 +39,14 @@ def get_pop(sample):
     return str(pop)
     
 
-def write_evolved_mutations(subtracted_gdiff_paths, outf):
+def write_evolved_mutations(gdiff_paths, outf):
     outfh = open(outf, "w")
     outfh.write("Sample,Plasmid,Population,Mutation,Mutation_Category,Gene,Position,Allele\n")
     
-    for gdiff in subtracted_gdiff_paths:
-        ## some genome diffs are not 
+    for gdiff in gdiff_paths:
         infh = open(gdiff, 'r', encoding='utf-8')
-        sample = os.path.basename(gdiff).split(".gd")[0].split("subtracted_")[-1]
+        ## hacky solution to get the sample name from the full path.
+        sample = os.path.dirname(gdiff).split("/output/evidence")[0].split('/')[-1]
         plasmid = get_plasmid(sample)
         population = get_pop(sample)
         gd = genomediff.GenomeDiff.read(infh)
@@ -86,12 +86,12 @@ def main():
     genome_results_dir = os.path.join(projdir,"results","nine-day-GFP-barcode-expt-genome-analysis")
 
     evolved_clone_ids = ["RM7-140-" + str(x) for x in range(31,61)]
-    evolved_genomediffs = ["subtracted_" + x + ".gd" for x in evolved_clone_ids]
-    subtracted_paths = [os.path.join(genome_results_dir, x) for x in evolved_genomediffs]
+    evolved_genomediffs = [x + "/output/evidence/annotated.gd" for x in evolved_clone_ids]
+    gdiff_paths = [os.path.join(genome_results_dir, x) for x in evolved_genomediffs]
     
     ''' tabulate the mutations in the evolved populations.'''
     mut_table_outf = os.path.join(genome_results_dir, "evolved_mutations.csv")
-    write_evolved_mutations(subtracted_paths, mut_table_outf)
+    write_evolved_mutations(gdiff_paths, mut_table_outf)
 
     
 main()

@@ -237,4 +237,8 @@ S1FigB <- MakeMutCountMatrixFigure(evolved.mutations, show.all=TRUE)
 S1FigB.outf <- "../results/S1FigB.pdf"
 ggsave(S1FigB.outf, S1FigB, height=8, width=7)
 
+S2Fig <- MakeMutCountMatrixFigure(evolved.mutations, show.all=FALSE)
+S2Fig.outf <- "../results/S2Fig.pdf"
+ggsave(S2Fig.outf, S2Fig, height=5, width=7)
+
         
