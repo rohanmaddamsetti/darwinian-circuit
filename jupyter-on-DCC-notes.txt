@@ -1,0 +1,14 @@
+## jupyter-on-DCC-notes.txt
+
+Slack message from Jia:
+
+https://dcc-ondemand-01.oit.duke.edu/pun/sys/dashboard/
+
+https://oit-rc.pages.oit.duke.edu/rcsupportdocs/OpenOnDemand/Jupyter/
+
+i tried to set up this code using dcc. Copying the links here in case you are interested.
+The first one is DCC on demand, you can run Jupyter lab on it directly. The second link is the instruction.
+
+What I did was to make a folder in my home directory, upload the data and code, and run it using jupyter lab. It was smooth for me.
+
+When setting up the VM, it allows you to choose # of cpu, gpu.
