@@ -69,6 +69,49 @@ ggsave("../results/Full-9-day-evolution-experiment-OD600-February-2023.pdf",
        Feb.2023.evolution.figure, width=4.5, height=4.5)
 
 ################################################################################
+## let's examine the trajectory of GFP expression in the no plasmid populations.
+no.plasmid.pop.GFP.OD.data <- Feb.2023.nine.day.tetA.GFP.OD600.df %>%
+    filter(Treatment == "no_plasmid")
+
+p15A.pop.GFP.OD.data <- Feb.2023.nine.day.tetA.GFP.OD600.df %>%
+    filter(Treatment == "p15A")
+
+pUC.pop.GFP.OD.data <- Feb.2023.nine.day.tetA.GFP.OD600.df %>%
+    filter(Treatment == "pUC")
+
+
+make.my.test.plot <- function(my.data) {
+    ggplot(my.data,
+           aes(x = Day, y = normalized.GFP55, color = Treatment)) +
+        theme_classic() + geom_point() + geom_smooth(se=FALSE) +
+        scale_x_continuous(breaks=seq(0, 10, 1)) +
+        ylab("GFP/OD600") +
+        theme(legend.position="bottom")
+}
+
+no.plasmid.Feb.2023.normalized.GFP55.plot <- make.my.test.plot(no.plasmid.pop.GFP.OD.data)
+p15A.Feb.2023.normalized.GFP55.plot <- make.my.test.plot(p15A.pop.GFP.OD.data)
+pUC.Feb.2023.normalized.GFP55.plot <- make.my.test.plot(pUC.pop.GFP.OD.data)
+
+no.plasmid.Feb.2023.normalized.GFP55.plot 
+
+p15A.Feb.2023.normalized.GFP55.plot
+
+pUC.Feb.2023.normalized.GFP55.plot 
+
+
+
+## let's look at all of them now.
+faceted.Feb.2023.normalized.GFP55.plot <- ggplot(Feb.2023.nine.day.tetA.GFP.OD600.df,
+                              aes(x = Day, y = normalized.GFP55, color = Treatment)) +
+    theme_classic() + geom_point() + geom_smooth(se=FALSE) + facet_wrap(.~Treatment) +
+    scale_x_continuous(breaks=seq(0, 10, 1)) +
+    ylab("GFP/OD600") +
+    theme(legend.position="bottom")
+
+faceted.Feb.2023.normalized.GFP55.plot
+
+################################################################################
 ## plot OD600 and GFP for the single clones isolated from each of the 30 populations of the
 ## evolution experiment conducted February 2023.
 
@@ -106,4 +149,5 @@ clones.normalized.GFP.OD600.correlation.plot <- ggplot(clones.Feb.2023.tetA.GFP.
 ggsave("../results/9-day-clones-GFP-OD600-correlation-February-2023.pdf",
        clones.normalized.GFP.OD600.correlation.plot,
        width=4.5, height=4.5)
+
 
