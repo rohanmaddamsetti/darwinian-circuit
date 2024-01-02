@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.32
+# v0.19.36
 
 using Markdown
 using InteractiveUtils
@@ -16,59 +16,41 @@ end
 
 # ╔═╡ 96e88c96-ffa3-440b-a5c4-df380f1ee881
 begin
-	using FileIO
 	using Plots
 	using PlutoUI
 	using Statistics
 	using LinearAlgebra
 	using DifferentialEquations
+	using Distributions
 end
 
 # ╔═╡ bb669570-7cb6-11ee-00f9-95e5d1f0bf9d
 md"""
-# darwinian-circuit-quasispecies-model-v0.2.jl 
+# darwinian-circuit-quasispecies-model-v0.4.jl 
 
 by Rohan Maddamsetti  
 
 Julia version 1.9.  
 
-## Tentative manuscript title: Programmed gene expression control by diversity-maintaining synthetic genetic elements
+## Programmed population control by diversity-maintaining genetic elements
 
 ##### We compare fitness variance to the rate of mean fitness change, and compare tetA copy number-fitness covariance to the rate of tetA copy number change.
 
 """
 
-# ╔═╡ 6714fec4-e048-47ff-8c99-06abb563ef26
-md""" # TODO: actually implement the quasispecies equation."""
+# ╔═╡ 5b205533-a152-4d45-b539-8f653b267c09
+md"""
 
-# ╔═╡ 1a7794a3-ee9b-4b0c-8ae0-3930a63f5e54
-##load("../results/diagrams/Darwin-Markov-model-figure.jpg")
+## TODO: fix scaling factor bugs. In fact, scaling makes the fit worse??
 
-# ╔═╡ a66ee148-7cf2-43a4-9b14-407eb91da8ea
-md""" 
+Note that the fit is really good when covariance is positive, but not good when covariance is negative... this may be a clue as to the bug.
 
-### Notes from Lingchong
-High copy number plasmids are expensive/burdensome resistance/cost. Despite this, many studies have shown widespread persistence of multicopy plasmids in diverse environments (CITATIONS).
+## DEBUGGING: 
+1) in the constant [Tet] model, fitness variance divided by mean fitness does not exactly equal rate of change of mean fitness.
 
-1) we need previous literature on prevalence of high copy number plasmids in nature, and 2) work on its why high copy plasmids exist in nature.
-
-Others have demonstrated that high copy plasmids can cause heterogeneity.
-
-We can resolve this apparent paradox in a new way. Here we propose that high-copy plasmids can enable intracellular heterogeneity in plasmid identity, and this configuration allows very fast adaptation to different environments, to switch between highly resistant and highly fast growing states extremely quickly.
-
-This story depends on speed of adaptation.
-
-Critical data is on how copy number affects the timescale of response (both gain as well as the loss of the saturated state). Settling down into the fast growing state: hypothesis is that the high-copy plasmid will be the best, due to the ghost effect with the low copy number plasmid.
-
-Also: with the high copy number plasmid and costly selection, the plasmid will never saturated. Also purifying selection will cause the rapid going back to the baseline.
-
-Also can emphasize that adaptation in either direction does not depend on de novo genetic mutation (this is supporting evidence for this story, not main point).
-
+2) in the pulse [Tet] model, tetA-fitness covariance divided by mean fitness does not exactly equal rate of change of mean fitness. 
 
 """
-
-# ╔═╡ 6d0b7c31-69c0-4f9c-9f7e-1cb43502f58f
-##load("../results/diagrams/Darwin-Markov-model-figure.pdf")
 
 # ╔═╡ 676cbaa5-449b-4111-9b7f-2e58420d8f35
 md"""
@@ -76,28 +58,30 @@ md"""
 
 I built a simple evolutionary model to examine how plasmid copy number affects tetA-GFP copy number dynamics in the tetA-transposon system.
 
-This model is based on the population dynamics framework described by Edo Kussell and Stan Liebler in "Phenotypic Diversity, Population Growth, and Information in Fluctuating Environments" (Science 2005) and "Individual histories and selection in heterogeneous populations" (PNAS 2010).  
-\
 
-##### Turbidostat model modification.
+##### Quasispecies model formulation.
 
-I then modified the exponential growth framework to model continuous culture in a turbidostat, such that the dilution rate is equal to the bulk growth rate (i.e. mean population fitness). The idea here is that the dilution rate increases as the population adapts, such that the total population density is conserved in the model. Physically, this corresponds to a turbidostat in which the dilution rate instantaneously increases as the population increases in mean growth rate through evolutionary adaptation, such that the (optical) density of the culture stays constant.
+We use the quasispecies model (see "Unifying Evolutionary Dynamics" by Karen Page and Martin Nowak in Journal of Theoretical Biology, 2002). This model has a physical interpretation as a model of continuous culture in a idealized turbidostat, such that the dilution rate is equal to the bulk growth rate (i.e. mean population fitness). The idea here is that the dilution rate increases as the population adapts, such that the total population density is conserved in the model. Physically, this corresponds to a turbidostat in which the dilution rate instantaneously increases as the population increases in mean growth rate through evolutionary adaptation, such that the (optical) density of the culture stays constant.
 
 **Model Assumptions**  
 
-The population is modeled as a distribution over tetA copy numbers, ranging from 1 (found on the chromosome) to $n$ (maximum plasmid copy number). We therefore represent the population as a vector 
+The population is modeled as a distribution over tetA copy numbers, ranging from 1 (found on the chromosome) to $n+1$, where $n$ is the maximum plasmid copy number. We therefore represent the population as a vector 
 
-$\mathbf{x}(t) = \begin{pmatrix} x_1 \\ x_2 \\ x_3 \\ ... \\ x_n \end{pmatrix}$  
+$\mathbf{x}(t) = \begin{pmatrix} x_1 \\ x_2 \\ x_3 \\ ... \\ x_{n+1} \end{pmatrix}$  
 
-The sum of the $n$ entries of $\mathbf{x}(t)$ gives the total population size $N(t) = \sum_{i=1}^{n} \mathbf{x}_i(t)$.  
+The sum of the $n+1$ entries of $\mathbf{x}(t)$ gives the total population size $N(t) = \sum_{i=1}^{n+1} \mathbf{x}_i(t)$.  
 
+"""
+
+# ╔═╡ 29129932-578f-4f18-b36a-c1bd754afa91
+md"""
 *Growth dynamics*  
 
 For a given tetracycline concentration, each tetA copy number class has a growth rate, or *fitness* $r_i$.  Let $g_i$ be be the log-fitness of tetA copy number class $i$, such that $g_i = log(r_i)$. We assume that there is some optimal tetA copy number given some tetracycline concentration. We assume that $r_i$ is non-negative, with a single peak at the optimum tetA copy number for a given $[Tet]$ concentration, so a natural choice is to define the following quadratic log-fitness function:  
 
 $g_i = g_{max} - \frac{(i - \alpha*[Tet])^2}{2\sigma^2}$  
 
-Here, $g_{max}$ is the maximum log-growth-rate, $i$ is the number of tetA copies in this strain, [Tet] is the antibiotic concentration, $\sigma$ is a free parameter that determines the width of the quadratic function, and $\alpha$ is a conversion factor with units of "tetA gene copies/[Tet]". Without loss of generality we assume $\alpha = 1$, so:
+Here, $g_{max}$ is the maximum log-growth-rate, $i$ is the number of tetA copies in this strain, [Tet] is the antibiotic concentration, $\sigma$ is a free parameter that determines the width of the quadratic function, and $\alpha$ is a unit-conversion factor with units of "tetA gene copies/[Tet]". Without loss of generality we assume $\alpha = 1$, so:
 
 $g_i = g_{max} - \frac{(i - [Tet])^2}{2\sigma^2}$ 
 
@@ -107,7 +91,7 @@ $r_i = e^{g_i}$
 
 Then, the growth rates (fitnesses) for each subpopulation is a vector:
 
-$\mathbf{r} = \begin{pmatrix} r_1 \\ r_2 \\ r_3 \\ ... \\ r_n \end{pmatrix}$  
+$\mathbf{r} = \begin{pmatrix} r_1 \\ r_2 \\ r_3 \\ ... \\ r_{n+1} \end{pmatrix}$  
 
 
 We then define the diagonal matrix $\mathbf{G} = \begin{bmatrix}
@@ -115,43 +99,78 @@ r_1 & 0 & 0 & ... & 0 \\
 0 & r_2 & 0 & ... & 0 \\
 0 & 0 & r_3 & ... & 0 \\
 ... & ... & ... & ... & ... \\
-0 & 0 & 0 & ... & r_n \\
+0 & 0 & 0 & ... & r_{n+1} \\
 \end{bmatrix}$.  
 
-This represents how each subpopulation grows based on $\mathbf{r}$.
+This represents how each subpopulation of $\mathbf{x}$ grows based on $\mathbf{r}$.
 
 And the average population growth rate (mean population fitness) of the whole population is $\overline{r}(t) = \mathbf{r} \cdot \mathbf{x}(t)$.
 
+"""
+
+# ╔═╡ 859cae36-fce0-4ab0-ba71-f4dd1083fd8e
+md"""
 *Phenotypic switching dynamics*
-
-Following the Kussell and Leibler papers cited above, we assume that individuals can switch phenotypes according to a set of rates $s_{ij}$, which denotes the rate of switching from phenotype $j$ to $i$.  
-
-We define $s_{jj} = -\sum_{i \ne j} s_{ij}$, so that the diagonal elements are the total rate of switching out of each phenotype.
 
 Subpopulations switch phenotypes based on plasmid segregration during cell division.
 
-We assume that the total plasmid copy number is fixed per cell. However, the cells of each subpopulation can gain or lose one plasmid containing the tetA transposon, unless all plasmids in the cell have the tetA transposon. In that case, cell division always results in daughter cells in which all plasmids have the tetA transposon. Mathematically, the subpopulation in which all plasmids have the transposon is an absorbing state of the Markov chain.  
+We assume that the total plasmid copy number is fixed per cell. However, the cells of each subpopulation can gain or lose plasmids containing the tetA transposon, based on sampling the plasmids of the parental cell with replacement. This assumption leads to a stochastic switching matrix based on binomial probabilities.  
 
-We also assume that gain and loss rates are equal and assume detailed balance. Without loss of generality we let gain rate = loss rate = $k$, where $0 \leq k \leq 1$. This results in the following tridiagonal matrix (6-dimensional case shown):  
+Since the first index represents a state in which _none_ of the plasmids have the transposon,  we use a change of variable from zero-based indexing to one-based indexing, so that we can use the binomial formula (zero-based indexing) and then use a change-of-variable to use one-based indexing for the matrix.  
+
+We define the entries of the stochastic transition matrix $\mathbf{S}$ with zero-based indexing:  
+
+$\mathbf{S}_{ab} = \binom{n}{a} \left( \frac{b}{n} \right) ^a \left( \frac{n-b}{n} \right) ^{n-a}$  
+
+where $a$ is the zero-based row-index (representing an offspring with $a$ copies of the transposon) and $b$ is the zero-based column-index (representing a parent with $b$ copies of the transposon). Recall that $n$ is the plasmid copy number, so $0 \leq a \leq n$ and $0 \leq b \leq n$.
+
+We then use the following change-of-variables to define $\mathbf{S}$ with one-based indexing. The matrix is exactly the same-- only the indexing to refer to entries is different:
+
+$i = a + 1$  
+$j = b + 1$
+
+
+(6-dimensional case shown):  
 
 $\mathbf{S} = \begin{bmatrix}
--k & k & 0 & 0 & 0 & 0 \\
-k & -2k & k & 0 & 0 & 0 \\
-0 & k & -2k & k & 0 & 0 \\
-0 & 0 & k & -2k & k & 0 \\
-0 & 0 & 0 & k & -2k & 0 \\
-0 & 0 & 0 & 0 & k & 0 \\
-\end{bmatrix}$.  
+1 & \binom{5}{0} \left( \frac{1}{5} \right) ^0 \left( \frac{4}{5} \right) ^5 & \binom{5}{0} \left( \frac{2}{5} \right) ^0 \left( \frac{3}{5} \right) ^5 & \binom{5}{0} \left( \frac{3}{5} \right) ^0 \left( \frac{2}{5} \right) ^5 & \binom{5}{0} \left( \frac{4}{5} \right) ^0 \left( \frac{1}{5} \right) ^5 & 0 \\
+0 & \binom{5}{1} \left( \frac{1}{5} \right) ^1 \left( \frac{4}{5} \right) ^4 & \binom{5}{1} \left( \frac{2}{5} \right) ^1 \left( \frac{3}{5} \right) ^4 & \binom{5}{1} \left( \frac{3}{5} \right) ^1 \left( \frac{2}{5} \right) ^4 & \binom{5}{1} \left( \frac{4}{5} \right) ^1 \left( \frac{1}{5} \right) ^4 & 0 \\
+0 & \binom{5}{2} \left( \frac{1}{5} \right) ^2 \left( \frac{4}{5} \right) ^3 & \binom{5}{2} \left( \frac{2}{5} \right) ^2 \left( \frac{3}{5} \right) ^3 & \binom{5}{2} \left( \frac{3}{5} \right) ^2 \left( \frac{2}{5} \right) ^3 & \binom{5}{2} \left( \frac{4}{5} \right) ^2 \left( \frac{1}{5} \right) ^3 & 0 \\
+0 & \binom{5}{3} \left( \frac{1}{5} \right) ^3 \left( \frac{4}{5} \right) ^2 & \binom{5}{3} \left( \frac{2}{5} \right) ^3 \left( \frac{3}{5} \right) ^2 & \binom{5}{3} \left( \frac{3}{5} \right) ^3 \left( \frac{2}{5} \right) ^2 & \binom{5}{3} \left( \frac{4}{5} \right) ^3 \left( \frac{1}{5} \right) ^2 & 0 \\
+0 & \binom{5}{4} \left( \frac{1}{5} \right) ^4 \left( \frac{4}{5} \right) ^1 & \binom{5}{4} \left( \frac{2}{5} \right) ^4 \left( \frac{3}{5} \right) ^1 & \binom{5}{4} \left( \frac{3}{5} \right) ^4 \left( \frac{2}{5} \right) ^1 & \binom{5}{4} \left( \frac{4}{5} \right) ^4 \left( \frac{1}{5} \right) ^1 & 0 \\
+0 & \binom{5}{5} \left( \frac{1}{5} \right) ^5 \left( \frac{4}{5} \right) ^0 & \binom{5}{5} \left( \frac{2}{5} \right) ^5 \left( \frac{3}{5} \right) ^0 & \binom{5}{5} \left( \frac{3}{5} \right) ^5 \left( \frac{2}{5} \right) ^0 & \binom{5}{5} \left( \frac{4}{5} \right) ^5 \left( \frac{1}{5} \right) ^0 & 1 \\
+\end{bmatrix}$  
 
+"""
+
+# ╔═╡ e1c0717f-fcc8-4d38-96ba-ddc0c05d72a3
+md"""
+Mathematically, the subpopulation in which all plasmids have the transposon is an absorbing state of the Markov chain.  
+
+However, the subpopulation in which _none_ of the plasmids have the transposon is *not* an absorbing state, because transposons can jump from the chromosome to a plasmid. To model this, we assume a transposition rate $\eta$, and assume that $\eta$ is small compared to the binomial transition probabilities so that it can be ignored in the other entries of the matrix.
+
+$\mathbf{S} = \begin{bmatrix}
+1- \eta & \binom{5}{0} \left( \frac{1}{5} \right) ^0 \left( \frac{4}{5} \right) ^5 & \binom{5}{0} \left( \frac{2}{5} \right) ^0 \left( \frac{3}{5} \right) ^5 & \binom{5}{0} \left( \frac{3}{5} \right) ^0 \left( \frac{2}{5} \right) ^5 & \binom{5}{0} \left( \frac{4}{5} \right) ^0 \left( \frac{1}{5} \right) ^5 & 0 \\
+\eta & \binom{5}{1} \left( \frac{1}{5} \right) ^1 \left( \frac{4}{5} \right) ^4 & \binom{5}{1} \left( \frac{2}{5} \right) ^1 \left( \frac{3}{5} \right) ^4 & \binom{5}{1} \left( \frac{3}{5} \right) ^1 \left( \frac{2}{5} \right) ^4 & \binom{5}{1} \left( \frac{4}{5} \right) ^1 \left( \frac{1}{5} \right) ^4 & 0 \\
+0 & \binom{5}{2} \left( \frac{1}{5} \right) ^2 \left( \frac{4}{5} \right) ^3 & \binom{5}{2} \left( \frac{2}{5} \right) ^2 \left( \frac{3}{5} \right) ^3 & \binom{5}{2} \left( \frac{3}{5} \right) ^2 \left( \frac{2}{5} \right) ^3 & \binom{5}{2} \left( \frac{4}{5} \right) ^2 \left( \frac{1}{5} \right) ^3 & 0 \\
+0 & \binom{5}{3} \left( \frac{1}{5} \right) ^3 \left( \frac{4}{5} \right) ^2 & \binom{5}{3} \left( \frac{2}{5} \right) ^3 \left( \frac{3}{5} \right) ^2 & \binom{5}{3} \left( \frac{3}{5} \right) ^3 \left( \frac{2}{5} \right) ^2 & \binom{5}{3} \left( \frac{4}{5} \right) ^3 \left( \frac{1}{5} \right) ^2 & 0 \\
+0 & \binom{5}{4} \left( \frac{1}{5} \right) ^4 \left( \frac{4}{5} \right) ^1 & \binom{5}{4} \left( \frac{2}{5} \right) ^4 \left( \frac{3}{5} \right) ^1 & \binom{5}{4} \left( \frac{3}{5} \right) ^4 \left( \frac{2}{5} \right) ^1 & \binom{5}{4} \left( \frac{4}{5} \right) ^4 \left( \frac{1}{5} \right) ^1 & 0 \\
+0 & \binom{5}{5} \left( \frac{1}{5} \right) ^5 \left( \frac{4}{5} \right) ^0 & \binom{5}{5} \left( \frac{2}{5} \right) ^5 \left( \frac{3}{5} \right) ^0 & \binom{5}{5} \left( \frac{3}{5} \right) ^5 \left( \frac{2}{5} \right) ^0 & \binom{5}{5} \left( \frac{4}{5} \right) ^5 \left( \frac{1}{5} \right) ^0 & 1 \\
+\end{bmatrix}$  
+
+"""
+
+# ╔═╡ c38f7da5-586b-4730-a6a8-da36742c5743
+md"""
 *Dilution dynamics*
 
 We assume that cells are diluted out at a rate equal to the bulk population growth rate, which is the average population growth rate (mean population fitness) of the whole population $\overline{r}(t) = \mathbf{r} \cdot \mathbf{x}(t)$.
 
 *Full dynamics*  
 
-These dynamics are combined into a matrix $\mathbf{A} = \mathbf{G}(\mathbf{I}+ \mathbf{S})$, where $\mathbf{I}$ is the identity matrix, so that $(\mathbf{I}+ \mathbf{S})$ is a stochastic matrix.
+The growth and stochastic switching dynamics are combined into a matrix $\mathbf{A} = \mathbf{S}\mathbf{G}$, where $\mathbf{S}$ is a stochastic matrix.
 
-so the full dynamics are modeled by the following matrix system of ODEs:  
+Including dilution, the full dynamics are modeled by the following matrix system of ODEs:  
 
 $\frac{d\mathbf{x}}{dt} = \mathbf{A}\mathbf{x}(t) - \overline{r}(t) \mathbf{x}(t)$ Note that $\overline{r}(t)$ is a scalar and not a vector.
 
@@ -159,27 +178,29 @@ $\frac{d\mathbf{x}}{dt} = \mathbf{A}\mathbf{x}(t) - \overline{r}(t) \mathbf{x}(t
 This results in this form of the matrix $\mathbf{A}$ (6-dimensional case shown):
 
 $\mathbf{A} = \begin{bmatrix}
-r_1(1-k) & k & 0 & 0 & 0 & 0 \\
-k & r_2(1-2k) & k & 0 & 0 & 0 \\
-0 & k & r_3(1-2k) & k & 0 & 0 \\
-0 & 0 & k & r_4(1-2k) & k & 0 \\
-0 & 0 & 0 & k & r_5(1-2k) & 0 \\
-0 & 0 & 0 & 0 & k & r_6 \\
-\end{bmatrix}$.  
- 
+r_1(1- \eta) & \binom{5}{0} \left( \frac{1}{5} \right) ^0 \left( \frac{4}{5} \right) ^5 & \binom{5}{0} \left( \frac{2}{5} \right) ^0 \left( \frac{3}{5} \right) ^5 & \binom{5}{0} \left( \frac{3}{5} \right) ^0 \left( \frac{2}{5} \right) ^5 & \binom{5}{0} \left( \frac{4}{5} \right) ^0 \left( \frac{1}{5} \right) ^5 & 0 \\
+\eta & r_2 \binom{5}{1} \left( \frac{1}{5} \right) ^1 \left( \frac{4}{5} \right) ^4 & \binom{5}{1} \left( \frac{2}{5} \right) ^1 \left( \frac{3}{5} \right) ^4 & \binom{5}{1} \left( \frac{3}{5} \right) ^1 \left( \frac{2}{5} \right) ^4 & \binom{5}{1} \left( \frac{4}{5} \right) ^1 \left( \frac{1}{5} \right) ^4 & 0 \\
+0 & \binom{5}{2} \left( \frac{1}{5} \right) ^2 \left( \frac{4}{5} \right) ^3 & r_3\binom{5}{2} \left( \frac{2}{5} \right) ^2 \left( \frac{3}{5} \right) ^3 & \binom{5}{2} \left( \frac{3}{5} \right) ^2 \left( \frac{2}{5} \right) ^3 & \binom{5}{2} \left( \frac{4}{5} \right) ^2 \left( \frac{1}{5} \right) ^3 & 0 \\
+0 & \binom{5}{3} \left( \frac{1}{5} \right) ^3 \left( \frac{4}{5} \right) ^2 & \binom{5}{3} \left( \frac{2}{5} \right) ^3 \left( \frac{3}{5} \right) ^2 & r_4\binom{5}{3} \left( \frac{3}{5} \right) ^3 \left( \frac{2}{5} \right) ^2 & \binom{5}{3} \left( \frac{4}{5} \right) ^3 \left( \frac{1}{5} \right) ^2 & 0 \\
+0 & \binom{5}{4} \left( \frac{1}{5} \right) ^4 \left( \frac{4}{5} \right) ^1 & \binom{5}{4} \left( \frac{2}{5} \right) ^4 \left( \frac{3}{5} \right) ^1 & \binom{5}{4} \left( \frac{3}{5} \right) ^4 \left( \frac{2}{5} \right) ^1 & r_5 \binom{5}{4} \left( \frac{4}{5} \right) ^4 \left( \frac{1}{5} \right) ^1 & 0 \\
+0 & \binom{5}{5} \left( \frac{1}{5} \right) ^5 \left( \frac{4}{5} \right) ^0 & \binom{5}{5} \left( \frac{2}{5} \right) ^5 \left( \frac{3}{5} \right) ^0 & \binom{5}{5} \left( \frac{3}{5} \right) ^5 \left( \frac{2}{5} \right) ^0 & \binom{5}{5} \left( \frac{4}{5} \right) ^5 \left( \frac{1}{5} \right) ^0 & r_6 \\
+\end{bmatrix}$  
+"""
 
+# ╔═╡ 35679fbc-1e9d-4e4d-968b-38283cebff13
+md"""
 We can generalize this model to the case where the plasmid copy number limits tetA copy number. In this case, higher tetA copy numbers beyond plasmid copy number cannot be reached.
 
 Suppose the maximum plasmid copy number is 4. Then the truncated matrix $\mathbf{A'}$ is (for the 6-dimensional case):   
 
 $\mathbf{A'} = \begin{bmatrix}
-r_1(1-k) & k & 0 & 0 & 0 & 0 \\
-k & r_2(1-2k) & k & 0 & 0 & 0 \\
-0 & k & r_3(1-2k) & 0 & 0 & 0 \\
-0 & 0 & k & r_4 & 0 & 0 \\
-0 & 0 & 0 & 0 & r_5 & 0 \\
-0 & 0 & 0 & 0 & 0 & r_6 \\
-\end{bmatrix}$.  
+r_1(1- \eta) & \binom{5}{0} \left( \frac{1}{5} \right) ^0 \left( \frac{4}{5} \right) ^5 & \binom{5}{0} \left( \frac{2}{5} \right) ^0 \left( \frac{3}{5} \right) ^5 & 0 & 0 & 0 \\
+\eta & r_2 \binom{5}{1} \left( \frac{1}{5} \right) ^1 \left( \frac{4}{5} \right) ^4 & \binom{5}{1} \left( \frac{2}{5} \right) ^1 \left( \frac{3}{5} \right) ^4 & 0 & 0 & 0 \\
+0 & \binom{5}{2} \left( \frac{1}{5} \right) ^2 \left( \frac{4}{5} \right) ^3 & r_3\binom{5}{2} \left( \frac{2}{5} \right) ^2 \left( \frac{3}{5} \right) ^3 & 0 & 0 & 0 \\
+0 & \binom{5}{3} \left( \frac{1}{5} \right) ^3 \left( \frac{4}{5} \right) ^2 & \binom{5}{3} \left( \frac{2}{5} \right) ^3 \left( \frac{3}{5} \right) ^2 & r_4 & 0 & 0 \\
+0 & \binom{5}{4} \left( \frac{1}{5} \right) ^4 \left( \frac{4}{5} \right) ^1 & \binom{5}{4} \left( \frac{2}{5} \right) ^4 \left( \frac{3}{5} \right) ^1 & 0 & r_5 & 0 \\
+0 & \binom{5}{5} \left( \frac{1}{5} \right) ^5 \left( \frac{4}{5} \right) ^0 & \binom{5}{5} \left( \frac{2}{5} \right) ^5 \left( \frac{3}{5} \right) ^0 & 0 & 0 & r_6 \\
+\end{bmatrix}$  
 
 """
 
@@ -260,7 +281,7 @@ Note that although we used absolute fitness values in our derivation of Price's 
 
 # ╔═╡ 30362c2d-d4d1-46c9-829b-d4f190ba3e51
 md"""
-### Consequences of Price's theorem for incompatible plasmid systems.
+### Consequences of Price's theorem for diversity-maintaining genetic elements (DGEs).
 
 Suppose $\overline\delta = 0$. This means that offspring do not systematically deviate from their parents in fitness, which implies no transmission bias in the plasmids, and implies that the environment is not changing (e.g. the antibiotic concentration has not changed).
 
@@ -297,14 +318,10 @@ This result gives the change in TCN over one generation, and shows that it depen
 # ╔═╡ de6a80c0-138f-4b5f-8c25-e7c29c18d3e3
 begin
 	## Define global constants.
-	MAX_TCN = 100 ## maximum attainable transposon copy number (TCN)
-	MAX_PCN = 80 ## maximum attainable plasmid copy number (TCN)
-	SIGMA = 15 ## set the width of the fitness function
-	R_MAX = 1 ## set the max growth rate.
-	K = 1/3 ## set the switching rate.
-	N_MAX = 10^10
-	TIMESPAN = 1000.0
-	D = 0.2
+	SIGMA = 10.0 ## set the width of the fitness function
+	R_MAX = 1.0 ## set the max growth rate.
+	TIMESPAN = 300.0
+	η₀ = 0.001 ## set the transposition rate η₀.
 end
 
 # ╔═╡ 80dd3108-c7aa-4f8b-9170-f61766bb18bc
@@ -314,7 +331,7 @@ function raw_quadratic_fitness_function(tetA_copy_number, Tet_conc, σ=SIGMA, r_
 	for simplicity, define a quadratic function whose peak is shifted
 	left or right based on Tet_conc.
 	"""
-	fitness = r_max - ((Tet_conc - tetA_copy_number)^2 / 2σ^2)
+	fitness = r_max - ((Tet_conc - tetA_copy_number)/2σ)^2
 	return fitness
 end
 
@@ -337,9 +354,6 @@ function fitness_function(tetA_copy_number, Tet_conc, σ=SIGMA, r_max=R_MAX)
 	"""
 	return gaussian_fitness_function(tetA_copy_number, Tet_conc, σ, r_max)
 end
-
-# ╔═╡ ec3a644b-6c89-40fb-a7e6-d8bcd0773be9
-fitness_function(20.0, 0.0)
 
 # ╔═╡ d3a7d259-da19-4cb0-b087-b5eba6c8c0d7
 function calc_mean_fitness(pop_vec, Tet_conc)
@@ -437,79 +451,177 @@ function calc_tetA_copy_number_fitness_covariance(pop_vec, Tet_conc)
 	return tetA_fitness_covariance
 end
 
-# ╔═╡ d4fda4d5-bddd-44f9-bd4a-4f3c4790cb44
-function SwitchingTridiagonalMatrix(max_tetA_copy_number=MAX_TCN, plasmid_max_copies=MAX_PCN)
+# ╔═╡ a17af1d7-d95f-4592-9e3b-c861c6bf6909
+function ZeroBasedHypergeometricSwitchingEntry(a, b, plasmid_copy_num)
+	""" Input parameters:
+	    a: number of tetA transposons in offspring.
+	    b: number of tetA transposons in parent.
+	    plasmid_copy_num: total plasmid copy number. """
+	## Hypergeometric(s, f, n)  
+	## Hypergeometric distribution for a population with s successes and f failures, and a sequence of n trials.	
+	## We add a factor of 2 to encode the assumption that the plasmid copy number
+	## doubles before cell division-- otherwise copy number gets trapped at 1 copy on the plasmid (since sampling without replacement).
+	return pdf(Hypergeometric(2b, 2(plasmid_copy_num - b), plasmid_copy_num), a)
+end
+
+# ╔═╡ e95789c3-4ff3-49a2-9bda-5199940e12f5
+function OneBasedHypergeometricSwitchingEntry(i, j, plasmid_copy_num)
+	""" Input parameters:
+	    i: row-index of hypergeometric switching matrix: 1 + number of tetA transposons in offspring.
+	    j: column-index of hypergeometric switching matrix: 1 + number of tetA transposons in parent.
+	    plasmid_copy_num: plasmid copy number. 
+
+	Use ZeroBasedHypergeometricSwitchingEntry() with this change-of-variables:
+	i = a + 1 ## a is number of tetA transposons in offspring.
+	j = b + 1 ## b is number of tetA transposons in parent.
+	
+	"""
+	return ZeroBasedHypergeometricSwitchingEntry(i-1,j-1,plasmid_copy_num)
+end
+
+# ╔═╡ a7e790c6-0ecc-4d37-b42e-6dbd2aa41750
+function ZeroBasedBinomialSwitchingEntry(a, b, plasmid_copy_num)
+	""" Input parameters:
+	    a: number of tetA transposons in offspring.
+	    b: number of tetA transposons in parent.
+	    plasmid_copy_num: total plasmid copy number. """
+	p = b/plasmid_copy_num ## probability of sampling a plasmid with the tetA transposon.
+	## 'a' is the number of times that the tetA-transposon plasmid picked from parent into offspring.
+	return pdf(Binomial(plasmid_copy_num, p), a)
+end
+
+# ╔═╡ e84ed4b0-09fe-44a7-a455-eee28c832efe
+function OneBasedBinomialSwitchingEntry(i, j, plasmid_copy_num)
+	""" Input parameters:
+	    i: row-index of binomial switching matrix: 1 + number of tetA transposons in offspring.
+	    j: column-index of binomial switching matrix: 1 + number of tetA transposons in parent.
+	    plasmid_copy_num: plasmid copy number. 
+
+	Use ZeroBasedBinomialSwitchingEntry() with this change-of-variables:
+	i = a + 1 ## a is number of tetA transposons in offspring.
+	j = b + 1 ## b is number of tetA transposons in parent.
+	
+	"""
+	return ZeroBasedBinomialSwitchingEntry(i-1,j-1,plasmid_copy_num)
+end
+
+# ╔═╡ 6e506597-b16d-411d-8da9-bea9c1036344
+PCNSlider = @bind PCN Slider(1:100, default=30, show_value=true)
+
+# ╔═╡ 8baba499-1c63-458a-8f7d-542400578aa2
+function SwitchingBinomialMatrix(plasmid_copy_num=PCN, η=η₀)
 	""" We set a final absorbing state in the Markov chain,
 	based on maximum plasmid copy number (like 3 for SC101, 2000 for pUC)."""
-	n = max_tetA_copy_number
+	
+	## max transposon copy number is plasmid copy number + one chromosomal copy.
+	max_TCN = plasmid_copy_num + 1
+
+	## initialize as an m x m identity matrix with ones on the diagonal.
+	switching_matrix = Matrix{BigFloat}(I, max_TCN, max_TCN)
+
+	## update binomial entries (overwrite ones and zeros as needed).
+	for i in 1:max_TCN
+		for j in 1:max_TCN
+			if (i <= max_TCN) && (j <= max_TCN)
+				switching_matrix[i,j] = OneBasedBinomialSwitchingEntry(i,j,plasmid_copy_num)
+			end
+		end
+	end
+
+	## now add in transpositions from chromosome to plasmid in the zero-plasmid state.
+	switching_matrix[1,1] = 1 - η
+	switching_matrix[2,1] = η
+	
+	return(switching_matrix)
+end
+
+# ╔═╡ b7d3b0d8-f26f-4c83-b0df-2ffc48c0d31b
+function SwitchingHypergeometricMatrix(plasmid_copy_num=PCN, η=η₀)
+	""" We set a final absorbing state in the Markov chain,
+	based on maximum plasmid copy number (like 3 for SC101, 2000 for pUC)."""
+	
+	## max transposon copy number is plasmid copy number + one chromosomal copy.
+	max_TCN = plasmid_copy_num + 1
+
+	## initialize as an m x m identity matrix with ones on the diagonal.
+	switching_matrix = Matrix{BigFloat}(I, max_TCN, max_TCN)
+
+	## update binomial entries (overwrite ones and zeros as needed).
+	for i in 1:max_TCN
+		for j in 1:max_TCN
+			if (i <= max_TCN) && (j <= max_TCN)
+				switching_matrix[i,j] = OneBasedHypergeometricSwitchingEntry(i,j,plasmid_copy_num)
+			end
+		end
+	end
+
+	## now add in transpositions from chromosome to plasmid in the zero-plasmid state.
+	switching_matrix[1,1] = 1 - η
+	switching_matrix[2,1] = η
+	
+	return(switching_matrix)
+end
+
+# ╔═╡ f88cb5f1-1bf2-4f20-87f4-d3b5e6c71553
+function SwitchingTridiagonalMatrix(plasmid_copy_num=PCN)
+	""" We set a final absorbing state in the Markov chain,
+	based on maximum plasmid copy number (like 3 for SC101, 2000 for pUC)."""
+	## max transposon copy number is plasmid copy number + one chromosomal copy.
+	max_TCN = plasmid_copy_num + 1
+	n = max_TCN ## syntactic sugar
+	K = 0.001
 	superdiag = vcat([K for i in 2:n-1], 0)
 	diag = vcat(-K, [-2K for i in 1:n-2], 1.0)
 	subdiag = [K for i in 1:n-1]
-	
-	switching_matrix = Tridiagonal(subdiag, diag, superdiag)
+	## have to add an identity matrix to get a stochastic mutation matrix
+	switching_matrix = Tridiagonal(subdiag, diag, superdiag) + I(n)
 	return(switching_matrix)
 end
 
-# ╔═╡ 023a8f11-e921-47a5-bef2-5b2c8a50efe6
-function SwitchingTridiagonalMatrixWithAbsorbingState(max_tetA_copy_number=MAX_TCN, plasmid_max_copies=MAX_PCN)
-	""" We set a final absorbing state in the Markov chain,
-	based on maximum plasmid copy number (like 3 for SC101, 2000 for pUC)."""
-	n = max_tetA_copy_number
-	@assert plasmid_max_copies <= n "ERROR: plasmid_max_copies out of bounds"
-	k = plasmid_max_copies ## shorthand notation.
-	superdiag = [i < k ? K : 0.0 for i in 2:n]
-	diag = vcat(-K, [-2K for i in 2:k-1], [0.0 for i in k:n])
-	subdiag = [i < k ? K : 0.0 for i in 1:n-1]
-	
-	switching_matrix = Tridiagonal(subdiag, diag, superdiag)
-	return(switching_matrix)
-end
+# ╔═╡ 0e7d302b-3eab-4674-9a44-3b4bf2f5e7de
+md""" ##### sometimes the PCN variable does not update right when the slider is changed-- we double check the value of the PCN variable here."""
 
-# ╔═╡ e86573e9-faed-46a3-a51f-f6995dec2ca0
-size(SwitchingTridiagonalMatrix(MAX_TCN, MAX_PCN))[1]
+# ╔═╡ eb4654c5-59c5-4526-a7d1-9727e1c7b42b
+PCN
 
-# ╔═╡ 5333a3f8-1310-4839-b01d-00887986ee08
-## Define the Dilution function.
-dil = pop_vec -> sum(pop_vec) > N_MAX ? sum(pop_vec) - N_MAX : 0
+# ╔═╡ 677a6cbb-6359-4401-a982-105f8b84e707
+MAX_TCN = PCN + 1 ## max transposon copy number is tied to plasmid_copy_number
 
 # ╔═╡ 8051d7a7-67fe-4c0c-b55d-0e0d1f424723
-TetConcSlider = @bind TET_CONC Slider(0:100, default=20, show_value=true)
+TetConcSlider = @bind TET_CONC Slider(0:50, default=15, show_value=true)
 
 # ╔═╡ 71f13821-0c57-4320-b347-88963ed9be39
-function SelectionDiagonalMatrix(max_tetA_copy_number=MAX_TCN, Tet_conc=TET_CONC)
+function SelectionDiagonalMatrix(plasmid_copy_num=PCN, Tet_conc=TET_CONC)
+	
+	## max transposon copy number is plasmid copy number + one chromosomal copy.
+	max_TCN = plasmid_copy_num + 1
+	
 	## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
 	## with a minimum of 1 copy (on the chromosome).
-	tetA_classes = collect(1:max_tetA_copy_number)
+	tetA_classes = collect(1:max_TCN)
+	
 	## get the fitness for each fitness class (defined by tetA copy number).
-	growth_rate_vec = fitness_function.(tetA_classes, Tet_conc)
+	## use BigFloats to get better numerical precision.
+	growth_rate_vec = big.(fitness_function.(tetA_classes, Tet_conc))
 	diagonal_growth_matrix = Diagonal(growth_rate_vec)
 	return(diagonal_growth_matrix)
 end
 
-# ╔═╡ d0bd89fe-234c-426d-9d72-feb708c19e58
-function MutSelMatrix1(max_tetA_copy_number=MAX_TCN, plasmid_max_copies=MAX_PCN, Tet_conc=TET_CONC)
-	mutsel_matrix = SelectionDiagonalMatrix(max_tetA_copy_number, Tet_conc) + SwitchingTridiagonalMatrix(max_tetA_copy_number, plasmid_max_copies) 
+# ╔═╡ 203c6014-8c3b-48d4-9341-a81b746bb0d5
+function MutSelMatrix(plasmid_copy_num=PCN, Tet_conc=TET_CONC)
+	mutsel_matrix = SwitchingBinomialMatrix(plasmid_copy_num) * SelectionDiagonalMatrix(plasmid_copy_num, Tet_conc)
 	return(mutsel_matrix)
 end
 
-# ╔═╡ 4b630f32-06e1-40a0-af3f-59febaef5b93
-function MutSelMatrix2(max_tetA_copy_number=MAX_TCN, plasmid_max_copies=MAX_PCN, Tet_conc=TET_CONC)
-	mutsel_matrix = SelectionDiagonalMatrix(max_tetA_copy_number, Tet_conc) + SwitchingTridiagonalMatrixWithAbsorbingState(max_tetA_copy_number, plasmid_max_copies)  
+# ╔═╡ dceafa2f-ba3f-4302-8b46-558da46b0842
+function MutSelMatrix2(plasmid_copy_num=PCN, Tet_conc=TET_CONC)
+	mutsel_matrix = SwitchingHypergeometricMatrix(plasmid_copy_num) * SelectionDiagonalMatrix(plasmid_copy_num, Tet_conc)
 	return(mutsel_matrix)
 end
 
-# ╔═╡ 6497ec3a-39e0-498e-9462-14ed1046a8a0
-function MutSelMatrix3(max_tetA_copy_number=MAX_TCN, plasmid_max_copies=MAX_PCN, Tet_conc=TET_CONC)
-
-	## have to add an identity matrix to get a stochastic mutation matrix
-	mutsel_matrix = SelectionDiagonalMatrix(max_tetA_copy_number, Tet_conc) * 
-	(I(max_tetA_copy_number) + SwitchingTridiagonalMatrix(max_tetA_copy_number, plasmid_max_copies))
-	return(mutsel_matrix)
-end
-
-# ╔═╡ faa9680c-22b0-4ca7-a1ad-8d795fa0e8ae
-function MutSelMatrix4(max_tetA_copy_number=MAX_TCN, plasmid_max_copies=MAX_PCN, Tet_conc=TET_CONC)
-	mutsel_matrix = SelectionDiagonalMatrix(max_tetA_copy_number, Tet_conc) * (I(max_tetA_copy_number) + SwitchingTridiagonalMatrixWithAbsorbingState(max_tetA_copy_number, plasmid_max_copies))
+# ╔═╡ 07b8df13-6a50-4bd2-9497-4d6be0c9c416
+function MutSelMatrix3(plasmid_copy_num=PCN, Tet_conc=TET_CONC)
+	mutsel_matrix = SwitchingTridiagonalMatrix(plasmid_copy_num) * SelectionDiagonalMatrix(plasmid_copy_num, Tet_conc)
 	return(mutsel_matrix)
 end
 
@@ -522,58 +634,151 @@ begin
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
 
-# ╔═╡ 21ab9391-bd06-4629-ab3b-88487713d6fe
-function odefunc1(du, u, p, t)
-	xtotal = sum(u)
-	## Define the ODE system
-	A = MutSelMatrix1()
-    du .= A * u * (1-xtotal/N_MAX) - D * u
+# ╔═╡ 0a7d5c73-03e1-4827-9391-fbfcfebe3e5d
+md""" ### let's examine the eigenvalues and eigenvectors of the MutSel matrix, as PCN is varied. """
+
+# ╔═╡ 12ef05f2-e394-49ab-bbb5-4b147dfbe6e2
+md""" See page 35 of Nowak's book, Evolutionary Dynamics to see discussion of eigenanalysis and analytical solution of the quasispecies equation, and the original 1988 quasispecies paper by Eigen, McCaskill, and Schuster. \
+\
+In addition, note that the Kussell and Leibler (2005) Science paper also does an eigenanalysis of the growth-switching matrix in their paper, and has a time-lag interpretation of their core result on Lyapunov exponents (see endnotes 23, 24, 25 in their paper).
+
+"""
+
+# ╔═╡ 28ab34b9-19c6-4563-857e-334c0cbf1f92
+function get_eigenvalues(A)
+	## Compute eigenvalues and eigenvectors
+	eigen_result = eigen(A)
+
+	# Extract eigenvalues
+	λ = eigen_result.values
+	return λ
 end
 
-# ╔═╡ 9e2ff9ae-76ee-4dfe-8ac0-296fa9dd160a
-function odefunc2(du, u, p, t)
-	xtotal = sum(u)
-	## Define the ODE system
-	A = MutSelMatrix2()
-    du .= A * u * (1-xtotal/N_MAX) - D * u
+# ╔═╡ c75c9335-0b2c-4ade-b68c-564378758fe7
+function get_eigenvectors(A)
+	## Compute eigenvalues and eigenvectors
+	eigen_result = eigen(A)
+
+	# Extract eigenvectors
+	V = eigen_result.vectors
+	return V
+end
+
+# ╔═╡ baf5e6bd-2e06-4b38-b7c9-4bbb73eadd39
+function StudyEigenBehavior(A)
+
+	# Compute eigenvalues and eigenvectors
+	eigen_result = eigen(A)
+
+	# Extract eigenvalues and eigenvectors
+	λ = eigen_result.values
+	V = eigen_result.vectors
+
+	# Diagonalize the matrix
+	D = diagm(λ)
+
+	# Verify the diagonalization A = V * D * V^(-1)
+	A_reconstructed = V * D * inv(V)
+
+	# Display the results
+	println("Original matrix A:")
+	println(A)
+	println("\nEigenvalues λ:")
+	println(λ)
+	println("\nEigenvectors V:")
+	println(V)
+	println("\nDiagonal matrix D:")
+	println(D)
+	println("\nReconstructed matrix A = V * D * V^(-1):")
+	println(A_reconstructed)
+	println("check A against A_reconstructed")
+	
+	return(λ, V, D, A_reconstructed)
+end
+
+# ╔═╡ a2730ca1-93a9-44d0-ac30-356fb2822ee8
+begin
+	testmatrix1 = MutSelMatrix(30, 15)
+	testmatrix1_eigenvals = get_eigenvalues(testmatrix1)
+	testmatrix1_eigenvals
+end
+
+# ╔═╡ 6e9b91ad-d221-462c-ae1a-378a74dbcde3
+begin
+		testmatrix1_eigenvectors = get_eigenvectors(testmatrix1)
+		testmatrix1_eigenvectors[:,31]
+end
+
+# ╔═╡ ac981085-9449-4661-8491-8556ec48db16
+begin
+	testmatrix2 = MutSelMatrix(20, 15)
+	testmatrix2_eigenvals = get_eigenvalues(testmatrix2)
+	testmatrix2_eigenvals
+end
+
+# ╔═╡ 281d404a-fcbb-4340-b2c9-8f1fcfafe6a4
+begin
+	testmatrix3 = MutSelMatrix(15, 15)
+	testmatrix3_eigenvals = get_eigenvalues(testmatrix3)
+	testmatrix3_eigenvals
 end
 
 # ╔═╡ 6b6bd4aa-dd45-4a11-b1a6-b1d6737c659c
-md"""
-#### Let's define a version of the quasispecies equation here.
-"""
+md""" #### Let's define the quasispecies equation here. """
 
-# ╔═╡ 95f8f5c6-6e93-4741-8803-b22acbe5b347
+# ╔═╡ 0290797d-c38b-4e36-9fbf-3396adb0e14b
+function normalize_vector!(u)
+    total = sum(big.(u))
+    if total != 0
+        u .= u / total
+    end
+end
+
+# ╔═╡ 71876f69-ed9b-44f5-8189-1c332f002c72
 function quasispecies_odefunc(du, u, p, t)
-	xtotal = sum(u)
+
+	## pcn and tet_conc needs to be passed in as parameters.
+	pcn, tet_conc = p
+	
 	## Define the ODE system
-	A = MutSelMatrix3()
-	## Tet_conc needs to be passed in as a parameter.
-	Tet_conc = TET_CONC
-	## calculate mean fitness as a dilution rate.
-	wbar = calc_mean_fitness(u, Tet_conc)
-    du .= A * u - wbar * u
+	A = MutSelMatrix(pcn, tet_conc)
+
+	## Enforce positivity constraint
+    u .= max.(u, 0.0)
+
+	## Normalize the vector to ensure it sums to one
+	normalize_vector!(u)
+	
+	## subtract the mean population growth during this dt interval.
+	Au = A*u ## sugar to avoid recomputation
+	du .= Au - sum(Au) * u
 end
 
 # ╔═╡ a8267ba1-a248-46bb-a69d-6494210bc7fa
 begin
 	## parameters used across time course simulations.
-	initial_pop_vec = zeros(MAX_TCN)
+	initial_pop_vec = zeros(BigFloat, MAX_TCN)
 	## initialize the population with one cell with 1 tetA copy.
-	initial_pop_vec[1] = 1
+	initial_pop_vec[1] = big"1.0"
+
 	## Define the time span
 	tspan = (0.0, TIMESPAN)  # Replace with your desired time span
 end
 
-# ╔═╡ f9eafce8-6094-49d4-9918-4aa784d97ea2
-initial_pop_vec
-
-# ╔═╡ 033306f7-1c72-49fa-a5f1-b8ffbbc07c54
-## debugging the matrix equation.
-B = MutSelMatrix3()
-
-# ╔═╡ 18426803-10a3-4228-8693-151351e28f98
-B*initial_pop_vec
+# ╔═╡ 1e7f6493-9f61-4ebc-88de-292e3119e880
+function check_stochastic_matrix(my_matrix)
+	## this function is for debugging the stochastic switching matrix.
+	num_columns = size(my_matrix, 2)
+	for col in 1:num_columns
+        column_sum = sum(my_matrix[:, col])
+        println(column_sum)
+        if isapprox(column_sum, 1.0)
+            println("Sum of column $col is 1.0")
+        else
+            println("Sum of column $col is not equal to 1.0")
+        end
+    end
+end
 
 # ╔═╡ 48af8690-f8ac-4a99-bb25-672fc4fdd40f
 md""" ## model population dynamics under constant [Tet]."""
@@ -583,14 +788,14 @@ begin
 	## run the simulation for constant [Tet] concentration.
 	
 	## Create an ODEProblem
-	prob = ODEProblem(quasispecies_odefunc, initial_pop_vec, tspan)
+	prob = ODEProblem(quasispecies_odefunc, initial_pop_vec, tspan, (PCN, TET_CONC))
 
 	## Solve the ODE system
-	sol = solve(prob, Tsit5())
-
+	sol1 = solve(prob, Tsit5())
+	
 	## Extract the solution
-	final_t1 = sol.t
-	final_x1 = sol.u
+	final_t1 = sol1.t
+	final_x1 = sol1.u
 end
 
 # ╔═╡ 9897d389-bd11-40bd-ab8a-3d2595458eec
@@ -600,7 +805,7 @@ begin
 	## Example for subpopulation 2: x2 = [u[2] for u in final_x]
 
 	# Initialize an empty vector to store vectors
-	subpopulation_time_courses = Vector{Vector{Float64}}()
+	subpopulation_time_courses = Vector{Vector{BigFloat}}()
 	num_subpopulations = length(initial_pop_vec)
 	for i in 1:num_subpopulations
 		cur_time_course = [u[i] for u in final_x1]
@@ -622,6 +827,28 @@ let
 	timecourse_plot
 end
 
+# ╔═╡ bd32465f-f76f-4874-bffb-c4bdeda0524b
+let
+	## plot the first component over time
+	x_2 = subpopulation_time_courses[2]
+	timecourse_plot = plot(final_t1, x_2, label="2", xlabel="Time", ylabel="Subpopulation size")
+	
+	## plot the remaining components over time.
+	for i in 3:(num_subpopulations)
+		x_i = subpopulation_time_courses[i]
+		plot!(timecourse_plot, final_t1, x_i, label=string(i))
+	end
+	timecourse_plot
+end
+
+# ╔═╡ 1b8f574b-61a3-408a-ba06-f8a9f2f17529
+let
+	## plot the total population size over time.
+	total_population_time_course = reduce(+, subpopulation_time_courses)
+	
+	plot(final_t1, total_population_time_course, xlabel="Time", ylabel="Total population size")
+end
+
 # ╔═╡ 1462bf95-6e84-453e-bd60-5068cdc48b99
 begin ## let's make a matrix saving the population dynamics.
 
@@ -635,16 +862,95 @@ begin ## let's make a matrix saving the population dynamics.
 	end
 end
 
+# ╔═╡ cfe3279d-2ef4-4131-b2b2-e56fb46eb1bb
+final_t1
+
 # ╔═╡ a783d983-03d1-42cc-a3b5-fdd755734dfc
-time_step_slider = @bind cur_timestep Slider(1:length(final_x1), default=1, show_value=true )
+time_step_slider = @bind cur_timestep Slider(1:length(final_x1), default=1, show_value=true)
 
 # ╔═╡ 965b6b02-2866-4350-adb2-85c38784542f
 let
 	xvec = collect(1:length(final_x1[1]))
-	plot(xvec, result_matrix[cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution", ylims=[0,1])
+	plot(xvec, result_matrix[cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution")#, ylims=[0,1])
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
+
+# ╔═╡ 01f15fec-384a-4d9d-bf18-aa0bded42c57
+md"""
+##### calculate the response time in the constant [Tet] population.
+
+We define the response time as the time for the system to hit equilibrium.
+
+"""
+
+# ╔═╡ 3a4a9f8a-672a-4723-bfa1-db9b9b64837b
+function calc_response_time(sol)
+	response_time = -1
+	prev_vec = sol1(1)
+	for t in collect(2:TIMESPAN)
+		cur_vec = sol1(t)
+		diff_vec = cur_vec - prev_vec
+		diff_vec_length = sqrt(diff_vec' * diff_vec)
+		if diff_vec_length < 1e-4
+			response_time = t
+			break
+		end
+		prev_vec = cur_vec
+	end
+	return response_time
+end
+
+# ╔═╡ 49bdc6e5-1a08-4c0a-a54b-39d59e7d94e3
+md""" ### vary plasmid copy number (PCN) and calculate response times."""
+
+# ╔═╡ d4040455-9618-47a9-8675-77be1205d993
+begin
+	## PCN == 20
+	initial_pop_vec2 = zeros(BigFloat, 20+1)
+	initial_pop_vec2[1] = big"1.0"
+	prob2 = ODEProblem(quasispecies_odefunc, initial_pop_vec2, tspan, (20, TET_CONC))
+	sol2 = solve(prob2, Tsit5())
+
+	## PCN == 15
+	initial_pop_vec3 = zeros(BigFloat, 15+1)
+	initial_pop_vec3[1] = big"1.0"
+	prob3 = ODEProblem(quasispecies_odefunc, initial_pop_vec3, tspan, (15, TET_CONC))
+	sol3 = solve(prob3, Tsit5())
+
+	## PCN == 10
+	initial_pop_vec4 = zeros(BigFloat, 10+1)
+	initial_pop_vec4[1] = big"1.0"
+	prob4 = ODEProblem(quasispecies_odefunc, initial_pop_vec4, tspan, (10, TET_CONC))
+	sol4 = solve(prob4, Tsit5())
+
+	## PCN == 5
+	initial_pop_vec5 = zeros(BigFloat, 5+1)
+	initial_pop_vec5[1] = big"1.0"
+	prob5 = ODEProblem(quasispecies_odefunc, initial_pop_vec5, tspan, (5, TET_CONC))
+	sol5 = solve(prob5, Tsit5())
+
+	## PCN == 1
+	initial_pop_vec6 = zeros(BigFloat, 1+1)
+	initial_pop_vec6[1] = big"1.0"
+	prob6 = ODEProblem(quasispecies_odefunc, initial_pop_vec6, tspan, (1, TET_CONC))
+	sol6 = solve(prob6, Tsit5())
+end
+
+# ╔═╡ 8e015be1-e775-4774-89c3-c75e315271b9
+calc_response_time(sol1)
+
+# ╔═╡ 5253a211-4beb-4dbe-ad57-9ddbf7dcc673
+calc_response_time(sol2)
+
+# ╔═╡ fba1b480-3ad7-4a27-9faf-4023fa53e4d5
+calc_response_time(sol3)
+
+# ╔═╡ e75c3b19-cfb0-4ca6-8b8c-8c6a522fc4d5
+calc_response_time(sol4)
+
+# ╔═╡ ebd4d3f1-2c0f-4923-8d38-be306b0ec64d
+calc_response_time(sol5)
 
 # ╔═╡ 922f75f1-3697-44a8-a0b1-039754718023
 md""" ##### calculate mean fitness in the constant [Tet] population."""
@@ -657,6 +963,11 @@ mean_fitness_vec1 = []
 		cur_mean_fitness = calc_mean_fitness(cur_pop_vec, TET_CONC)
 		append!(mean_fitness_vec1, cur_mean_fitness)
 	end
+end
+
+# ╔═╡ b7ad5c85-9dd4-493b-aee1-503c0b1594f9
+let
+	plot(final_t1, mean_fitness_vec1, label="Mean fitness", xlabel="Time", ylabel="Mean fitness")
 end
 
 # ╔═╡ 5ff4baaa-37f6-4559-a461-2d71804b39ff
@@ -690,6 +1001,12 @@ fitness_variance_vec1 = []
 	end
 end
 
+# ╔═╡ 16e767a4-7f12-4081-b425-522f995c49c9
+md""" ###### scale fitness variance by mean fitness to examine Fisher's fundamental theorem of natural selection. """
+
+# ╔═╡ 5df241ae-8db6-477b-b4c1-e3d100af2701
+scaled_fitness_variance_vec1 = fitness_variance_vec1 .* [BigFloat(1.0)/BigFloat(x) for x in mean_fitness_vec1]
+
 # ╔═╡ eab8e464-dd8a-48d5-bfde-52a11d3b6d58
 let
 	plot(final_t1, fitness_variance_vec1, label="Fitness variance", xlabel="Time", ylabel="Fitness variance")
@@ -710,7 +1027,7 @@ d_mean_fitness_vec1 = [0; diff(mean_fitness_vec1)]
 
 # ╔═╡ 4627a6b9-7607-4941-bd4b-ce48a72152a2
 let
-	plot(final_t1, fitness_variance_vec1, label="Fitness variance")
+	plot(final_t1, scaled_fitness_variance_vec1, label="Scaled Fitness variance")
 	plot!(final_t1, d_mean_fitness_vec1, label="Rate of change of mean fitness", xlabel="Time", ylabel="Fitness variance and rate of mean fitness change")
 end
 
@@ -735,9 +1052,18 @@ begin
 	end
 end
 
+# ╔═╡ 4e533164-9b01-401b-b4ab-47dce2cedd30
+scaled_copy_num_covariance_vec1 = copy_num_covariance_vec1 .* [BigFloat(1.0)/BigFloat(x) for x in mean_fitness_vec1]
+
 # ╔═╡ 78a55b31-9a12-48d8-ae19-368a9aa2090b
 let
 	plot(final_t1, copy_num_covariance_vec1, label="tetA copy number fitness covariance")
+	plot!(final_t1, d_mean_copy_num_vec1, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative and variance")
+end
+
+# ╔═╡ 3d32cc78-c0ff-4449-9042-8fd86a31f910
+let
+	plot(final_t1, scaled_copy_num_covariance_vec1, label="scaled tetA copy number fitness covariance")
 	plot!(final_t1, d_mean_copy_num_vec1, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative and variance")
 end
 
@@ -751,29 +1077,33 @@ mean_copy_num_vec1
 md""" ## model the Tet pulse conditions of the Darwin experiment."""
 
 # ╔═╡ 0c1b9281-e87e-4017-8ffa-5b0bde454c1b
-## We model [Tet] pulses over time by dividing the current time by 100, and
+## We model [Tet] pulses over time by dividing the current time by 20, and
 ## setting [Tet] on if in the first half.
-TetPulseFunction = t -> mod(t,400) < 200 ? TET_CONC : 0
-
-# ╔═╡ ade78925-2e39-4df8-a361-06c246dd508b
-function pulse_odefunc(du, u, p, t)
-	## Define the ODE system.
-	xtotal = sum(u)
-	## p is a TetPulseFunction of time that is passed in as a parameter.
-	cur_tet_conc = p(t)
-	A = MutSelMatrix1(MAX_TCN, MAX_PCN, cur_tet_conc)
-    du .= A * u * (1-xtotal/N_MAX) - D * u
-end
+TetPulseFunction = t -> mod(t,100) < 50 ? TET_CONC : 0
 
 # ╔═╡ 21adab19-640d-4aa2-8791-805fa8512f75
 function pulse_quasispecies_odefunc(du, u, p, t)
 	## Define the ODE system.
 	## p is a TetPulseFunction of time that is passed in as a parameter.
 	cur_tet_conc = p(t)
-	A = MutSelMatrix1(MAX_TCN, MAX_PCN, cur_tet_conc)
-	## calculate mean fitness as a dilution rate.
-	wbar = calc_mean_fitness(u, cur_tet_conc)
-    du .= A * u - wbar * u
+	A = MutSelMatrix(PCN, cur_tet_conc)
+
+	## set subpopulations smaller than ϵ to zero, to model extinction.
+	##ϵ = 1e-7
+	## use a one-line lambda function.
+	##set_values_less_than_ϵ_to_zero = x -> ifelse(x < ϵ, 0.0, x)
+	##u .= set_values_less_than_ϵ_to_zero.(u)
+	
+	## Enforce positivity constraint
+    u .= max.(u, 0.0)
+
+	## Normalize the vector to ensure it sums to one
+	normalize_vector!(u)
+	
+	## This is more stable-- the numerical error in the fitness calculation
+	## is large enough to cause errors.
+	Au = A*u ## sugar to avoid recomputation
+    du .= Au - sum(Au) * u
 end
 
 # ╔═╡ c938a144-9f81-45e3-a012-e52134d49c7d
@@ -781,14 +1111,14 @@ begin
 	## run the simulation for pulses of [Tet] concentration.
 	
 	## Create an ODEProblem
-	prob2 = ODEProblem(pulse_quasispecies_odefunc, initial_pop_vec, tspan, TetPulseFunction)
+	pulse_prob = ODEProblem(pulse_quasispecies_odefunc, initial_pop_vec, tspan, TetPulseFunction)
 
 	## Solve the ODE system
-	sol2 = solve(prob2, Tsit5())
+	pulse_sol = solve(pulse_prob, Tsit5())
 
 	## Extract the solution
-	final_t2 = sol2.t
-	final_x2 = sol2.u
+	pulse_final_t = pulse_sol.t
+	pulse_final_x = pulse_sol.u
 end
 
 # ╔═╡ 846f1cb1-cb33-4052-8fcd-9a4b3b63f5cd
@@ -796,51 +1126,56 @@ begin ## let's make a matrix saving the population dynamics.
 
 	pulse_result_matrix = [] ## Initialize an empty matrix
 
-	for i in 1:length(final_x2)
-		total_N = sum(final_x2[i])
-		cur_frequency_vec = final_x2[i]/total_N
+	for i in 1:length(pulse_final_x)
+		total_N = sum(pulse_final_x[i])
+		cur_frequency_vec = pulse_final_x[i]/total_N
 		##concatenate the state vector horizontally into the pulse_result_matrix
 		pulse_result_matrix = push!(pulse_result_matrix, cur_frequency_vec)
 	end
 end
 
 # ╔═╡ f987af28-9868-4ff4-8734-8ea10a4458c7
-pulse_time_step_slider = @bind pulse_cur_timestep Slider(1:length(final_x2), default=1, show_value=true)
+pulse_time_step_slider = @bind pulse_cur_timestep Slider(1:length(pulse_final_x), default=1, show_value=true)
 
 # ╔═╡ 4f2f25ab-e5c7-4d7a-a2c9-9d366b523c9b
 let
-	xvec2 = collect(1:length(final_x2[1]))
-	plot(xvec2, pulse_result_matrix[pulse_cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution", ylims=[0,1])
+	pulse_xvec = collect(1:length(pulse_final_x[1]))
+	plot(pulse_xvec, pulse_result_matrix[pulse_cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution") ##, ylims=[0,1])
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
 
+# ╔═╡ 1d80ba73-a6aa-49fe-98b0-9a6f621a0c3a
+pulse_result_matrix[30]
+
 # ╔═╡ e392d94e-5e8c-46d3-8b9a-9fcbb0d9d1b5
 md""" ### plot the antibiotic pulse regime over time."""
 
-# ╔═╡ 4d47b937-4a39-41b0-8a70-21a4b97c529e
-let
-	tvec = collect(1:TIMESPAN)
-	plot(tvec, [TetPulseFunction(t) for t in tvec],label="Tet pulse regime", xlabel="Time", ylabel="Tet concentration")
+# ╔═╡ 08ac97bb-c2e9-416b-beee-927e5b9c0fc5
+begin
+	tet_pulse_vec = [TetPulseFunction(t) for t in pulse_final_t]
 end
+
+# ╔═╡ 4d47b937-4a39-41b0-8a70-21a4b97c529e
+plot(pulse_final_t, tet_pulse_vec,label="Tet pulse regime", xlabel="Time", ylabel="Tet concentration")
 
 # ╔═╡ 98d9548b-fa2e-4cf6-8fa0-53ae2e4d5c99
 md""" ##### calculate mean fitness in the population."""
 
 # ╔═╡ f0a8f82b-e82b-4d8e-b460-3d9ab494cb22
 begin
-mean_fitness_vec2 = [] 
+pulse_mean_fitness_vec = [] 
 	for i in 1:length(pulse_result_matrix)
 		cur_pop_vec = pulse_result_matrix[i]
-		cur_tet_conc = TetPulseFunction(final_t2[i])
+		cur_tet_conc = TetPulseFunction(pulse_final_t[i])
 		cur_mean_fitness = calc_mean_fitness(cur_pop_vec, cur_tet_conc)
-		append!(mean_fitness_vec2, cur_mean_fitness)
+		append!(pulse_mean_fitness_vec, cur_mean_fitness)
 	end
 end
 
 # ╔═╡ cbc3a1b7-4114-4f4c-a9cc-ab9f52ec4453
 let
-	plot(final_t2, mean_fitness_vec2, label="Mean fitness", xlabel="Time", ylabel="Mean fitness")
+	plot(pulse_final_t, pulse_mean_fitness_vec, label="Mean fitness", xlabel="Time", ylabel="Mean fitness")
 end
 
 # ╔═╡ 39fd8d0b-60e1-485e-920d-9fc2d4402bcd
@@ -848,17 +1183,17 @@ md""" ##### calculate mean copy number in the population."""
 
 # ╔═╡ 2eea090c-d8e7-4efa-a575-96a9a3daf9e2
 begin
-	mean_copy_num_vec2 = []
-	for i in 1:length(final_x2)
+	pulse_mean_copy_num_vec = []
+	for i in 1:length(pulse_final_x)
 		cur_pop_vec = pulse_result_matrix[i]
 		cur_mean_copy_number = calc_mean_tetA_copy_number(cur_pop_vec)
-		append!(mean_copy_num_vec2, cur_mean_copy_number)
+		append!(pulse_mean_copy_num_vec, cur_mean_copy_number)
 	end
 end
 
 # ╔═╡ 5d868baf-6e1e-4cbe-ad62-67344f6d0fe7
 let
-	plot(final_t2, mean_copy_num_vec2, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+	plot(pulse_final_t, pulse_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
 end
 
 # ╔═╡ cd2b0606-26ac-4a20-9f7d-dd5cd7bedfcb
@@ -866,24 +1201,24 @@ md""" ##### calculate fitness variance in the population."""
 
 # ╔═╡ 234d1cc2-6be6-4712-a62d-ef8d6b3f4f14
 begin
-fitness_variance_vec2 = [] 
-	for i in 1:length(final_x2)
+pulse_fitness_variance_vec = [] 
+	for i in 1:length(pulse_final_x)
 		cur_pop_vec = pulse_result_matrix[i]
-		cur_tet_conc = TET_CONC##tet_pulse_vec[i]
+		cur_tet_conc = tet_pulse_vec[i]
 		cur_fitness_variance = calc_fitness_variance(cur_pop_vec, cur_tet_conc)
-		append!(fitness_variance_vec2, cur_fitness_variance)
+		append!(pulse_fitness_variance_vec, cur_fitness_variance)
 	end
 end
 
 # ╔═╡ 92272b01-1866-4125-b334-e8a3f1de2f4e
 let
-	plot(final_t2, fitness_variance_vec2, label="Fitness variance", xlabel="Time", ylabel="Fitness variance")
+	plot(pulse_final_t, pulse_fitness_variance_vec, label="Fitness variance", xlabel="Time", ylabel="Fitness variance")
 end
 
 # ╔═╡ 2c878d03-cf1f-437b-a50c-a31776fac4c9
 let
-	plot(final_t2, fitness_variance_vec2, label="Fitness variance")
-	plot!(final_t2, mean_fitness_vec2, label="Mean fitness", xlabel="Time", ylabel="Fitness mean and variance")
+	plot(pulse_final_t, pulse_fitness_variance_vec, label="Fitness variance")
+	plot!(pulse_final_t, pulse_mean_fitness_vec, label="Mean fitness", xlabel="Time", ylabel="Fitness mean and variance")
 end
 
 # ╔═╡ d1379ccf-979c-4fc5-a568-272aab2ab025
@@ -891,13 +1226,12 @@ md""" ##### calculate rate of mean fitness increase in the population."""
 
 # ╔═╡ 9fe8cd10-bd4b-4b4c-8534-59fad9a89e89
 ## append a zero to the front of the difference vector.
-d_mean_fitness_vec2 = [0; diff(mean_fitness_vec2)]
+d_pulse_mean_fitness_vec = [0; diff(pulse_mean_fitness_vec)]
 
 # ╔═╡ 2503b3f3-e53a-4e43-a5b7-f2c2bfff1654
 let
-	plot(final_t2, fitness_variance_vec2, label="Fitness variance")
-	plot!(final_t2, d_mean_fitness_vec2, label="Rate of change of mean fitness", xlabel="Time", ylabel="Fitness variance\nand rate of mean fitness change")
-	#ylims!(-0.1, 0.075)
+	plot(pulse_final_t, pulse_fitness_variance_vec, label="Fitness variance")
+	plot!(pulse_final_t, d_pulse_mean_fitness_vec, label="Rate of change of mean fitness", xlabel="Time", ylabel="Fitness variance\nand rate of mean fitness change")
 end
 
 # ╔═╡ 5fa6f2d7-fa09-41c8-b08c-561907be01ae
@@ -905,7 +1239,7 @@ md""" ##### calculate rate of copy number change in the population."""
 
 # ╔═╡ 47c37b1b-2692-4e37-84cd-ae43d3195dda
 ## append a zero to the front of the difference vector.
-d_mean_copy_num_vec2 = [0; diff(mean_copy_num_vec2)]
+d_pulse_mean_copy_num_vec = [0; diff(pulse_mean_copy_num_vec)]
 
 # ╔═╡ 1b2fa624-7afc-48bb-b924-e3638e8862c3
 md""" ##### calculate tetA copy number--fitness covariance. """ 
@@ -913,9 +1247,9 @@ md""" ##### calculate tetA copy number--fitness covariance. """
 # ╔═╡ 7442c9af-41d9-48fe-bb15-ec1264a89592
 begin
 	copy_num_covariance_vec = []
-	for i in 1:length(final_x2)
+	for i in 1:length(pulse_final_x)
 		cur_pop_vec = pulse_result_matrix[i]
-		cur_Tet_conc = TET_CONC
+		cur_Tet_conc = tet_pulse_vec[i]
 		## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
 		## with a minimum of 1 copy (on the chromosome).
 		cur_copy_num_covariance = calc_tetA_copy_number_fitness_covariance(cur_pop_vec, cur_Tet_conc)
@@ -924,28 +1258,55 @@ begin
 	end
 end
 
+# ╔═╡ 47b59c76-7b1c-466b-9cd4-43f7c2c285aa
+md""" ##### and calculate tetA copy number--fitness covariance scaled by mean fitness. """ 
+
+# ╔═╡ 7c510ce6-4ee4-41ca-9e1c-af30fd4fd599
+scaled_copy_num_covariance_vec = copy_num_covariance_vec .* [big(1.0)/big(x) for x in pulse_mean_fitness_vec]
+
+# ╔═╡ 7a84abce-1194-4c01-bdef-b79022c3949c
+test_scaled_copy_num_covariance_vec = copy_num_covariance_vec .* pulse_mean_fitness_vec
+
+# ╔═╡ 13c07d9e-18b3-4a63-80d5-a99828087ae8
+pulse_mean_fitness_vec
+
+# ╔═╡ 857832a3-b38c-4721-8f31-9f8985e7d123
+[big(1.0)/big(x) for x in pulse_mean_fitness_vec]
+
+# ╔═╡ 07a76ec9-d9aa-4f5f-94cf-e4b9a936bec2
+md"""
+##### debugging plot: comparing fitness-scaled covariance to just covariance.
+"""
+
 # ╔═╡ a5981dc1-08c1-4006-a481-de3c55a2bc51
 let
-	plot(final_t2, copy_num_covariance_vec, label="tetA copy number-fitness covariance", xlabel="Time", ylabel="tetA copy number--fitness covariance")
+	plot(pulse_final_t, copy_num_covariance_vec, label="tetA copy number-fitness covariance", xlabel="Time", ylabel="tetA copy number--fitness covariance")
+	plot!(pulse_final_t, scaled_copy_num_covariance_vec, label="scaled-tetA copy number-fitness covariance", legend=:left)	
 end
 
 # ╔═╡ 4a832714-9009-45a3-a77c-75819fe8960f
 let
-	plot(final_t2, copy_num_covariance_vec, label="tetA copy number fitness covariance")
-	plot!(final_t2, mean_copy_num_vec2, label="mean tetA copy number", xlabel="Time", ylabel="tetA copy number mean and variance")
+	plot(pulse_final_t, copy_num_covariance_vec, label="tetA copy number fitness covariance")
+	plot!(pulse_final_t, pulse_mean_copy_num_vec, label="mean tetA copy number", xlabel="Time", ylabel="tetA copy number mean and variance")
 end
 
 # ╔═╡ 75d40406-5867-42d6-8964-3776cc3ac8f0
 let
-	plot(final_t2, copy_num_covariance_vec, label="tetA copy number fitness covariance")
-	plot!(final_t2, d_mean_copy_num_vec2, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative\nand covariance with fitness")
+	plot(pulse_final_t, copy_num_covariance_vec, label="tetA copy number fitness covariance")
+	plot!(pulse_final_t, d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right)
+end
+
+# ╔═╡ e2aec988-a68e-4e17-8ad3-162df34a222a
+let
+	plot(pulse_final_t, scaled_copy_num_covariance_vec, label="scaled tetA copy number fitness covariance")
+	plot!(pulse_final_t, d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:left)
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
-FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
@@ -953,7 +1314,7 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [compat]
 DifferentialEquations = "~7.11.0"
-FileIO = "~1.16.1"
+Distributions = "~0.25.104"
 Plots = "~1.39.0"
 PlutoUI = "~0.7.53"
 """
@@ -962,14 +1323,14 @@ PlutoUI = "~0.7.53"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.3"
+julia_version = "1.10.0"
 manifest_format = "2.0"
-project_hash = "eba41f5071cdf2306a22f0a782dfd483cc97cabd"
+project_hash = "ee5696e3ba39c7dbb8fb34ddf747c6e95fbb9d1e"
 
 [[deps.ADTypes]]
-git-tree-sha1 = "332e5d7baeff8497b923b730b994fa480601efc7"
+git-tree-sha1 = "41c37aa88889c171f1300ceac1313c06e891d245"
 uuid = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
-version = "0.2.5"
+version = "0.2.6"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -998,9 +1359,9 @@ version = "0.1.33"
 
 [[deps.Adapt]]
 deps = ["LinearAlgebra", "Requires"]
-git-tree-sha1 = "02f731463748db57cc2ebfbd9fbc9ce8280d3433"
+git-tree-sha1 = "cde29ddf7e5726c9fb511f340244ea3481267608"
 uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "3.7.1"
+version = "3.7.2"
 weakdeps = ["StaticArrays"]
 
     [deps.Adapt.extensions]
@@ -1018,9 +1379,9 @@ version = "0.2.0"
 
 [[deps.ArrayInterface]]
 deps = ["Adapt", "LinearAlgebra", "Requires", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "247efbccf92448be332d154d6ca56b9fcdd93c31"
+git-tree-sha1 = "bbec08a37f8722786d87bedf84eae19c020c4efa"
 uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "7.6.1"
+version = "7.7.0"
 
     [deps.ArrayInterface.extensions]
     ArrayInterfaceBandedMatricesExt = "BandedMatrices"
@@ -1040,9 +1401,9 @@ version = "7.6.1"
 
 [[deps.ArrayLayouts]]
 deps = ["FillArrays", "LinearAlgebra"]
-git-tree-sha1 = "af43df5704827c8618afd36eb56fcab20d3041ee"
+git-tree-sha1 = "b08a4043e1c14096ef8efe4dd97e07de5cacf240"
 uuid = "4c555306-a7a7-4459-81d9-ec55ddd5c99a"
-version = "1.4.3"
+version = "1.4.5"
 weakdeps = ["SparseArrays"]
 
     [deps.ArrayLayouts.extensions]
@@ -1053,9 +1414,9 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[deps.BandedMatrices]]
 deps = ["ArrayLayouts", "FillArrays", "LinearAlgebra", "PrecompileTools"]
-git-tree-sha1 = "67bcff3f50026b6fa952721525d3a04f0570d432"
+git-tree-sha1 = "27baf04c642465b4289179f29bb7127f0673d4f1"
 uuid = "aae01518-5342-5314-be14-df237901396f"
-version = "1.2.1"
+version = "1.4.0"
 weakdeps = ["SparseArrays"]
 
     [deps.BandedMatrices.extensions]
@@ -1076,10 +1437,10 @@ uuid = "62783981-4cbd-42fc-bca8-16325de8dc4b"
 version = "0.1.5"
 
 [[deps.BoundaryValueDiffEq]]
-deps = ["ADTypes", "Adapt", "ArrayInterface", "BandedMatrices", "ConcreteStructs", "DiffEqBase", "ForwardDiff", "LinearAlgebra", "LinearSolve", "NonlinearSolve", "PreallocationTools", "PrecompileTools", "Preferences", "RecursiveArrayTools", "Reexport", "SciMLBase", "Setfield", "SparseArrays", "SparseDiffTools", "Tricks", "TruncatedStacktraces", "UnPack"]
-git-tree-sha1 = "8a19e2457da8a7e5ae54ee9479885738d8fd926b"
+deps = ["ADTypes", "Adapt", "ArrayInterface", "BandedMatrices", "ConcreteStructs", "DiffEqBase", "FastAlmostBandedMatrices", "ForwardDiff", "LinearAlgebra", "LinearSolve", "NonlinearSolve", "PreallocationTools", "PrecompileTools", "Preferences", "RecursiveArrayTools", "Reexport", "SciMLBase", "Setfield", "SparseArrays", "SparseDiffTools", "Tricks", "TruncatedStacktraces", "UnPack"]
+git-tree-sha1 = "dd234c9a030350d5ff4c45761d6cad0cfb358cb9"
 uuid = "764a87c0-6b3e-53db-9096-fe964310641d"
-version = "5.4.0"
+version = "5.6.0"
 
     [deps.BoundaryValueDiffEq.extensions]
     BoundaryValueDiffEqODEInterfaceExt = "ODEInterface"
@@ -1171,9 +1532,9 @@ version = "0.3.0"
 
 [[deps.Compat]]
 deps = ["UUIDs"]
-git-tree-sha1 = "8a62af3e248a8c4bad6b32cbbe663ae02275e32c"
+git-tree-sha1 = "886826d76ea9e72b35fcd000e535588f7b60f21d"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.10.0"
+version = "4.10.1"
 weakdeps = ["Dates", "LinearAlgebra"]
 
     [deps.Compat.extensions]
@@ -1182,7 +1543,7 @@ weakdeps = ["Dates", "LinearAlgebra"]
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.0.5+0"
+version = "1.0.5+1"
 
 [[deps.CompositionsBase]]
 git-tree-sha1 = "802bb88cd69dfd1509f6670416bd4434015693ad"
@@ -1251,9 +1612,9 @@ uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 
 [[deps.DelayDiffEq]]
 deps = ["ArrayInterface", "DataStructures", "DiffEqBase", "LinearAlgebra", "Logging", "OrdinaryDiffEq", "Printf", "RecursiveArrayTools", "Reexport", "SciMLBase", "SimpleNonlinearSolve", "SimpleUnPack"]
-git-tree-sha1 = "df712c77bb43b37ea966feb72cb2e92d51a3face"
+git-tree-sha1 = "e40378efd2af7658d0a0579aa9e15b17137368f4"
 uuid = "bcd4f6db-9728-5f36-b5f7-82caef46ccdb"
-version = "5.43.1"
+version = "5.44.0"
 
 [[deps.DelimitedFiles]]
 deps = ["Mmap"]
@@ -1263,9 +1624,9 @@ version = "1.9.1"
 
 [[deps.DiffEqBase]]
 deps = ["ArrayInterface", "DataStructures", "DocStringExtensions", "EnumX", "EnzymeCore", "FastBroadcast", "ForwardDiff", "FunctionWrappers", "FunctionWrappersWrappers", "LinearAlgebra", "Logging", "Markdown", "MuladdMacro", "Parameters", "PreallocationTools", "PrecompileTools", "Printf", "RecursiveArrayTools", "Reexport", "SciMLBase", "SciMLOperators", "Setfield", "SparseArrays", "Static", "StaticArraysCore", "Statistics", "Tricks", "TruncatedStacktraces"]
-git-tree-sha1 = "309efb205c30d43b595466283bbecf2769283e22"
+git-tree-sha1 = "05b19d9101db42afeb02d1f402d5e9a7986c44f7"
 uuid = "2b5f629d-d688-5b77-993f-72d75c75574e"
-version = "6.141.0"
+version = "6.145.2"
 
     [deps.DiffEqBase.extensions]
     DiffEqBaseChainRulesCoreExt = "ChainRulesCore"
@@ -1293,16 +1654,16 @@ version = "6.141.0"
 
 [[deps.DiffEqCallbacks]]
 deps = ["DataStructures", "DiffEqBase", "ForwardDiff", "Functors", "LinearAlgebra", "Markdown", "NLsolve", "Parameters", "RecipesBase", "RecursiveArrayTools", "SciMLBase", "StaticArraysCore"]
-git-tree-sha1 = "4e4de57a0ac47b2f20aae62f132355b058e9f0cd"
+git-tree-sha1 = "d0b94b3694d55e7eedeee918e7daee9e3b873399"
 uuid = "459566f4-90b8-5000-8ac3-15dfb0a30def"
-version = "2.34.0"
+version = "2.35.0"
 weakdeps = ["OrdinaryDiffEq", "Sundials"]
 
 [[deps.DiffEqNoiseProcess]]
 deps = ["DiffEqBase", "Distributions", "GPUArraysCore", "LinearAlgebra", "Markdown", "Optim", "PoissonRandom", "QuadGK", "Random", "Random123", "RandomNumbers", "RecipesBase", "RecursiveArrayTools", "Requires", "ResettableStacks", "SciMLBase", "StaticArraysCore", "Statistics"]
-git-tree-sha1 = "57ed4597a309c5b2a10cab5f9813adcb78f92117"
+git-tree-sha1 = "319377c927a4aa1f491228b2ac23f3554a3497c6"
 uuid = "77a26b50-5914-5dd7-bc55-306e6241c503"
-version = "5.19.0"
+version = "5.20.0"
 
     [deps.DiffEqNoiseProcess.extensions]
     DiffEqNoiseProcessReverseDiffExt = "ReverseDiff"
@@ -1330,9 +1691,9 @@ version = "7.11.0"
 
 [[deps.Distances]]
 deps = ["LinearAlgebra", "Statistics", "StatsAPI"]
-git-tree-sha1 = "5225c965635d8c21168e32a12954675e7bea1151"
+git-tree-sha1 = "66c4c81f259586e8f002eacebc177e1fb06363b0"
 uuid = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
-version = "0.10.10"
+version = "0.10.11"
 
     [deps.Distances.extensions]
     DistancesChainRulesCoreExt = "ChainRulesCore"
@@ -1348,9 +1709,9 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[deps.Distributions]]
 deps = ["FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SpecialFunctions", "Statistics", "StatsAPI", "StatsBase", "StatsFuns"]
-git-tree-sha1 = "a6c00f894f24460379cb7136633cef54ac9f6f4a"
+git-tree-sha1 = "9242eec9b7e2e14f9952e8ea1c7e31a50501d587"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.25.103"
+version = "0.25.104"
 
     [deps.Distributions.extensions]
     DistributionsChainRulesCoreExt = "ChainRulesCore"
@@ -1386,9 +1747,9 @@ version = "1.0.4"
 
 [[deps.EnzymeCore]]
 deps = ["Adapt"]
-git-tree-sha1 = "ab81396e4e7b61f5590db02fa1c17fae4f16d7ab"
+git-tree-sha1 = "2efe862de93cd87f620ad6ac9c9e3f83f1b2841b"
 uuid = "f151be2c-9106-41f4-ab19-57ee4f262869"
-version = "0.6.3"
+version = "0.6.4"
 
 [[deps.EpollShim_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -1431,6 +1792,12 @@ git-tree-sha1 = "466d45dc38e15794ec7d5d63ec03d776a9aff36e"
 uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
 version = "4.4.4+1"
 
+[[deps.FastAlmostBandedMatrices]]
+deps = ["ArrayInterface", "ArrayLayouts", "BandedMatrices", "ConcreteStructs", "LazyArrays", "LinearAlgebra", "MatrixFactorizations", "PrecompileTools", "Reexport"]
+git-tree-sha1 = "178316d87f883f0702e79d9c83a8049484c9f619"
+uuid = "9d29842c-ecb8-4973-b1e9-a27b1157504e"
+version = "0.1.0"
+
 [[deps.FastBroadcast]]
 deps = ["ArrayInterface", "LinearAlgebra", "Polyester", "Static", "StaticArrayInterface", "StrideArraysCore"]
 git-tree-sha1 = "a6e756a880fc419c8b41592010aebe6a5ce09136"
@@ -1448,31 +1815,26 @@ git-tree-sha1 = "b12f05108e405dadcc2aff0008db7f831374e051"
 uuid = "29a986be-02c6-4525-aec4-84b980013641"
 version = "2.0.0"
 
-[[deps.FileIO]]
-deps = ["Pkg", "Requires", "UUIDs"]
-git-tree-sha1 = "299dc33549f68299137e51e6d49a13b5b1da9673"
-uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
-version = "1.16.1"
-
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
 [[deps.FillArrays]]
 deps = ["LinearAlgebra", "Random"]
-git-tree-sha1 = "35f0c0f345bff2c6d636f95fdb136323b5a796ef"
+git-tree-sha1 = "5b93957f6dcd33fc343044af3d48c215be2562f1"
 uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "1.7.0"
-weakdeps = ["SparseArrays", "Statistics"]
+version = "1.9.3"
+weakdeps = ["PDMats", "SparseArrays", "Statistics"]
 
     [deps.FillArrays.extensions]
+    FillArraysPDMatsExt = "PDMats"
     FillArraysSparseArraysExt = "SparseArrays"
     FillArraysStatisticsExt = "Statistics"
 
 [[deps.FiniteDiff]]
 deps = ["ArrayInterface", "LinearAlgebra", "Requires", "Setfield", "SparseArrays"]
-git-tree-sha1 = "c6e4a1fbe73b31a3dea94b1da449503b8830c306"
+git-tree-sha1 = "73d1214fec245096717847c62d389a5d2ac86504"
 uuid = "6a86dc24-6348-571c-b903-95158fe2bd41"
-version = "2.21.1"
+version = "2.22.0"
 
     [deps.FiniteDiff.extensions]
     FiniteDiffBandedMatricesExt = "BandedMatrices"
@@ -1546,10 +1908,10 @@ deps = ["Random"]
 uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 
 [[deps.GLFW_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Libglvnd_jll", "Pkg", "Xorg_libXcursor_jll", "Xorg_libXi_jll", "Xorg_libXinerama_jll", "Xorg_libXrandr_jll"]
-git-tree-sha1 = "d972031d28c8c8d9d7b41a536ad7bb0c2579caca"
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Libglvnd_jll", "Xorg_libXcursor_jll", "Xorg_libXi_jll", "Xorg_libXinerama_jll", "Xorg_libXrandr_jll"]
+git-tree-sha1 = "ff38ba61beff76b8f4acad8ab0c97ef73bb670cb"
 uuid = "0656b61e-2033-5cc2-a64a-77c0f6c09b89"
-version = "3.3.8+0"
+version = "3.3.9+0"
 
 [[deps.GPUArraysCore]]
 deps = ["Adapt"]
@@ -1606,9 +1968,9 @@ version = "1.0.2"
 
 [[deps.HTTP]]
 deps = ["Base64", "CodecZlib", "ConcurrentUtilities", "Dates", "ExceptionUnwrapping", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
-git-tree-sha1 = "5eab648309e2e060198b45820af1a37182de3cce"
+git-tree-sha1 = "abbbb9ec3afd783a7cbd82ef01dcd088ea051398"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-version = "1.10.0"
+version = "1.10.1"
 
 [[deps.HarfBuzz_jll]]
 deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "Graphite2_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg"]
@@ -1662,10 +2024,10 @@ uuid = "18e54dd8-cb9d-406c-a71d-865a43cbb235"
 version = "0.1.2"
 
 [[deps.IntelOpenMP_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "ad37c091f7d7daf900963171600d7c1c5c3ede32"
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "5fdf2fe6724d8caabf43b557b84ce53f3b7e2f6b"
 uuid = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
-version = "2023.2.0+0"
+version = "2024.0.2+0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -1689,9 +2051,9 @@ version = "1.0.0"
 
 [[deps.JLFzf]]
 deps = ["Pipe", "REPL", "Random", "fzf_jll"]
-git-tree-sha1 = "9fb0b890adab1c0a4a475d4210d51f228bfc250d"
+git-tree-sha1 = "a53ebe394b71470c7f97c2e7e170d51df21b17af"
 uuid = "1019f520-868f-41f5-a6de-eb00f4b6a39c"
-version = "0.1.6"
+version = "0.1.7"
 
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
@@ -1707,15 +2069,15 @@ version = "0.21.4"
 
 [[deps.JpegTurbo_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "6f2675ef130a300a112286de91973805fcc5ffbc"
+git-tree-sha1 = "60b1194df0a3298f460063de985eae7b01bc011a"
 uuid = "aacddb02-875f-59d6-b918-886e6ef4fbf8"
-version = "2.1.91+0"
+version = "3.0.1+0"
 
 [[deps.JumpProcesses]]
-deps = ["ArrayInterface", "DataStructures", "DiffEqBase", "DocStringExtensions", "FunctionWrappers", "Graphs", "LinearAlgebra", "Markdown", "PoissonRandom", "Random", "RandomNumbers", "RecursiveArrayTools", "Reexport", "SciMLBase", "StaticArrays", "TreeViews", "UnPack"]
-git-tree-sha1 = "3de1d557e382cad270d921fbc22351f5628e7b1f"
+deps = ["ArrayInterface", "DataStructures", "DiffEqBase", "DocStringExtensions", "FunctionWrappers", "Graphs", "LinearAlgebra", "Markdown", "PoissonRandom", "Random", "RandomNumbers", "RecursiveArrayTools", "Reexport", "SciMLBase", "StaticArrays", "UnPack"]
+git-tree-sha1 = "c451feb97251965a9fe40bacd62551a72cc5902c"
 uuid = "ccbc3e58-028d-4f4c-8cd5-9ae44345cda5"
-version = "9.8.0"
+version = "9.10.1"
 weakdeps = ["FastBroadcast"]
 
     [deps.JumpProcesses.extensions]
@@ -1729,9 +2091,9 @@ version = "0.4.1"
 
 [[deps.Krylov]]
 deps = ["LinearAlgebra", "Printf", "SparseArrays"]
-git-tree-sha1 = "17e462054b42dcdda73e9a9ba0c67754170c88ae"
+git-tree-sha1 = "8a6837ec02fe5fb3def1abc907bb802ef11a0729"
 uuid = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
-version = "0.9.4"
+version = "0.9.5"
 
 [[deps.LAME_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1746,10 +2108,10 @@ uuid = "88015f11-f218-50d7-93a8-a6af411a945d"
 version = "3.0.0+1"
 
 [[deps.LLVMOpenMP_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "f689897ccbe049adb19a065c495e75f372ecd42b"
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "d986ce2d884d49126836ea94ed5bfb0f12679713"
 uuid = "1d63c593-3942-5779-bab2-d838dc0a180e"
-version = "15.0.4+0"
+version = "15.0.7+0"
 
 [[deps.LZO_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1794,6 +2156,16 @@ git-tree-sha1 = "1370f8202dac30758f3c345f9909b97f53d87d3f"
 uuid = "50d2b5c4-7a5e-59d5-8109-a42b560f39c0"
 version = "0.15.1"
 
+[[deps.LazyArrays]]
+deps = ["ArrayLayouts", "FillArrays", "LinearAlgebra", "MacroTools", "MatrixFactorizations", "SparseArrays"]
+git-tree-sha1 = "9cfca23ab83b0dfac93cb1a1ef3331ab9fe596a5"
+uuid = "5078a376-72f3-5289-bfd5-ec5146d43c02"
+version = "1.8.3"
+weakdeps = ["StaticArrays"]
+
+    [deps.LazyArrays.extensions]
+    LazyArraysStaticArraysExt = "StaticArrays"
+
 [[deps.LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
 uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
@@ -1807,21 +2179,26 @@ version = "1.0.0"
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
-version = "0.6.3"
+version = "0.6.4"
 
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "7.84.0+0"
+version = "8.4.0+0"
 
 [[deps.LibGit2]]
-deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
+deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
+
+[[deps.LibGit2_jll]]
+deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
+uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
+version = "1.6.4+0"
 
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.10.2+0"
+version = "1.11.0+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -1885,16 +2262,16 @@ deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [[deps.LinearSolve]]
-deps = ["ArrayInterface", "ConcreteStructs", "DocStringExtensions", "EnumX", "EnzymeCore", "FastLapackInterface", "GPUArraysCore", "InteractiveUtils", "KLU", "Krylov", "Libdl", "LinearAlgebra", "MKL_jll", "PrecompileTools", "Preferences", "RecursiveFactorization", "Reexport", "Requires", "SciMLBase", "SciMLOperators", "Setfield", "SparseArrays", "Sparspak", "UnPack"]
-git-tree-sha1 = "051943b8b8e81c548e9d099d6eb3d3ed23093c35"
+deps = ["ArrayInterface", "ConcreteStructs", "DocStringExtensions", "EnumX", "FastLapackInterface", "GPUArraysCore", "InteractiveUtils", "KLU", "Krylov", "Libdl", "LinearAlgebra", "MKL_jll", "PrecompileTools", "Preferences", "RecursiveFactorization", "Reexport", "SciMLBase", "SciMLOperators", "Setfield", "SparseArrays", "Sparspak", "StaticArraysCore", "UnPack"]
+git-tree-sha1 = "97dc499678d50d989f1a74170840808641ce9880"
 uuid = "7ed4a6bd-45f5-4d41-b270-4a48e9bafcae"
-version = "2.20.0"
+version = "2.22.0"
 
     [deps.LinearSolve.extensions]
     LinearSolveBandedMatricesExt = "BandedMatrices"
     LinearSolveBlockDiagonalsExt = "BlockDiagonals"
     LinearSolveCUDAExt = "CUDA"
-    LinearSolveEnzymeExt = "Enzyme"
+    LinearSolveEnzymeExt = ["Enzyme", "EnzymeCore"]
     LinearSolveFastAlmostBandedMatricesExt = ["FastAlmostBandedMatrices"]
     LinearSolveHYPREExt = "HYPRE"
     LinearSolveIterativeSolversExt = "IterativeSolvers"
@@ -1909,6 +2286,7 @@ version = "2.20.0"
     BlockDiagonals = "0a1fb500-61f7-11e9-3c65-f5ef3456f9f0"
     CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+    EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
     FastAlmostBandedMatrices = "9d29842c-ecb8-4973-b1e9-a27b1157504e"
     HYPRE = "b5ffcf37-a2bd-41ab-a3da-4bd9bc8ad771"
     IterativeSolvers = "42fd0dbc-a981-5370-80f2-aaf504508153"
@@ -1964,16 +2342,16 @@ uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "0.1.4"
 
 [[deps.MKL_jll]]
-deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
-git-tree-sha1 = "eb006abbd7041c28e0d16260e50a24f8f9104913"
+deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl"]
+git-tree-sha1 = "72dc3cf284559eb8f53aa593fe62cb33f83ed0c0"
 uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
-version = "2023.2.0+0"
+version = "2024.0.0+0"
 
 [[deps.MacroTools]]
 deps = ["Markdown", "Random"]
-git-tree-sha1 = "9ee1618cbf5240e6d4e0371d6f24065083f60c48"
+git-tree-sha1 = "b211c553c199c111d998ecdaf7623d1b89b69f93"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.5.11"
+version = "0.5.12"
 
 [[deps.ManualMemory]]
 git-tree-sha1 = "bcaef4fc7a0cfe2cba636d84cda54b5e4e4ca3cd"
@@ -1984,6 +2362,12 @@ version = "0.1.8"
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
+[[deps.MatrixFactorizations]]
+deps = ["ArrayLayouts", "LinearAlgebra", "Printf", "Random"]
+git-tree-sha1 = "78f6e33434939b0ac9ba1df81e6d005ee85a7396"
+uuid = "a3b82374-2e81-5b9e-98ce-41277c0e4c87"
+version = "2.1.0"
+
 [[deps.MbedTLS]]
 deps = ["Dates", "MbedTLS_jll", "MozillaCACerts_jll", "NetworkOptions", "Random", "Sockets"]
 git-tree-sha1 = "c067a280ddc25f196b5e7df3877c6b226d390aaf"
@@ -1993,7 +2377,7 @@ version = "1.1.9"
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.2+0"
+version = "2.28.2+1"
 
 [[deps.Measures]]
 git-tree-sha1 = "c13304c81eec1ed3af7fc20e75fb6b26092a1102"
@@ -2011,7 +2395,7 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2022.10.11"
+version = "2023.1.10"
 
 [[deps.MuladdMacro]]
 git-tree-sha1 = "cac9cc5499c25554cba55cd3c30543cff5ca4fab"
@@ -2057,10 +2441,13 @@ version = "2.8.2"
     LeastSquaresOptim = "0fc2ff8b-aaa3-5acd-a817-1944a5e08891"
 
 [[deps.OffsetArrays]]
-deps = ["Adapt"]
-git-tree-sha1 = "2ac17d29c523ce1cd38e27785a7d23024853a4bb"
+git-tree-sha1 = "6a731f2b5c03157418a20c12195eb4b74c8f8621"
 uuid = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
-version = "1.12.10"
+version = "1.13.0"
+weakdeps = ["Adapt"]
+
+    [deps.OffsetArrays.extensions]
+    OffsetArraysAdaptExt = "Adapt"
 
 [[deps.Ogg_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -2071,12 +2458,12 @@ version = "1.3.5+1"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.21+4"
+version = "0.3.23+2"
 
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
-version = "0.8.1+0"
+version = "0.8.1+2"
 
 [[deps.OpenSSL]]
 deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
@@ -2115,20 +2502,20 @@ version = "1.6.3"
 
 [[deps.OrdinaryDiffEq]]
 deps = ["ADTypes", "Adapt", "ArrayInterface", "DataStructures", "DiffEqBase", "DocStringExtensions", "ExponentialUtilities", "FastBroadcast", "FastClosures", "FiniteDiff", "ForwardDiff", "FunctionWrappersWrappers", "IfElse", "InteractiveUtils", "LineSearches", "LinearAlgebra", "LinearSolve", "Logging", "LoopVectorization", "MacroTools", "MuladdMacro", "NLsolve", "NonlinearSolve", "Polyester", "PreallocationTools", "PrecompileTools", "Preferences", "RecursiveArrayTools", "Reexport", "SciMLBase", "SciMLNLSolve", "SciMLOperators", "SimpleNonlinearSolve", "SimpleUnPack", "SparseArrays", "SparseDiffTools", "StaticArrayInterface", "StaticArrays", "TruncatedStacktraces"]
-git-tree-sha1 = "42d0b4515472a25a3b47be228c03ec842bdc9d49"
+git-tree-sha1 = "5f9e7ce227d0e447c3803cc05ef5d8f75f84b9ea"
 uuid = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
-version = "6.59.2"
+version = "6.59.3"
 
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
-version = "10.42.0+0"
+version = "10.42.0+1"
 
 [[deps.PDMats]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "4e5be6bb265d33669f98eb55d2a57addd1eeb72c"
+git-tree-sha1 = "949347156c25054de2db3b166c52ac4728cbad65"
 uuid = "90014a1f-27ba-587c-ab20-58faa44d9150"
-version = "0.11.30"
+version = "0.11.31"
 
 [[deps.PackageExtensionCompat]]
 git-tree-sha1 = "fb28e33b8a95c4cee25ce296c817d89cc2e53518"
@@ -2144,9 +2531,9 @@ version = "0.12.3"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "a935806434c9d4c506ba941871b327b96d41f2bf"
+git-tree-sha1 = "8489905bcdbcfac64d1daa51ca07c0d8f0283821"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.0"
+version = "2.8.1"
 
 [[deps.Pipe]]
 git-tree-sha1 = "6842804e7867b115ca9de748a0cf6b364523c16d"
@@ -2162,7 +2549,7 @@ version = "0.42.2+0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.9.2"
+version = "1.10.0"
 
 [[deps.PlotThemes]]
 deps = ["PlotUtils", "Statistics"]
@@ -2172,9 +2559,9 @@ version = "3.1.0"
 
 [[deps.PlotUtils]]
 deps = ["ColorSchemes", "Colors", "Dates", "PrecompileTools", "Printf", "Random", "Reexport", "Statistics"]
-git-tree-sha1 = "f92e1315dadf8c46561fb9396e525f7200cdc227"
+git-tree-sha1 = "862942baf5663da528f66d24996eb6da85218e76"
 uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
-version = "1.3.5"
+version = "1.4.0"
 
 [[deps.Plots]]
 deps = ["Base64", "Contour", "Dates", "Downloads", "FFMPEG", "FixedPointNumbers", "GR", "JLFzf", "JSON", "LaTeXStrings", "Latexify", "LinearAlgebra", "Measures", "NaNMath", "Pkg", "PlotThemes", "PlotUtils", "PrecompileTools", "Preferences", "Printf", "REPL", "Random", "RecipesBase", "RecipesPipeline", "Reexport", "RelocatableFolders", "Requires", "Scratch", "Showoff", "SparseArrays", "Statistics", "StatsBase", "UUIDs", "UnicodeFun", "UnitfulLatexify", "Unzip"]
@@ -2228,9 +2615,9 @@ version = "0.2.4"
 
 [[deps.PreallocationTools]]
 deps = ["Adapt", "ArrayInterface", "ForwardDiff", "Requires"]
-git-tree-sha1 = "f739b1b3cc7b9949af3b35089931f2b58c289163"
+git-tree-sha1 = "01ac95fca7daabe77a9cb705862bd87016af9ddb"
 uuid = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
-version = "0.4.12"
+version = "0.4.13"
 
     [deps.PreallocationTools.extensions]
     PreallocationToolsReverseDiffExt = "ReverseDiff"
@@ -2287,14 +2674,14 @@ deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 
 [[deps.Random]]
-deps = ["SHA", "Serialization"]
+deps = ["SHA"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [[deps.Random123]]
 deps = ["Random", "RandomNumbers"]
-git-tree-sha1 = "552f30e847641591ba3f39fd1bed559b9deb0ef3"
+git-tree-sha1 = "c860e84651f58ce240dd79e5d9e055d55234c35a"
 uuid = "74087812-796a-5b5d-8853-05524746bad3"
-version = "1.6.1"
+version = "1.6.2"
 
 [[deps.RandomNumbers]]
 deps = ["Random", "Requires"]
@@ -2396,9 +2783,9 @@ version = "0.6.42"
 
 [[deps.SciMLBase]]
 deps = ["ADTypes", "ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FillArrays", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "PrecompileTools", "Preferences", "Printf", "QuasiMonteCarlo", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLOperators", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface", "Tables", "TruncatedStacktraces"]
-git-tree-sha1 = "164773badb9ee8c62af2ff1a7778fd4867142a07"
+git-tree-sha1 = "32ea825941f7b58a6f48268f4b76971ae8eb9eec"
 uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "2.9.0"
+version = "2.10.0"
 
     [deps.SciMLBase.extensions]
     SciMLBaseChainRulesCoreExt = "ChainRulesCore"
@@ -2493,19 +2880,20 @@ uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
 
 [[deps.SortingAlgorithms]]
 deps = ["DataStructures"]
-git-tree-sha1 = "5165dfb9fd131cf0c6957a3a7605dede376e7b63"
+git-tree-sha1 = "66e0a8e672a0bdfca2c3f5937efb8538b9ddc085"
 uuid = "a2af1166-a08f-5f64-846c-94a0d3cef48c"
-version = "1.2.0"
+version = "1.2.1"
 
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+version = "1.10.0"
 
 [[deps.SparseDiffTools]]
 deps = ["ADTypes", "Adapt", "ArrayInterface", "Compat", "DataStructures", "FiniteDiff", "ForwardDiff", "Graphs", "LinearAlgebra", "PackageExtensionCompat", "Random", "Reexport", "SciMLOperators", "Setfield", "SparseArrays", "StaticArrayInterface", "StaticArrays", "Tricks", "UnPack", "VertexSafeGraphs"]
-git-tree-sha1 = "07272c80c278947baca092df0a01da4a10622ad5"
+git-tree-sha1 = "c281e11db4eacb36a292a054bac83c5a0aca2a26"
 uuid = "47a9eef4-7e08-11e9-0b38-333d64bd3804"
-version = "2.13.0"
+version = "2.15.0"
 
     [deps.SparseDiffTools.extensions]
     SparseDiffToolsEnzymeExt = "Enzyme"
@@ -2543,9 +2931,9 @@ version = "0.8.8"
 
 [[deps.StaticArrayInterface]]
 deps = ["ArrayInterface", "Compat", "IfElse", "LinearAlgebra", "PrecompileTools", "Requires", "SparseArrays", "Static", "SuiteSparse"]
-git-tree-sha1 = "03fec6800a986d191f64f5c0996b59ed526eda25"
+git-tree-sha1 = "5d66818a39bb04bf328e92bc933ec5b4ee88e436"
 uuid = "0d7ed370-da01-4f52-bd93-41d350b8b718"
-version = "1.4.1"
+version = "1.5.0"
 weakdeps = ["OffsetArrays", "StaticArrays"]
 
     [deps.StaticArrayInterface.extensions]
@@ -2554,13 +2942,17 @@ weakdeps = ["OffsetArrays", "StaticArrays"]
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "PrecompileTools", "Random", "StaticArraysCore"]
-git-tree-sha1 = "5ef59aea6f18c25168842bded46b16662141ab87"
+git-tree-sha1 = "fba11dbe2562eecdfcac49a05246af09ee64d055"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.7.0"
-weakdeps = ["Statistics"]
+version = "1.8.1"
 
     [deps.StaticArrays.extensions]
+    StaticArraysChainRulesCoreExt = "ChainRulesCore"
     StaticArraysStatisticsExt = "Statistics"
+
+    [deps.StaticArrays.weakdeps]
+    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+    Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [[deps.StaticArraysCore]]
 git-tree-sha1 = "36b3d696ce6366023a0ea192b4cd442268995a0d"
@@ -2570,7 +2962,7 @@ version = "1.4.2"
 [[deps.Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-version = "1.9.0"
+version = "1.10.0"
 
 [[deps.StatsAPI]]
 deps = ["LinearAlgebra"]
@@ -2605,37 +2997,37 @@ uuid = "9672c7b4-1e72-59bd-8a11-6ac3964bc41f"
 version = "1.16.1"
 
 [[deps.StochasticDiffEq]]
-deps = ["Adapt", "ArrayInterface", "DataStructures", "DiffEqBase", "DiffEqNoiseProcess", "DocStringExtensions", "FillArrays", "FiniteDiff", "ForwardDiff", "JumpProcesses", "LevyArea", "LinearAlgebra", "Logging", "MuladdMacro", "NLsolve", "OrdinaryDiffEq", "Random", "RandomNumbers", "RecursiveArrayTools", "Reexport", "SciMLBase", "SciMLOperators", "SparseArrays", "SparseDiffTools", "StaticArrays", "UnPack"]
-git-tree-sha1 = "7a71f1e67cbcfcd5387707e6621431d1afff62a9"
+deps = ["Adapt", "ArrayInterface", "DataStructures", "DiffEqBase", "DiffEqNoiseProcess", "DocStringExtensions", "FiniteDiff", "ForwardDiff", "JumpProcesses", "LevyArea", "LinearAlgebra", "Logging", "MuladdMacro", "NLsolve", "OrdinaryDiffEq", "Random", "RandomNumbers", "RecursiveArrayTools", "Reexport", "SciMLBase", "SciMLOperators", "SparseArrays", "SparseDiffTools", "StaticArrays", "UnPack"]
+git-tree-sha1 = "753219de57ac7aab0feb88871d3c51e0eb5e3b03"
 uuid = "789caeaf-c7a9-5a7d-9973-96adeb23e2a0"
-version = "6.63.2"
+version = "6.64.0"
 
 [[deps.StrideArraysCore]]
 deps = ["ArrayInterface", "CloseOpenIntervals", "IfElse", "LayoutPointers", "ManualMemory", "SIMDTypes", "Static", "StaticArrayInterface", "ThreadingUtilities"]
-git-tree-sha1 = "e7dd250422df290cee14960c1ee144b44ac3dd77"
+git-tree-sha1 = "d6415f66f3d89c615929af907fdc6a3e17af0d8c"
 uuid = "7792a7ef-975c-4747-a70f-980b88e8d1da"
-version = "0.5.1"
+version = "0.5.2"
 
 [[deps.SuiteSparse]]
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
 uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 
 [[deps.SuiteSparse_jll]]
-deps = ["Artifacts", "Libdl", "Pkg", "libblastrampoline_jll"]
+deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
 uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "5.10.1+6"
+version = "7.2.1+1"
 
 [[deps.Sundials]]
 deps = ["CEnum", "DataStructures", "DiffEqBase", "Libdl", "LinearAlgebra", "Logging", "PrecompileTools", "Reexport", "SciMLBase", "SparseArrays", "Sundials_jll"]
-git-tree-sha1 = "71dc65a2d7decdde5500299c9b04309e0138d1b4"
+git-tree-sha1 = "ded52f017fe7faa3d004427f10ecce4c0491c16a"
 uuid = "c3572dad-4567-51f8-b174-8c6c989267f4"
-version = "4.20.1"
+version = "4.23.1"
 
 [[deps.Sundials_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "OpenBLAS_jll", "Pkg", "SuiteSparse_jll"]
-git-tree-sha1 = "04777432d74ec5bc91ca047c9e0e0fd7f81acdb6"
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "SuiteSparse_jll", "libblastrampoline_jll"]
+git-tree-sha1 = "ba4d38faeb62de7ef47155ed321dce40a549c305"
 uuid = "fb77eaff-e24c-56d4-86b1-d163f2edb164"
-version = "5.2.1+0"
+version = "5.2.2+0"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["DocStringExtensions"]
@@ -2690,12 +3082,6 @@ weakdeps = ["Random", "Test"]
     [deps.TranscodingStreams.extensions]
     TestExt = ["Test", "Random"]
 
-[[deps.TreeViews]]
-deps = ["Test"]
-git-tree-sha1 = "8d0d7a3fe2f30d6a7f833a5f19f7c7a5b396eae6"
-uuid = "a2a6695c-b41b-5b7d-aed9-dbfdeacea5d7"
-version = "0.3.0"
-
 [[deps.TriangularSolve]]
 deps = ["CloseOpenIntervals", "IfElse", "LayoutPointers", "LinearAlgebra", "LoopVectorization", "Polyester", "Static", "VectorizationBase"]
 git-tree-sha1 = "fadebab77bf3ae041f77346dd1c290173da5a443"
@@ -2738,9 +3124,9 @@ version = "0.4.1"
 
 [[deps.Unitful]]
 deps = ["Dates", "LinearAlgebra", "Random"]
-git-tree-sha1 = "242982d62ff0d1671e9029b52743062739255c7e"
+git-tree-sha1 = "3c793be6df9dd77a0cf49d80984ef9ff996948fa"
 uuid = "1986cc42-f94f-5a68-af5c-568840ba703d"
-version = "1.18.0"
+version = "1.19.0"
 weakdeps = ["ConstructionBase", "InverseFunctions"]
 
     [deps.Unitful.extensions]
@@ -2760,9 +3146,9 @@ version = "0.2.0"
 
 [[deps.VectorizationBase]]
 deps = ["ArrayInterface", "CPUSummary", "HostCPUFeatures", "IfElse", "LayoutPointers", "Libdl", "LinearAlgebra", "SIMDTypes", "Static", "StaticArrayInterface"]
-git-tree-sha1 = "b182207d4af54ac64cbc71797765068fdeff475d"
+git-tree-sha1 = "7209df901e6ed7489fe9b7aa3e46fb788e15db85"
 uuid = "3d5dd08c-fd9d-11e8-17fa-ed2836048c2f"
-version = "0.21.64"
+version = "0.21.65"
 
 [[deps.VertexSafeGraphs]]
 deps = ["Graphs"]
@@ -2790,9 +3176,9 @@ version = "1.25.0+0"
 
 [[deps.XML2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libiconv_jll", "Zlib_jll"]
-git-tree-sha1 = "da69178aacc095066bad1f69d2f59a60a1dd8ad1"
+git-tree-sha1 = "801cbe47eae69adc50f36c3caec4758d2650741b"
 uuid = "02c8fc9c-b97f-50b9-bbe4-9be30ff0a78a"
-version = "2.12.0+0"
+version = "2.12.2+0"
 
 [[deps.XSLT_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libgcrypt_jll", "Libgpg_error_jll", "Libiconv_jll", "Pkg", "XML2_jll", "Zlib_jll"]
@@ -2953,7 +3339,7 @@ version = "1.5.0+0"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.13+0"
+version = "1.2.13+1"
 
 [[deps.Zstd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -2968,10 +3354,10 @@ uuid = "35ca27e7-8b34-5b7f-bca9-bdc33f59eb06"
 version = "3.2.9+0"
 
 [[deps.fzf_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "47cf33e62e138b920039e8ff9f9841aafe1b733e"
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "a68c9655fbe6dfcab3d972808f1aafec151ce3f8"
 uuid = "214eeab7-80f7-51ab-84ad-2988db7cef09"
-version = "0.35.1+0"
+version = "0.43.0+0"
 
 [[deps.gperf_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -2994,7 +3380,7 @@ version = "0.15.1+0"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.8.0+0"
+version = "5.8.0+1"
 
 [[deps.libevdev_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -3015,10 +3401,10 @@ uuid = "36db933b-70db-51c0-b978-0f229ee0e533"
 version = "1.18.0+0"
 
 [[deps.libpng_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "Zlib_jll"]
-git-tree-sha1 = "94d180a6d2b5e55e447e2d27a29ed04fe79eb30c"
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Zlib_jll"]
+git-tree-sha1 = "93284c28274d9e75218a416c65ec49d0e0fcdf3d"
 uuid = "b53b4c65-9356-5827-b1ea-8c7a1a84506f"
-version = "1.6.38+0"
+version = "1.6.40+0"
 
 [[deps.libvorbis_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Ogg_jll", "Pkg"]
@@ -3035,12 +3421,12 @@ version = "1.1.6+0"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.48.0+0"
+version = "1.52.0+1"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
-version = "17.4.0+0"
+version = "17.4.0+2"
 
 [[deps.x264_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -3063,65 +3449,93 @@ version = "1.4.1+1"
 
 # ╔═╡ Cell order:
 # ╠═bb669570-7cb6-11ee-00f9-95e5d1f0bf9d
-# ╠═6714fec4-e048-47ff-8c99-06abb563ef26
+# ╠═5b205533-a152-4d45-b539-8f653b267c09
 # ╠═96e88c96-ffa3-440b-a5c4-df380f1ee881
-# ╠═1a7794a3-ee9b-4b0c-8ae0-3930a63f5e54
-# ╠═a66ee148-7cf2-43a4-9b14-407eb91da8ea
-# ╠═6d0b7c31-69c0-4f9c-9f7e-1cb43502f58f
 # ╠═676cbaa5-449b-4111-9b7f-2e58420d8f35
-# ╟─43ee91c7-8061-463d-ab97-e585cd7df0a9
-# ╟─dfb082a8-d421-4ea3-99ec-564ca067ed38
-# ╟─cfe80654-c904-4a58-9cdf-31449da87828
-# ╟─1439fde6-4bc0-4359-86f7-6eb9d072d1c8
-# ╟─04d78bdc-bbd4-4e15-bc89-c73b6ab06a9a
-# ╟─612c1242-d078-48a2-a7c5-f870c1b3672e
-# ╟─ba20d844-8719-43da-8831-02a61eeb247a
-# ╟─30362c2d-d4d1-46c9-829b-d4f190ba3e51
-# ╟─bb7e3db9-6adb-4ab1-906d-98ca68065875
+# ╠═29129932-578f-4f18-b36a-c1bd754afa91
+# ╠═859cae36-fce0-4ab0-ba71-f4dd1083fd8e
+# ╠═e1c0717f-fcc8-4d38-96ba-ddc0c05d72a3
+# ╠═c38f7da5-586b-4730-a6a8-da36742c5743
+# ╠═35679fbc-1e9d-4e4d-968b-38283cebff13
+# ╠═43ee91c7-8061-463d-ab97-e585cd7df0a9
+# ╠═dfb082a8-d421-4ea3-99ec-564ca067ed38
+# ╠═cfe80654-c904-4a58-9cdf-31449da87828
+# ╠═1439fde6-4bc0-4359-86f7-6eb9d072d1c8
+# ╠═04d78bdc-bbd4-4e15-bc89-c73b6ab06a9a
+# ╠═612c1242-d078-48a2-a7c5-f870c1b3672e
+# ╠═ba20d844-8719-43da-8831-02a61eeb247a
+# ╠═30362c2d-d4d1-46c9-829b-d4f190ba3e51
+# ╠═bb7e3db9-6adb-4ab1-906d-98ca68065875
 # ╠═de6a80c0-138f-4b5f-8c25-e7c29c18d3e3
 # ╠═80dd3108-c7aa-4f8b-9170-f61766bb18bc
 # ╠═97efc2ea-1814-4326-a8e8-a566d923feca
 # ╠═673a346e-c98a-4ccc-945e-e63c24907dac
-# ╠═ec3a644b-6c89-40fb-a7e6-d8bcd0773be9
 # ╠═d3a7d259-da19-4cb0-b087-b5eba6c8c0d7
 # ╠═67f9c177-02dd-4ea1-a477-adf77618db4f
 # ╠═e007814b-d92a-4189-ae4c-c05638ea6531
 # ╠═eb0e9882-80b4-4612-a466-8cfee96cd7b9
 # ╠═5475908e-154e-49ec-b694-4efe759fa55b
 # ╠═02af596b-6273-42b5-ae15-8a8b5588c12a
-# ╠═d4fda4d5-bddd-44f9-bd4a-4f3c4790cb44
-# ╠═023a8f11-e921-47a5-bef2-5b2c8a50efe6
+# ╠═a17af1d7-d95f-4592-9e3b-c861c6bf6909
+# ╠═e95789c3-4ff3-49a2-9bda-5199940e12f5
+# ╠═a7e790c6-0ecc-4d37-b42e-6dbd2aa41750
+# ╠═e84ed4b0-09fe-44a7-a455-eee28c832efe
+# ╠═8baba499-1c63-458a-8f7d-542400578aa2
+# ╠═b7d3b0d8-f26f-4c83-b0df-2ffc48c0d31b
 # ╠═71f13821-0c57-4320-b347-88963ed9be39
-# ╠═d0bd89fe-234c-426d-9d72-feb708c19e58
-# ╠═4b630f32-06e1-40a0-af3f-59febaef5b93
-# ╠═e86573e9-faed-46a3-a51f-f6995dec2ca0
-# ╠═6497ec3a-39e0-498e-9462-14ed1046a8a0
-# ╠═faa9680c-22b0-4ca7-a1ad-8d795fa0e8ae
-# ╠═5333a3f8-1310-4839-b01d-00887986ee08
+# ╠═f88cb5f1-1bf2-4f20-87f4-d3b5e6c71553
+# ╠═203c6014-8c3b-48d4-9341-a81b746bb0d5
+# ╠═dceafa2f-ba3f-4302-8b46-558da46b0842
+# ╠═07b8df13-6a50-4bd2-9497-4d6be0c9c416
+# ╠═6e506597-b16d-411d-8da9-bea9c1036344
+# ╠═0e7d302b-3eab-4674-9a44-3b4bf2f5e7de
+# ╠═eb4654c5-59c5-4526-a7d1-9727e1c7b42b
+# ╠═677a6cbb-6359-4401-a982-105f8b84e707
 # ╠═8051d7a7-67fe-4c0c-b55d-0e0d1f424723
 # ╠═e603fa00-4f48-4c8c-9382-6435374bf20a
-# ╠═21ab9391-bd06-4629-ab3b-88487713d6fe
-# ╠═9e2ff9ae-76ee-4dfe-8ac0-296fa9dd160a
+# ╠═0a7d5c73-03e1-4827-9391-fbfcfebe3e5d
+# ╠═12ef05f2-e394-49ab-bbb5-4b147dfbe6e2
+# ╠═28ab34b9-19c6-4563-857e-334c0cbf1f92
+# ╠═c75c9335-0b2c-4ade-b68c-564378758fe7
+# ╠═baf5e6bd-2e06-4b38-b7c9-4bbb73eadd39
+# ╠═a2730ca1-93a9-44d0-ac30-356fb2822ee8
+# ╠═6e9b91ad-d221-462c-ae1a-378a74dbcde3
+# ╠═ac981085-9449-4661-8491-8556ec48db16
+# ╠═281d404a-fcbb-4340-b2c9-8f1fcfafe6a4
 # ╠═6b6bd4aa-dd45-4a11-b1a6-b1d6737c659c
-# ╠═95f8f5c6-6e93-4741-8803-b22acbe5b347
+# ╠═0290797d-c38b-4e36-9fbf-3396adb0e14b
+# ╠═71876f69-ed9b-44f5-8189-1c332f002c72
 # ╠═a8267ba1-a248-46bb-a69d-6494210bc7fa
-# ╠═f9eafce8-6094-49d4-9918-4aa784d97ea2
-# ╠═033306f7-1c72-49fa-a5f1-b8ffbbc07c54
-# ╠═18426803-10a3-4228-8693-151351e28f98
+# ╠═1e7f6493-9f61-4ebc-88de-292e3119e880
 # ╠═48af8690-f8ac-4a99-bb25-672fc4fdd40f
 # ╠═73758488-d007-4af5-a245-508cc232af7e
 # ╠═9897d389-bd11-40bd-ab8a-3d2595458eec
 # ╠═73f12bf5-dce2-4fbe-8aa0-9686874b69a0
+# ╠═bd32465f-f76f-4874-bffb-c4bdeda0524b
+# ╠═1b8f574b-61a3-408a-ba06-f8a9f2f17529
 # ╠═1462bf95-6e84-453e-bd60-5068cdc48b99
+# ╠═cfe3279d-2ef4-4131-b2b2-e56fb46eb1bb
 # ╠═a783d983-03d1-42cc-a3b5-fdd755734dfc
 # ╠═965b6b02-2866-4350-adb2-85c38784542f
+# ╠═01f15fec-384a-4d9d-bf18-aa0bded42c57
+# ╠═3a4a9f8a-672a-4723-bfa1-db9b9b64837b
+# ╠═49bdc6e5-1a08-4c0a-a54b-39d59e7d94e3
+# ╠═d4040455-9618-47a9-8675-77be1205d993
+# ╠═8e015be1-e775-4774-89c3-c75e315271b9
+# ╠═5253a211-4beb-4dbe-ad57-9ddbf7dcc673
+# ╠═fba1b480-3ad7-4a27-9faf-4023fa53e4d5
+# ╠═e75c3b19-cfb0-4ca6-8b8c-8c6a522fc4d5
+# ╠═ebd4d3f1-2c0f-4923-8d38-be306b0ec64d
 # ╠═922f75f1-3697-44a8-a0b1-039754718023
 # ╠═f8f2c684-b939-49b4-9aba-ef844c63d18e
+# ╠═b7ad5c85-9dd4-493b-aee1-503c0b1594f9
 # ╠═5ff4baaa-37f6-4559-a461-2d71804b39ff
 # ╠═e08cfdd5-e5bf-4e35-8586-60215c45c29e
 # ╠═d16a8dd4-3244-4487-a2ae-39f1e1c25e5e
 # ╠═74320ce9-74e1-4e34-8e96-e29220ef97d7
 # ╠═e4c1987c-79fe-4787-b555-810ce216676e
+# ╠═16e767a4-7f12-4081-b425-522f995c49c9
+# ╠═5df241ae-8db6-477b-b4c1-e3d100af2701
 # ╠═eab8e464-dd8a-48d5-bfde-52a11d3b6d58
 # ╠═ca4a41bb-8a43-4f2e-b8c0-c68d34d0d868
 # ╠═86a1e012-58ff-4c1e-9fd9-d849e572c7ee
@@ -3131,18 +3545,21 @@ version = "1.4.1+1"
 # ╠═c596d4a7-03e4-4169-af09-3b8175fd2674
 # ╠═bc920a63-df48-490d-ab8b-ef5e31c83168
 # ╠═3f7f2cdf-6826-4bc9-ad85-393de803e2d0
+# ╠═4e533164-9b01-401b-b4ab-47dce2cedd30
 # ╠═78a55b31-9a12-48d8-ae19-368a9aa2090b
+# ╠═3d32cc78-c0ff-4449-9042-8fd86a31f910
 # ╠═205a5b06-c3af-4241-a248-0fb59658c402
 # ╠═801861a2-416b-4f08-be22-3d3cac5e066a
 # ╠═d1dd08d6-6216-4433-9ce3-f83ea63b62dc
 # ╠═0c1b9281-e87e-4017-8ffa-5b0bde454c1b
-# ╠═ade78925-2e39-4df8-a361-06c246dd508b
 # ╠═21adab19-640d-4aa2-8791-805fa8512f75
 # ╠═c938a144-9f81-45e3-a012-e52134d49c7d
 # ╠═846f1cb1-cb33-4052-8fcd-9a4b3b63f5cd
 # ╠═f987af28-9868-4ff4-8734-8ea10a4458c7
 # ╠═4f2f25ab-e5c7-4d7a-a2c9-9d366b523c9b
+# ╠═1d80ba73-a6aa-49fe-98b0-9a6f621a0c3a
 # ╠═e392d94e-5e8c-46d3-8b9a-9fcbb0d9d1b5
+# ╠═08ac97bb-c2e9-416b-beee-927e5b9c0fc5
 # ╠═4d47b937-4a39-41b0-8a70-21a4b97c529e
 # ╠═98d9548b-fa2e-4cf6-8fa0-53ae2e4d5c99
 # ╠═f0a8f82b-e82b-4d8e-b460-3d9ab494cb22
@@ -3161,8 +3578,15 @@ version = "1.4.1+1"
 # ╠═47c37b1b-2692-4e37-84cd-ae43d3195dda
 # ╠═1b2fa624-7afc-48bb-b924-e3638e8862c3
 # ╠═7442c9af-41d9-48fe-bb15-ec1264a89592
+# ╠═47b59c76-7b1c-466b-9cd4-43f7c2c285aa
+# ╠═7c510ce6-4ee4-41ca-9e1c-af30fd4fd599
+# ╠═7a84abce-1194-4c01-bdef-b79022c3949c
+# ╠═13c07d9e-18b3-4a63-80d5-a99828087ae8
+# ╠═857832a3-b38c-4721-8f31-9f8985e7d123
+# ╠═07a76ec9-d9aa-4f5f-94cf-e4b9a936bec2
 # ╠═a5981dc1-08c1-4006-a481-de3c55a2bc51
 # ╠═4a832714-9009-45a3-a77c-75819fe8960f
 # ╠═75d40406-5867-42d6-8964-3776cc3ac8f0
+# ╠═e2aec988-a68e-4e17-8ad3-162df34a222a
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
