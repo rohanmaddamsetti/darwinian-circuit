@@ -18,6 +18,7 @@ end
 begin
 	using Plots
 	using PlutoUI
+	using Images
 	using Statistics
 	using LinearAlgebra
 	using DifferentialEquations
@@ -36,44 +37,87 @@ Julia version 1.10.
 
 ##### Abstract
 
-Extrachromosomal DNAs (ecDNAs) amplify gene expression and generate phenotypic diversity in cancers and bacteria. A diverse population of ecDNA variants can be maintained within a single cell; however, the implications of this observation are understudied. Here, we use bacterial ecDNAs (plasmids) with a special property— balancing selection maintains coexisting variants within a single cell— to program population-level gene expression dynamics in response to pulses of antibiotic. The population-level gene expression dynamics are well described by a quasi-species model grounded in evolutionary theory. Theory and experiments reveal the importance of high ecDNA copy number for tunable gene expression dynamics.\
+Extrachromosomal DNAs (ecDNAs) amplify gene expression and generate diversity in cancers and bacteria. A diverse population of ecDNAs can be maintained within a single cell. However, the implications for evolutionary and synthetic biology are poorly understood. Here, we use bacterial ecDNAs (plasmids) with a special property— balancing selection maintains intracellular coexistence— to program population-level gene expression dynamics with pulses of antibiotic. The nested population dynamics are well described by a quasi-species model. Theory and experiments reveal the importance of high ecDNA copy number for tunable dynamics. As ecDNA copy number increases, the intracellular balance of coexisting ecDNA variants becomes more robust to stochastic fluctuations. When ecDNA copy number is sufficiently high to maintain diverse ecDNAs within single cells, tunable dynamics emerge in otherwise clonal populations. Based on the generality of our mathematical theory, we introduce the concept of diversity-maintaining genetic elements (DMEs), which we define as an intracellular population of coexisting genetic elements that are maintained by balancing selection. Our work demonstrates how DMEs allow populations to adapt to fluctuating environments and defines the basic principles for engineering populations with synthetic DMEs.
+
 \
-First, as ecDNA copy number is increased, the intracellular balance of coexisting ecDNA variants becomes more resilient to stochastic fluctuations.\
+
+##### Claims to test in this notebook:
 \
-Second, the speed at which selection tunes population-level gene expression in response to environmental change is maximized when intracellular plasmid variance is maximized.\
+(1) As ecDNA copy number increases, the intracellular balance of coexisting ecDNA variants becomes more robust to stochastic fluctuations. When ecDNA copy number is sufficiently high to maintain diverse ecDNAs within single cells, tunable dynamics emerge in otherwise clonal populations.
 \
-Third, when ecDNA copy number is sufficiently high to maintain diverse ecDNAs in single cells, tunable evolutionary dynamics can emerge in otherwise clonal populations.\
 \
-Mathematically, these findings generalize to any intracellular population of genetic elements coexisting via balancing selection.\
-\
-We therefore define “diversity-maintaining genetic elements” as the class of genetic elements described by our theory. Our work reports foundational principles governing how ecDNAs allow populations to adapt to fluctuating environments. Our work also sets the foundation for engineering population behavior with diversity-maintaining genetic elements.
+(2) the speed at which selection tunes population-level gene expression in response to environmental change is determined by the covariance between gene expression and fitness in the population (Price's theorem).  
+
+We examine this second claim by randomly sampling 10,000 random initial conditions with random plasmid copy numbers (PCN) and [Tet] concentrations.
 
 
 """
 
 # ╔═╡ fea3c300-7aaf-4da8-bed7-6e9426b4ac3d
+md""" ## ANALYSIS TODO. Test the following claims with the mathematical model:"""
+
+# ╔═╡ 04de8d60-346d-4c05-8290-a47e6d47829c
+md""" ##### (1) First, as ecDNA copy number is increased, the intracellular balance of coexisting ecDNA variants becomes more resilient to stochastic fluctuations. When ecDNA copy number is sufficiently high to maintain diverse ecDNAs in single cells, tunable evolutionary dynamics can emerge in otherwise clonal populations.
+
+
+Results: The model shows this behavior at PCN == 5, Tet == 4. Set initial population to 100% TetA == 4. **Fitness declines!!** This is a very nice result. Also note that the stationary distribution depends on which absorbing state (tetA == 1 or tetA == PCN+1) has higher fitness.
+
+##### TODO: Figure out a nice figure to show result (1).
+
+Idea to make this point: set TET\_CONC to 50% of PCN. Set the initial configuration of the population to 100% "fitness optimum", that is, at TCN == TET_CONC. Then show how the distribution evolves.
+
+When PCN == 10 and TET_CONC == 5, the distribution is completely found at the boundaries in the constant [Tet] simulation. The distribution is not tunable in the pulsed [Tet] simulation. 
+
+When PCN == 16 and TET_CONC == 8, it is almost flat in the middle, and most of the  distribution is at each boundary. The distribution is not tunable in the pulsed [Tet] simulation. 
+
+When PCN == 20 and TET_CONC == 10, there is a small bump in the middle, and some distribution at each boundary. The distribution is not tunable in the pulsed [Tet] simulation. 
+
+When PCN == 40 and TET_CONC == 20, there is a nice bell curve, and no distribution at the boundaries. The distribution is highly tunable in the pulsed [Tet] simulation.
+
+"""
+
+# ╔═╡ a0d7ab14-ac6c-4469-9dd7-ac89c9d3f0e9
 md"""
+##### IMPORTANT COUNTEREXAMPLE! 
 
-## TODO: 
+Again, we set the initial configuration of the population to 100% "fitness optimum", that is, at TCN == TET_CONC. Then we examine how the distribution evolves.
 
-### A) Test the following claims with the mathematical model:
+Set TET_CONC == 5.
 
-1) First, as ecDNA copy number is increased, the intracellular balance of coexisting ecDNA variants becomes more resilient to stochastic fluctuations.\
-\
-2) Second, the speed at which selection tunes population-level gene expression in response to environmental change is maximized when intracellular plasmid variance is maximized.\
-\
-3) Third, when ecDNA copy number is sufficiently high to maintain diverse ecDNAs in single cells, tunable evolutionary dynamics can emerge in otherwise clonal populations.\
-\
-4) Mathematically, these findings generalize to any intracellular population of genetic elements coexisting via balancing selection. 
+Set PCN to 50. The distribution is no longer tunable, due to stochastic loss (too close to bottom absorbing state.)
 
-### B) fix scaling factor bugs. In fact, scaling makes the fit worse??
+BUT-- when I set PCN to 5, the population is tunable again! The population goes to the tetA == 6 state, but can still go down to the tetA == 1 state since the population is large. In my experiment, I expect that the population will just get "stuck" at the tetA = 6 state, as long as there is selection for plasmid maintenance.
+
+##### KEY DISTINCTION: we have to make a clear distinction between the internal fixed point in terms of "allele frequency" versus absolute number of copies.
+
+For the case of the optimum being 6 TetA copies, for the case of PCN = 5, the allele frequency equilibrium is 100%, and the population stably goes to 6 tetA copies.
+But when PCN = 50, the allele frequency equilibrium is 6/51 = 11%, and this cannot be stably maintained in the population, 
+
+The nice thing about the eigenvalue result is that we can immediately get the stationary distribution without having to simulate the differential equations. So, we can show how the stationary distribution changes as a function of the matrix, which is a function of PCN and [Tet] concentration.
+"""
+
+# ╔═╡ 8946501b-dbdd-448f-a49f-02a9f8755939
+md"""
+##### TODO: vary the optimum (by varying [Tet] concentration), and show in terms of allele frequency.
+
+##### As we vary PCN, how does the stability of the internal equilibrium vary?
+
+We may be able to answer this question with a single figure, using this model!
+
+"""
+
+# ╔═╡ 4767dceb-4bb7-4eb1-80ae-83ec6eb7a34d
+md"""
+## DEBUGGING TODO: 
+1) fix scaling factor bugs. In fact, scaling makes the fit worse??
 
 Note that the fit is really good when covariance is positive, but not good when covariance is negative... this may be a clue as to the bug.
 
-## DEBUGGING: 
-1) in the constant [Tet] model, fitness variance divided by mean fitness does not exactly equal rate of change of mean fitness.
+2) in the constant [Tet] model, fitness variance divided by mean fitness does not exactly equal rate of change of mean fitness.
 
-2) in the pulse [Tet] model, tetA-fitness covariance divided by mean fitness does not exactly equal rate of change of mean fitness. 
+3) in the pulse [Tet] model, tetA-fitness covariance divided by mean fitness does not exactly equal rate of change of mean fitness. 
+
+4) the dominant eigenvector corresponds to final distribution in the constant [Tet] analysis, but after putting back into original basis, values are off by a factor of 1/2.
 
 """
 
@@ -197,7 +241,8 @@ The growth and stochastic switching dynamics are combined into a matrix $\mathbf
 
 Including dilution, the full dynamics are modeled by the following matrix system of ODEs:  
 
-$\frac{d\mathbf{x}}{dt} = \mathbf{A}\mathbf{x}(t) - \overline{r}(t) \mathbf{x}(t)$ Note that $\overline{r}(t)$ is a scalar and not a vector.
+$\frac{d\mathbf{x}}{dt} = \mathbf{A}\mathbf{x}(t) - \overline{r}(t) \mathbf{x}(t)$
+Note that $\overline{r}(t)$ is a scalar and not a vector.
 
 
 This results in this form of the matrix $\mathbf{A}$ (6-dimensional case shown):
@@ -350,12 +395,27 @@ In addition, note that the Kussell and Leibler (2005) Science paper also does an
 
 """
 
+# ╔═╡ 2d494ec7-9ff4-4fc8-bc31-cc7ce1c24864
+load("../data/Nowak-textbook-page-35.png")
+
+# ╔═╡ 8d97519b-3801-440d-85ba-a472889ff9c8
+md""" default parameter settings: \
+SIGMA = 10.0 \
+R_MAX = 1.0 \
+TIMESPAN = 400.0 \
+η₀ = 0.001
+"""
+
 # ╔═╡ 6d43ce5f-5e34-4d4e-bcd1-b876c5744be8
 begin
 	## Define global constants.
 	SIGMA = 10.0 ## set the width of the fitness function
 	R_MAX = 1.0 ## set the max growth rate.
-	TIMESPAN = 300.0
+
+	## Define the time span for solving the ODEs
+	TIMESPAN = 400.0
+	tspan = (0.0, TIMESPAN)
+	
 	η₀ = 0.001 ## set the transposition rate η₀.
 end
 
@@ -381,12 +441,22 @@ function gaussian_fitness_function(tetA_copy_number, Tet_conc, σ=SIGMA, r_max=R
 	return fitness
 end
 
+# ╔═╡ 89302bdf-4c0d-40de-9196-40d8bdfe88a9
+function dirac_delta_fitness_function(tetA_copy_number, Tet_conc, σ=SIGMA, r_max=R_MAX)
+	fitness = 0
+	if tetA_copy_number == Tet_conc
+		fitness = 1
+	end
+	return fitness
+end
+
 # ╔═╡ 6dbe79d8-f3f5-45d7-946a-7454542df74e
 function fitness_function(tetA_copy_number, Tet_conc, σ=SIGMA, r_max=R_MAX)
 	"""
 	syntactic sugar: many downstream functions depend on this function,
 	so simpler to change the *definition* of this function than to update the *name* of this function across many different blocks of code.
 	"""
+	##return dirac_delta_fitness_function(tetA_copy_number, Tet_conc, σ, r_max)
 	return gaussian_fitness_function(tetA_copy_number, Tet_conc, σ, r_max)
 end
 
@@ -560,14 +630,39 @@ function calc_response_time(my_sol)
 	return response_time
 end
 
+# ╔═╡ 335a67a2-5bc0-401c-a206-3b11511c5137
+function calc_response_time_to_max_tetA_copy_velocity(my_sol)
+	## We define the response time as the time for the system to hit maximum tetA copy number velocity.
+	response_time = -1
+	max_tetA_copy_velocity = -1
+	prev_vec = my_sol(0)
+	## IMPORTANT: t is the 'real time' in the timespan-- 
+	## and NOT an index for the my_sol.t object.
+	for t in 1:TIMESPAN
+		cur_vec = my_sol(t)
+
+		prev_mean_tetA_copy_num = calc_mean_tetA_copy_number(prev_vec)
+		cur_mean_tetA_copy_num = calc_mean_tetA_copy_number(cur_vec)
+		
+		cur_tetA_copy_velocity = cur_mean_tetA_copy_num - prev_mean_tetA_copy_num
+		
+		if cur_tetA_copy_velocity > max_tetA_copy_velocity
+			response_time = t
+			max_tetA_copy_velocity = cur_tetA_copy_velocity
+		end
+		
+		prev_vec = cur_vec
+	end
+	return response_time	
+end
+
 # ╔═╡ e3231fde-9713-4ba4-a2ff-713174bfb1fd
 function get_eigenvalues(A)
 	## Compute eigenvalues and eigenvectors
 	eigen_result = eigen(A)
 
 	# Extract eigenvalues
-	λ = eigen_result.values
-	return λ
+	return eigen_result.values
 end
 
 # ╔═╡ 092df61f-d380-4817-af27-c45ad5439872
@@ -576,8 +671,7 @@ function get_eigenvectors(A)
 	eigen_result = eigen(A)
 
 	# Extract eigenvectors
-	V = eigen_result.vectors
-	return V
+	return eigen_result.vectors
 end
 
 # ╔═╡ 4ddc1cae-b3ed-4167-b115-db18a256e34c
@@ -610,6 +704,21 @@ function StudyEigenBehavior(A)
 	println("check A against A_reconstructed")
 	
 	return(λ, V, D, A_reconstructed)
+end
+
+# ╔═╡ 9e3d7d4f-187b-4711-9222-04c62767e60d
+function check_stochastic_matrix(my_matrix)
+	## this function is for debugging the stochastic switching matrix.
+	num_columns = size(my_matrix, 2)
+	for col in 1:num_columns
+        column_sum = sum(my_matrix[:, col])
+        println(column_sum)
+        if isapprox(column_sum, 1.0)
+            println("Sum of column $col is 1.0")
+        else
+            println("Sum of column $col is not equal to 1.0")
+        end
+    end
 end
 
 # ╔═╡ 5e33d199-29f5-493e-9863-f02b61711e26
@@ -695,7 +804,7 @@ PCN
 MAX_TCN = PCN + 1 ## max transposon copy number is tied to plasmid_copy_number
 
 # ╔═╡ c84145c4-277e-4d5f-8582-b1fec3715780
-TetConcSlider = @bind TET_CONC Slider(0:50, default=35, show_value=true)
+TetConcSlider = @bind TET_CONC Slider(0:50, default=15, show_value=true)
 
 # ╔═╡ f6840ba3-7cdd-46a6-8ba5-43bddd99a20f
 function SelectionDiagonalMatrix(plasmid_copy_num=PCN, Tet_conc=TET_CONC)
@@ -744,6 +853,22 @@ begin
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
 
+# ╔═╡ dcf9a141-d813-476c-99cd-6251430c411f
+md""" #### Set the initial population state. """
+
+# ╔═╡ 8ca3e39e-778a-46fb-a7c6-5fdc8fbb86bd
+begin
+	## parameters used across time course simulations.
+	initial_pop_vec = zeros(BigFloat, MAX_TCN)
+	
+	## initialize the population with one cell with 1 tetA copy.
+	initial_pop_vec[1] = big"1.0"
+	
+	## to show how increasing PCN increases the stability of the optimal state,
+	## initialize the population at the highest fitness state (TCN == TET_CONC). 
+	##initial_pop_vec[TET_CONC] = big"1.0"	
+end
+
 # ╔═╡ 9162780a-5c20-4d89-9984-9bf2b9550203
 md""" #### Let's define the quasispecies equation here. """
 
@@ -755,6 +880,9 @@ function normalize_vector!(u)
     end
 end
 
+# ╔═╡ ff8944bf-17fe-47fe-ab54-e8945a17de47
+md""" #### TODO: add an ϵ = (1/N) threshold to model bottlenecks in transfers/finite population sizes in experiments. """
+
 # ╔═╡ 6654f511-9709-40e8-abdd-ea44c1874fa2
 function quasispecies_odefunc(du, u, p, t)
 
@@ -763,6 +891,8 @@ function quasispecies_odefunc(du, u, p, t)
 	
 	## Define the ODE system
 	A = MutSelMatrix(pcn, tet_conc)
+	##A = MutSelMatrix3(pcn, tet_conc) ## This line is for playing with diffusion
+
 
 	## Enforce positivity constraint
     u .= max.(u, 0.0)
@@ -775,30 +905,142 @@ function quasispecies_odefunc(du, u, p, t)
 	du .= Au - sum(Au) * u
 end
 
-# ╔═╡ 46d75d31-4d10-4247-9daf-4561d1b9a9fa
-begin
-	## parameters used across time course simulations.
-	initial_pop_vec = zeros(BigFloat, MAX_TCN)
-	## initialize the population with one cell with 1 tetA copy.
-	initial_pop_vec[1] = big"1.0"
+# ╔═╡ 6863f787-0508-44c7-9fc6-0df05a7a2d90
+function logistic_odefunc(du, u, p, t)
+	## quick hack to look at logistic equation behavior.
+	
+	## pcn and tet_conc needs to be passed in as parameters.
+	pcn, tet_conc = p
+	
+	## Define the ODE system
+	A = MutSelMatrix(pcn, tet_conc)
 
-	## Define the time span
-	tspan = (0.0, TIMESPAN)  # Replace with your desired time span
+	## Enforce positivity constraint
+    u .= max.(u, 0.0)
+
+	## for logistic equation we don't normalize the vector.
+	
+	## subtract the mean population growth during this dt interval.
+	Au = A*u ## sugar to avoid recomputation
+	xtotal = sum(u)
+	N_MAX = 10 ## quick hack to look at dynamics
+    du .= Au*(1-xtotal/N_MAX) - sum(Au) * u
 end
 
-# ╔═╡ 548e51f4-8c76-46e9-91a9-3ab4fdbb3fe7
-function check_stochastic_matrix(my_matrix)
-	## this function is for debugging the stochastic switching matrix.
-	num_columns = size(my_matrix, 2)
-	for col in 1:num_columns
-        column_sum = sum(my_matrix[:, col])
-        println(column_sum)
-        if isapprox(column_sum, 1.0)
-            println("Sum of column $col is 1.0")
-        else
-            println("Sum of column $col is not equal to 1.0")
-        end
-    end
+# ╔═╡ c04d253b-b66c-486d-b58f-73a5094d1360
+function sample_unit_vector(n)
+    ## Generate n random numbers
+    x = rand(n)
+	
+    ## Normalize the vector to make the sum equal to one
+    x /= sum(x)
+	
+    return x
+end
+
+# ╔═╡ a2deae22-6783-49db-8097-c8221e54933b
+function SolveConstantTetQuasispeciesSystem(my_pcn, my_tet_conc; 						use_random_initial_vec=false,
+	my_quasispecies_odefunc=quasispecies_odefunc,
+	my_tspan=tspan)
+	""" 
+	run the simulation for constant [Tet] concentration.
+
+	if use_random_initial_vec is true, then use a random initial population.
+
+	otherwise, start from one tetA transposon copy in the chromosome.
+	"""
+
+	## max transposon copy number is tied to plasmid_copy_number
+	max_tcn = my_pcn + 1
+
+	if use_random_initial_vec
+		## then sample a random initial condition (sums to one).
+		my_initial_pop_vec = big.(sample_unit_vector(my_max_TCN))
+	else
+		my_initial_pop_vec = zeros(BigFloat, max_tcn)	
+		## initialize the population with one cell with 1 tetA copy.
+		my_initial_pop_vec[1] = big"1.0"
+	end
+	
+	## Create an ODEProblem
+	prob = ODEProblem(my_quasispecies_odefunc, my_initial_pop_vec, my_tspan, (my_pcn, my_tet_conc))
+	## Solve the ODE system
+	sol = solve(prob, Tsit5())
+	return sol
+end
+
+# ╔═╡ 2986b2e1-bda5-4d76-abae-58067014e3ff
+function MakeResultMatrix(sol)
+	""" make a matrix saving the population dynamics from a solved ODEProblem """
+	result_matrix = [] ## Initialize an empty matrix
+	for i in 1:length(sol.u)
+		total_N = sum(sol.u[i])
+		cur_frequency_vec = sol.u[i]/total_N
+		##concatenate the state vector horizontally into the result_matrix
+		result_matrix = push!(result_matrix, cur_frequency_vec)
+	end
+	return result_matrix
+end
+
+# ╔═╡ bb407baf-7270-40ab-9881-d6249d851ff0
+function CalcTetACopyNumberVarianceFromSol(sol)
+	result_matrix = MakeResultMatrix(sol)
+	copy_num_variance_vec = []
+	for i in 1:length(sol.u)
+		cur_pop_vec = result_matrix[i]
+		cur_copy_num_variance = calc_tetA_copy_number_variance(cur_pop_vec)
+		
+		append!(copy_num_variance_vec, cur_copy_num_variance)
+	end
+	return copy_num_variance_vec
+end
+
+# ╔═╡ 6d0b59d4-9302-4574-9252-c09e7076c858
+function CalcTetACopyNumberFitnessCovarianceFromSol(sol, tet_conc)
+	result_matrix = MakeResultMatrix(sol)
+	copy_num_covariance_vec = []
+	for i in 1:length(sol.u)
+		cur_pop_vec = result_matrix[i]
+		cur_copy_num_covariance = calc_tetA_copy_number_fitness_covariance(cur_pop_vec, tet_conc)
+		
+		append!(copy_num_covariance_vec, cur_copy_num_covariance)
+	end
+	return copy_num_covariance_vec
+end
+
+# ╔═╡ 71fb096a-b622-455a-a92a-4c98e06b66fa
+function CalcTetACopyNumberVelocity(sol)
+
+	result_matrix = MakeResultMatrix(sol)
+	
+	mean_tetA_copy_num_vec = [] 
+	for i in 1:length(result_matrix)
+		cur_pop_vec = result_matrix[i]
+
+		cur_mean_tetA_copy_num = calc_mean_tetA_copy_number(cur_pop_vec)
+		append!(mean_tetA_copy_num_vec, cur_mean_tetA_copy_num)
+	end
+
+	## append a zero to the front of the difference vector.
+	d_mean_tetA_copy_num_vec = [0; diff(mean_tetA_copy_num_vec)]
+	return d_mean_tetA_copy_num_vec
+end
+
+# ╔═╡ 84dc3afe-638e-41e1-a29c-59eb7cf60e8b
+function CalcFitnessVelocity(sol, tet_conc)
+
+	result_matrix = MakeResultMatrix(sol)
+	
+	mean_fitness_vec = [] 
+	for i in 1:length(result_matrix)
+		cur_pop_vec = result_matrix[i]
+		cur_mean_fitness = calc_mean_fitness(cur_pop_vec, tet_conc)
+		append!(mean_fitness_vec, cur_mean_fitness)
+	end
+
+	## append a zero to the front of the difference vector.
+	d_mean_fitness_vec = [0; diff(mean_fitness_vec)]
+	return d_mean_fitness_vec
 end
 
 # ╔═╡ 959627bd-489a-4e66-aac9-63de0df9fc52
@@ -810,7 +1052,8 @@ begin
 	
 	## Create an ODEProblem
 	prob = ODEProblem(quasispecies_odefunc, initial_pop_vec, tspan, (PCN, TET_CONC))
-
+	##prob = ODEProblem(logistic_odefunc, initial_pop_vec, tspan, (PCN, TET_CONC))
+	
 	## Solve the ODE system
 	sol1 = solve(prob, Tsit5())
 	
@@ -902,6 +1145,48 @@ let
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
+
+# ╔═╡ 92e95285-dc85-417f-a43c-4885866755b6
+md""" ##### get the final distribution in the constant [Tet] population."""
+
+# ╔═╡ e50fd52e-451d-48b3-96bd-96f6627d45e8
+final_const_Tet_population = result_matrix[end]
+
+# ╔═╡ 378dff1f-1ecd-4a01-9c49-244365cbcdf6
+md""" ##### check whether the final distribution matches the eigenvector corresponding to the dominant eigenvalue."""
+
+# ╔═╡ 8cbbbfb6-79ed-43b4-bece-ba7239cb7940
+begin
+	Amatrix = MutSelMatrix(PCN, TET_CONC)
+	# Invert the  Amatrix
+	Amatrix_inv = inv(Amatrix)
+
+	Amatrix_top_eigenvector = [real(x) for x in eigen(Amatrix).vectors[:,PCN+1]]
+	# Transform eigenvector back to the original basis
+	original_basis_vector = Amatrix_inv * Amatrix_top_eigenvector
+	
+end
+
+# ╔═╡ 1527f8ba-ea0c-4046-9160-9dfc4b960e8c
+plot(xvec, final_const_Tet_population)
+
+# ╔═╡ d3dbbda4-a00f-45c4-a092-267d1e0a7bb8
+plot(xvec, Amatrix_top_eigenvector)
+
+# ╔═╡ 380d53c9-87e5-4ac8-bad1-59efe62c6f9c
+plot(xvec, original_basis_vector)
+
+# ╔═╡ d150b41b-dee5-49e4-9a94-1fb22cac0ade
+plot(xvec, 0.5*original_basis_vector)
+
+# ╔═╡ 2e80e6c2-6317-4e63-a2c8-bfddffe45322
+md""" ##### RESULT: the eigenvector corresponding to the dominant eigenvalue has the same distribution, but differs from the final distribution by a factor of 1/2. Why? maybe a bug from ChatGPT answer?"""
+
+# ╔═╡ b4bb36c0-a9ca-4284-9b69-6db744a9a65f
+0.5*original_basis_vector
+
+# ╔═╡ c195ee92-0bb2-45e3-ad22-0e2ff5358f39
+final_const_Tet_population
 
 # ╔═╡ f7fe6bf0-86c5-4eb5-875b-be935719ac18
 md""" ##### calculate mean fitness in the constant [Tet] population."""
@@ -1009,7 +1294,7 @@ scaled_copy_num_covariance_vec1 = copy_num_covariance_vec1 .* [BigFloat(1.0)/Big
 # ╔═╡ 4724d83c-201f-453f-aeac-52202712d97a
 let
 	plot(final_t1, copy_num_covariance_vec1, label="tetA copy number fitness covariance")
-	plot!(final_t1, d_mean_copy_num_vec1, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative and variance")
+	plot!(final_t1, d_mean_copy_num_vec1, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative and covariance")
 end
 
 # ╔═╡ 472637ca-befd-49b6-9c5e-c829e7e84ede
@@ -1024,13 +1309,99 @@ d_mean_copy_num_vec1
 # ╔═╡ fef4d315-5440-40db-9e35-122187b55567
 mean_copy_num_vec1
 
+# ╔═╡ bbe80737-b446-43f7-aed0-e49b3331b976
+md""" ## Vary PCN (5, 15, 25, 50), keep [Tet] == 15, and compare rate of changes of mean tetA copy number"""
+
+# ╔═╡ 3db81e95-4d29-41cd-a6dc-adaccf547942
+begin
+	pcn5_tet15_sol = SolveConstantTetQuasispeciesSystem(5, 15)
+	pcn5_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn5_tet15_sol, 15)
+	pcn5_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn5_tet15_sol)
+
+	
+	pcn15_tet15_sol = SolveConstantTetQuasispeciesSystem(15, 15)
+	pcn15_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn15_tet15_sol, 15)
+	pcn15_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn15_tet15_sol)
+
+	
+	pcn25_tet15_sol = SolveConstantTetQuasispeciesSystem(25, 15)
+	pcn25_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn25_tet15_sol, 15)
+	pcn25_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn25_tet15_sol)
+
+	
+	pcn50_tet15_sol = SolveConstantTetQuasispeciesSystem(50, 15)
+	pcn50_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn50_tet15_sol, 15)
+	pcn50_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn50_tet15_sol)
+end
+
+# ╔═╡ 1b3c8171-f7b6-4cca-9d4f-a34d83f65401
+let
+	plot(pcn5_tet15_sol.t, pcn5_tet15_copy_num_covariance, label="PCN=5, TET=15", xlabel="Time", ylabel="tetA copy number-fitness covariance")
+
+	plot!(pcn15_tet15_sol.t, pcn15_tet15_copy_num_covariance, label="PCN=15, TET=15")
+	plot!(pcn25_tet15_sol.t, pcn25_tet15_copy_num_covariance, label="PCN=25, TET=15")
+	plot!(pcn50_tet15_sol.t, pcn50_tet15_copy_num_covariance, label="PCN=50, TET=15")
+end
+
+# ╔═╡ 050bdfb9-10bd-41ca-b9c1-0b7bdee63eb9
+let
+	plot(pcn5_tet15_sol.t, pcn5_tet15_copy_num_velocity, label="PCN=5, TET=15", xlabel="Time", ylabel="rate of change of mean tetA copy number")
+
+	plot!(pcn15_tet15_sol.t, pcn15_tet15_copy_num_velocity, label="PCN=15, TET=15")
+	plot!(pcn25_tet15_sol.t, pcn25_tet15_copy_num_velocity, label="PCN=25, TET=15")
+	plot!(pcn50_tet15_sol.t, pcn50_tet15_copy_num_velocity, label="PCN=50, TET=15")
+end
+
+# ╔═╡ 86085d2c-1308-4cdd-a680-8ccdb225951e
+md""" ## Vary PCN (5, 15, 25, 50), keep [Tet] == 40, and compare rate of changes of mean tetA copy number"""
+
+# ╔═╡ c7b4b4cd-a97c-4592-9718-ca8dff9729cd
+begin
+	pcn5_tet40_sol = SolveConstantTetQuasispeciesSystem(5, 40)
+	pcn5_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn5_tet40_sol, 40)
+	pcn5_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn5_tet40_sol)
+
+	
+	pcn15_tet40_sol = SolveConstantTetQuasispeciesSystem(15, 40)
+	pcn15_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn15_tet40_sol, 40)
+	pcn15_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn15_tet40_sol)
+
+	
+	pcn25_tet40_sol = SolveConstantTetQuasispeciesSystem(25, 40)
+	pcn25_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn25_tet40_sol, 40)
+	pcn25_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn25_tet40_sol)
+
+	
+	pcn50_tet40_sol = SolveConstantTetQuasispeciesSystem(50, 40)
+	pcn50_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn50_tet40_sol, 40)
+	pcn50_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn50_tet40_sol)
+end
+
+# ╔═╡ ff80d7d6-c4a7-4c12-8ed9-66145179d1e1
+let
+	plot(pcn5_tet40_sol.t, pcn5_tet40_copy_num_covariance, label="PCN=5, TET=40", xlabel="Time", ylabel="tetA copy number-fitness covariance")
+
+	plot!(pcn15_tet40_sol.t, pcn15_tet40_copy_num_covariance, label="PCN=15, TET=40")
+	plot!(pcn25_tet40_sol.t, pcn25_tet40_copy_num_covariance, label="PCN=25, TET=40")
+	plot!(pcn50_tet40_sol.t, pcn50_tet40_copy_num_covariance, label="PCN=50, TET=40")
+end
+
+# ╔═╡ 795d5c3f-e800-4cdf-a6ef-dbb2954603c6
+let
+	plot(pcn5_tet40_sol.t, pcn5_tet40_copy_num_velocity, label="PCN=5, TET=40", xlabel="Time", ylabel="rate of change of mean tetA copy number")
+
+	plot!(pcn15_tet40_sol.t, pcn15_tet40_copy_num_velocity, label="PCN=15, TET=40")
+	plot!(pcn25_tet40_sol.t, pcn25_tet40_copy_num_velocity, label="PCN=25, TET=40")
+	plot!(pcn50_tet40_sol.t, pcn50_tet40_copy_num_velocity, label="PCN=50, TET=40")
+end
+
 # ╔═╡ a4fcf0b1-9625-4be3-a71b-0a4966a017e4
-md""" ## model the Tet pulse conditions of the Darwin experiment."""
+md""" ## model the [Tet] pulse conditions of the Darwin experiment."""
 
 # ╔═╡ 208f6604-701a-47f9-b934-1e4e546ee722
-## We model [Tet] pulses over time by dividing the current time by 20, and
-## setting [Tet] on if in the first half.
-TetPulseFunction = t -> mod(t,100) < 50 ? TET_CONC : 0
+## We model [Tet] pulses over time by dividing the current time by 200, and
+## setting "[Tet] ON" if in the first half.
+TetPulseFunction = t -> mod(t,200) < 100 ? TET_CONC : 0
 
 # ╔═╡ 15129817-9644-4d23-9c3f-c46fbc6bc267
 function pulse_quasispecies_odefunc(du, u, p, t)
@@ -1097,7 +1468,7 @@ let
 end
 
 # ╔═╡ 4e920578-22b6-46fa-94e1-809f80e86425
-pulse_result_matrix[30]
+pulse_result_matrix[87]
 
 # ╔═╡ 71943ad7-d763-48b8-96f2-dcc91e86a666
 md""" ### plot the antibiotic pulse regime over time."""
@@ -1253,11 +1624,185 @@ let
 	plot!(pulse_final_t, d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:left)
 end
 
+# ╔═╡ f8d03a5e-5876-4ef8-afdf-8a4b71ea7a10
+md""" ### Let's test claim 2:
+The speed at which selection tunes population-level gene expression in response to environmental change is determined by the covariance between gene expression and fitness in the population (Price's theorem).
+
+We examine this last claim by randomly sampling 10,000 random initial conditions with random plasmid copy numbers (PCN) and [Tet] concentrations.
+"""
+
+# ╔═╡ d4ca84f1-84ac-4d30-9dc3-cb40c8e4a376
+begin
+	
+	sampled_solution_covariance_velocity_tuples = []
+
+	## sample N times.
+	N = 1000
+	for i in 1:N
+
+		## sample a random [Tet] concentration between 0 and 50
+		my_Tet = rand(0:50)
+		
+		## sample a random plasmid copy number between 0 and 100
+		my_PCN = rand(1:100)
+		## then the initial condition has my_PCN + 1 entries.
+		my_max_TCN = my_PCN + 1
+		println("PCN is $my_PCN and [Tet] is $my_Tet.")
+		
+		## the solution uses a random initial condition that sums to one.
+		my_sol = SolveConstantTetQuasispeciesSystem(my_PCN, my_Tet, use_random_initial_vec=false)
+		
+		my_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(my_sol, my_Tet)
+		
+		my_copy_num_velocity = CalcTetACopyNumberVelocity(my_sol)
+
+		## append the (sol, covariance, copy_num_velocity) result
+		my_result_tuple = (my_sol, my_copy_num_covariance, my_copy_num_velocity)
+		push!(sampled_solution_covariance_velocity_tuples, my_result_tuple)
+	end
+
+end
+
+# ╔═╡ e5d15711-d1fa-4af9-8521-225ed270d99c
+md""" ### let's look at the first random simulation as a sanity check."""
+
+# ╔═╡ 0602090d-d318-414e-b641-e0932f1a69db
+begin
+	test_result_tuple = sampled_solution_covariance_velocity_tuples[1]
+	test_sol, test_copy_num_covariance, test_copy_num_velocity = test_result_tuple
+end
+
+# ╔═╡ 65c18fb8-093d-465a-863f-dea9f237907b
+let
+	plot()
+	plot!(test_sol.t, test_copy_num_covariance, xlabel="Time", ylabel="tetA copy number covariance")
+	plot!(test_sol.t, test_copy_num_velocity, xlabel="Time", ylabel="tetA copy number velocity")
+end
+
+# ╔═╡ 45e58ab3-56c1-47e0-8625-b69d7e54e2f4
+let
+	plot() # Initialize an empty plot
+	plot!(test_copy_num_velocity, test_copy_num_covariance, xlabel="tetA copy number velocity ", ylabel="tetA copy number-fitness covariance")
+end
+
+# ╔═╡ c300c284-d77e-49c3-8fc5-39ec35dba71d
+let
+	scatter() # Initialize an empty plot
+	scatter!(test_copy_num_velocity, test_copy_num_covariance, xlabel="tetA copy number velocity ", ylabel="tetA copy number-fitness covariance")
+end
+
+# ╔═╡ 73558ee3-1d94-4ede-9cbf-41d290b601c6
+begin
+	my_big_scatterplot = scatter()  # Initialize an empty plot
+	
+	for my_result_tuple in sampled_solution_covariance_velocity_tuples
+		
+		my_sol, my_copy_num_covariance, my_copy_num_velocity = my_result_tuple
+			
+		scatter!(my_copy_num_velocity, my_copy_num_covariance, xlabel="tetA copy number velocity", ylabel="tetA copy number-fitness covariance", legend=false)		
+	end
+	
+end
+
+# ╔═╡ 1b97d8a5-ddbf-4f81-9614-a749e8f0fb1c
+my_big_scatterplot
+
+# ╔═╡ 93e0aa9d-4056-4c0b-a14d-ef6667e3e330
+savefig(my_big_scatterplot, "../results/modeling-results/velocity-covariance-scatterplot.pdf")
+
+# ╔═╡ 03204f07-bc4f-4856-918a-a8f50bd15f1a
+md""" #### additional analyses of these randomly initialized runs. """
+
+# ╔═╡ 7e4832cd-74c4-44c2-b215-f359a27d495e
+begin ## calculate the variance in each run, in case that is interesting.
+	for my_result_tuple in sampled_solution_covariance_velocity_tuples
+
+		my_sol, my_copy_num_covariance, my_copy_num_velocity = my_result_tuple
+		my_copy_num_variance = CalcTetACopyNumberVarianceFromSol(my_sol)		
+	end
+end
+
+# ╔═╡ 1c225073-3917-4fb1-96d5-0b16b4aa311b
+md""" first define response time as time to reach stationary distribution. plot this against the maximum covariance in the run."""
+
+# ╔═╡ 7afd146e-0164-43f0-a1da-1c611d34501e
+begin ## compare peak tetA copy number-fitness covariance to response time.
+
+	response_time_vec1 = []
+	maximum_copy_num_fitness_covariance_vec1 = []
+	
+	for my_result_tuple in sampled_solution_covariance_velocity_tuples
+		my_sol, my_copy_num_fitness_covariance, my_copy_num_velocity = my_result_tuple
+		
+		my_response_time = calc_response_time(my_sol)
+		my_maximum_copy_num_fitness_covariance = maximum(my_copy_num_fitness_covariance)
+
+		push!(response_time_vec1, my_response_time)
+		push!(maximum_copy_num_fitness_covariance_vec1, my_maximum_copy_num_fitness_covariance)
+	end
+
+	response_time_to_stationary_distribution_plot = scatter(maximum_copy_num_fitness_covariance_vec1, response_time_vec1, ylabel="response time\n(time to stationary distribution)", xlabel="peak tetA copy number-fitness covariance", legend=false)		
+end
+
+# ╔═╡ 3f32941d-d7a6-44c3-a93c-1deed4c387ab
+savefig(response_time_to_stationary_distribution_plot, "../results/modeling-results/response_time_to_stationary_distribution_plot.pdf")
+
+# ╔═╡ 30f30139-a8e3-4f49-97b4-b25db5fb4df6
+md""" now define response time as time to reach max velocity. plot this against the maximum covariance in the run."""
+
+# ╔═╡ a52ee62d-ee31-403b-8c6d-dd16d2ad4cee
+begin 
+	## compare peak tetA copy number-fitness covariance to response time,
+	## defined by time to maximum velocity.
+	response_time_vec2 = []
+	maximum_copy_num_fitness_covariance_vec2 = []
+	
+	for my_result_tuple in sampled_solution_covariance_velocity_tuples
+		my_sol, my_copy_num_fitness_covariance, my_copy_num_velocity = my_result_tuple
+		
+		my_response_time = calc_response_time_to_max_tetA_copy_velocity(my_sol)
+		my_maximum_copy_num_fitness_covariance = maximum(my_copy_num_fitness_covariance)
+
+		push!(response_time_vec2, my_response_time)
+		push!(maximum_copy_num_fitness_covariance_vec2, my_maximum_copy_num_fitness_covariance)
+	end
+
+	response_time_to_max_velocity_plot = scatter(maximum_copy_num_fitness_covariance_vec2, response_time_vec2, ylabel="response time\n(time to max velocity)", xlabel="peak tetA copy number-fitness covariance", legend=false)		
+end
+
+# ╔═╡ 7895676b-6329-4e96-bb32-295806666f5c
+savefig(response_time_to_max_velocity_plot, "../results/modeling-results/response_time_to_max_velocity_plot.pdf")
+
+# ╔═╡ c13065dd-0ea0-45aa-806b-3383547c7d75
+begin 
+	## compare peak tetA copy number-fitness covariance to maximum velocity.
+	maximum_copy_num_velocity_vec = []
+	maximum_copy_num_fitness_covariance_vec = []
+	
+	for my_result_tuple in sampled_solution_covariance_velocity_tuples
+		my_sol, my_copy_num_fitness_covariance, my_copy_num_velocity = my_result_tuple
+		
+		my_maximum_copy_num_velocity = maximum(my_copy_num_velocity)
+		
+		my_maximum_copy_num_fitness_covariance = maximum(my_copy_num_fitness_covariance)
+
+		push!(maximum_copy_num_velocity_vec, my_maximum_copy_num_velocity)
+		
+		push!(maximum_copy_num_fitness_covariance_vec, my_maximum_copy_num_fitness_covariance)
+	end
+
+	max_velocity_covariance_scatterplot = scatter(maximum_copy_num_fitness_covariance_vec, maximum_copy_num_velocity_vec, ylabel="max tetA copy number velocity", xlabel="max tetA copy number-fitness covariance", legend=false)		
+end
+
+# ╔═╡ 9cdb714b-8f1f-4727-b24f-584a81ff6a2f
+savefig(max_velocity_covariance_scatterplot, "../results/modeling-results/max-velocity-covariance-scatterplot.pdf")
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
@@ -1266,6 +1811,7 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 [compat]
 DifferentialEquations = "~7.12.0"
 Distributions = "~0.25.104"
+Images = "~0.26.0"
 Plots = "~1.39.0"
 PlutoUI = "~0.7.54"
 """
@@ -1276,12 +1822,23 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.0"
 manifest_format = "2.0"
-project_hash = "036588975bb5fc9a27cddd53733874a3766ca07a"
+project_hash = "f1bab0bcf93ba1966de7fc305ba16bda53a329e2"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "41c37aa88889c171f1300ceac1313c06e891d245"
 uuid = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
 version = "0.2.6"
+
+[[deps.AbstractFFTs]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "d92ad398961a3ed262d8bf04a1a2b8340f915fef"
+uuid = "621f4979-c628-5d54-868e-fcf4e3e8185c"
+version = "1.5.0"
+weakdeps = ["ChainRulesCore", "Test"]
+
+    [deps.AbstractFFTs.extensions]
+    AbstractFFTsChainRulesCoreExt = "ChainRulesCore"
+    AbstractFFTsTestExt = "Test"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -1343,6 +1900,18 @@ weakdeps = ["SparseArrays"]
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
+
+[[deps.AxisAlgorithms]]
+deps = ["LinearAlgebra", "Random", "SparseArrays", "WoodburyMatrices"]
+git-tree-sha1 = "66771c8d21c8ff5e3a93379480a2307ac36863f7"
+uuid = "13072b0f-2c55-5437-9ae7-d433b7a33950"
+version = "1.0.1"
+
+[[deps.AxisArrays]]
+deps = ["Dates", "IntervalSets", "IterTools", "RangeArrays"]
+git-tree-sha1 = "16351be62963a67ac4083f748fdb3cca58bfd52f"
+uuid = "39de3d68-74b9-583c-8d2d-e117c070f3a9"
+version = "0.4.7"
 
 [[deps.BandedMatrices]]
 deps = ["ArrayLayouts", "FillArrays", "LinearAlgebra", "PrecompileTools"]
@@ -1411,11 +1980,33 @@ git-tree-sha1 = "f641eb0a4f00c343bbc32346e1217b86f3ce9dad"
 uuid = "49dc2e85-a5d0-5ad3-a950-438e2897f1b9"
 version = "0.5.1"
 
+[[deps.CatIndices]]
+deps = ["CustomUnitRanges", "OffsetArrays"]
+git-tree-sha1 = "a0f80a09780eed9b1d106a1bf62041c2efc995bc"
+uuid = "aafaddc9-749c-510e-ac4f-586e18779b91"
+version = "0.2.2"
+
+[[deps.ChainRulesCore]]
+deps = ["Compat", "LinearAlgebra"]
+git-tree-sha1 = "2118cb2765f8197b08e5958cdd17c165427425ee"
+uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+version = "1.19.0"
+weakdeps = ["SparseArrays"]
+
+    [deps.ChainRulesCore.extensions]
+    ChainRulesCoreSparseArraysExt = "SparseArrays"
+
 [[deps.CloseOpenIntervals]]
 deps = ["Static", "StaticArrayInterface"]
 git-tree-sha1 = "70232f82ffaab9dc52585e0dd043b5e0c6b714f1"
 uuid = "fb6a15b2-703c-40df-9091-08a04967cfa9"
 version = "0.1.12"
+
+[[deps.Clustering]]
+deps = ["Distances", "LinearAlgebra", "NearestNeighbors", "Printf", "Random", "SparseArrays", "Statistics", "StatsBase"]
+git-tree-sha1 = "407f38961ac11a6e14b2df7095a2577f7cb7cb1b"
+uuid = "aaaa29a8-35af-508c-8bc3-b662a17a0fe5"
+version = "0.15.6"
 
 [[deps.CodecZlib]]
 deps = ["TranscodingStreams", "Zlib_jll"]
@@ -1477,6 +2068,11 @@ deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "1.0.5+1"
 
+[[deps.ComputationalResources]]
+git-tree-sha1 = "52cb3ec90e8a8bea0e62e275ba577ad0f74821f7"
+uuid = "ed09eef8-17a6-5b46-8889-db040fac31e3"
+version = "0.3.2"
+
 [[deps.ConcreteStructs]]
 git-tree-sha1 = "f749037478283d372048690eb3b5f92a79432b34"
 uuid = "2569d6c7-a4a2-43d3-a901-331e8e4be471"
@@ -1493,25 +2089,33 @@ deps = ["LinearAlgebra"]
 git-tree-sha1 = "c53fc348ca4d40d7b371e71fd52251839080cbc9"
 uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
 version = "1.5.4"
+weakdeps = ["IntervalSets", "StaticArrays"]
 
     [deps.ConstructionBase.extensions]
     ConstructionBaseIntervalSetsExt = "IntervalSets"
     ConstructionBaseStaticArraysExt = "StaticArrays"
-
-    [deps.ConstructionBase.weakdeps]
-    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
-    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [[deps.Contour]]
 git-tree-sha1 = "d05d9e7b7aedff4e5b51a029dced05cfb6125781"
 uuid = "d38c429a-6771-53c6-b99e-75d170b6e991"
 version = "0.6.2"
 
+[[deps.CoordinateTransformations]]
+deps = ["LinearAlgebra", "StaticArrays"]
+git-tree-sha1 = "f9d7112bfff8a19a3a4ea4e03a8e6a91fe8456bf"
+uuid = "150eb455-5306-5404-9cee-2592286d6298"
+version = "0.6.3"
+
 [[deps.CpuId]]
 deps = ["Markdown"]
 git-tree-sha1 = "fcbb72b032692610bfbdb15018ac16a36cf2e406"
 uuid = "adafc99b-e345-5852-983c-f28acb93d879"
 version = "0.3.1"
+
+[[deps.CustomUnitRanges]]
+git-tree-sha1 = "1a3f97f907e6dd8983b744d2642651bb162a3f7a"
+uuid = "dc8bdbbb-1ca9-579f-8c36-e416f6a65cce"
+version = "1.0.2"
 
 [[deps.DataAPI]]
 git-tree-sha1 = "8da84edb865b0b5b0100c0666a9bc9a0b71c553c"
@@ -1617,14 +2221,11 @@ deps = ["LinearAlgebra", "Statistics", "StatsAPI"]
 git-tree-sha1 = "66c4c81f259586e8f002eacebc177e1fb06363b0"
 uuid = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
 version = "0.10.11"
+weakdeps = ["ChainRulesCore", "SparseArrays"]
 
     [deps.Distances.extensions]
     DistancesChainRulesCoreExt = "ChainRulesCore"
     DistancesSparseArraysExt = "SparseArrays"
-
-    [deps.Distances.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [[deps.Distributed]]
 deps = ["Random", "Serialization", "Sockets"]
@@ -1710,10 +2311,28 @@ uuid = "c87230d0-a227-11e9-1b43-d7ebe4e7570a"
 version = "0.4.1"
 
 [[deps.FFMPEG_jll]]
-deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "PCRE2_jll", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
-git-tree-sha1 = "466d45dc38e15794ec7d5d63ec03d776a9aff36e"
+deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "PCRE2_jll", "Pkg", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
+git-tree-sha1 = "74faea50c1d007c85837327f6775bea60b5492dd"
 uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
-version = "4.4.4+1"
+version = "4.4.2+2"
+
+[[deps.FFTViews]]
+deps = ["CustomUnitRanges", "FFTW"]
+git-tree-sha1 = "cbdf14d1e8c7c8aacbe8b19862e0179fd08321c2"
+uuid = "4f61f5a4-77b1-5117-aa51-3ab5ef4ef0cd"
+version = "0.3.2"
+
+[[deps.FFTW]]
+deps = ["AbstractFFTs", "FFTW_jll", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
+git-tree-sha1 = "ec22cbbcd01cba8f41eecd7d44aac1f23ee985e3"
+uuid = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+version = "1.7.2"
+
+[[deps.FFTW_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "c6033cc3892d0ef5bb9cd29b7f2f0331ea5184ea"
+uuid = "f5851436-0d7a-5f13-b9de-f02708fd171a"
+version = "3.3.10+0"
 
 [[deps.FastAlmostBandedMatrices]]
 deps = ["ArrayInterface", "ArrayLayouts", "BandedMatrices", "ConcreteStructs", "LazyArrays", "LinearAlgebra", "MatrixFactorizations", "PrecompileTools", "Reexport"]
@@ -1737,6 +2356,12 @@ deps = ["LinearAlgebra"]
 git-tree-sha1 = "b12f05108e405dadcc2aff0008db7f831374e051"
 uuid = "29a986be-02c6-4525-aec4-84b980013641"
 version = "2.0.0"
+
+[[deps.FileIO]]
+deps = ["Pkg", "Requires", "UUIDs"]
+git-tree-sha1 = "299dc33549f68299137e51e6d49a13b5b1da9673"
+uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
+version = "1.16.1"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -1844,15 +2469,15 @@ version = "0.1.5"
 
 [[deps.GR]]
 deps = ["Artifacts", "Base64", "DelimitedFiles", "Downloads", "GR_jll", "HTTP", "JSON", "Libdl", "LinearAlgebra", "Pkg", "Preferences", "Printf", "Random", "Serialization", "Sockets", "TOML", "Tar", "Test", "UUIDs", "p7zip_jll"]
-git-tree-sha1 = "27442171f28c952804dede8ff72828a96f2bfc1f"
+git-tree-sha1 = "8e2d86e06ceb4580110d9e716be26658effc5bfd"
 uuid = "28b8d3ca-fb5f-59d9-8090-bfdbd6d07a71"
-version = "0.72.10"
+version = "0.72.8"
 
 [[deps.GR_jll]]
-deps = ["Artifacts", "Bzip2_jll", "Cairo_jll", "FFMPEG_jll", "Fontconfig_jll", "FreeType2_jll", "GLFW_jll", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libtiff_jll", "Pixman_jll", "Qt6Base_jll", "Zlib_jll", "libpng_jll"]
-git-tree-sha1 = "025d171a2847f616becc0f84c8dc62fe18f0f6dd"
+deps = ["Artifacts", "Bzip2_jll", "Cairo_jll", "FFMPEG_jll", "Fontconfig_jll", "GLFW_jll", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libtiff_jll", "Pixman_jll", "Qt5Base_jll", "Zlib_jll", "libpng_jll"]
+git-tree-sha1 = "da121cbdc95b065da07fbb93638367737969693f"
 uuid = "d2c73de3-f751-5644-a686-071e5b155ba9"
-version = "0.72.10+0"
+version = "0.72.8+0"
 
 [[deps.GenericSchur]]
 deps = ["LinearAlgebra", "Printf"]
@@ -1871,6 +2496,12 @@ deps = ["Artifacts", "Gettext_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Libic
 git-tree-sha1 = "e94c92c7bf4819685eb80186d51c43e71d4afa17"
 uuid = "7746bdde-850d-59dc-9ae8-88ece973131d"
 version = "2.76.5+0"
+
+[[deps.Graphics]]
+deps = ["Colors", "LinearAlgebra", "NaNMath"]
+git-tree-sha1 = "d61890399bc535850c4bf08e4e0d3a7ad0f21cbd"
+uuid = "a2bd30eb-e257-5431-a919-1863eab51364"
+version = "1.1.2"
 
 [[deps.Graphite2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1900,6 +2531,12 @@ deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll",
 git-tree-sha1 = "129acf094d168394e80ee1dc4bc06ec835e510a3"
 uuid = "2e76f6c2-a576-52d4-95c1-20adfe4de566"
 version = "2.8.1+1"
+
+[[deps.HistogramThresholding]]
+deps = ["ImageBase", "LinearAlgebra", "MappedArrays"]
+git-tree-sha1 = "7194dfbb2f8d945abdaf68fa9480a965d6661e69"
+uuid = "2c695a8d-9458-5d45-9878-1b8a99cf7853"
+version = "0.3.1"
 
 [[deps.HostCPUFeatures]]
 deps = ["BitTwiddlingConvenienceFunctions", "IfElse", "Libdl", "Static"]
@@ -1936,10 +2573,135 @@ git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
 uuid = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
 version = "0.1.1"
 
+[[deps.ImageAxes]]
+deps = ["AxisArrays", "ImageBase", "ImageCore", "Reexport", "SimpleTraits"]
+git-tree-sha1 = "2e4520d67b0cef90865b3ef727594d2a58e0e1f8"
+uuid = "2803e5a7-5153-5ecf-9a86-9b4c37f5f5ac"
+version = "0.6.11"
+
+[[deps.ImageBase]]
+deps = ["ImageCore", "Reexport"]
+git-tree-sha1 = "eb49b82c172811fd2c86759fa0553a2221feb909"
+uuid = "c817782e-172a-44cc-b673-b171935fbb9e"
+version = "0.1.7"
+
+[[deps.ImageBinarization]]
+deps = ["HistogramThresholding", "ImageCore", "LinearAlgebra", "Polynomials", "Reexport", "Statistics"]
+git-tree-sha1 = "f5356e7203c4a9954962e3757c08033f2efe578a"
+uuid = "cbc4b850-ae4b-5111-9e64-df94c024a13d"
+version = "0.3.0"
+
+[[deps.ImageContrastAdjustment]]
+deps = ["ImageBase", "ImageCore", "ImageTransformations", "Parameters"]
+git-tree-sha1 = "eb3d4365a10e3f3ecb3b115e9d12db131d28a386"
+uuid = "f332f351-ec65-5f6a-b3d1-319c6670881a"
+version = "0.3.12"
+
+[[deps.ImageCore]]
+deps = ["AbstractFFTs", "ColorVectorSpace", "Colors", "FixedPointNumbers", "MappedArrays", "MosaicViews", "OffsetArrays", "PaddedViews", "PrecompileTools", "Reexport"]
+git-tree-sha1 = "fc5d1d3443a124fde6e92d0260cd9e064eba69f8"
+uuid = "a09fc81d-aa75-5fe9-8630-4744c3626534"
+version = "0.10.1"
+
+[[deps.ImageCorners]]
+deps = ["ImageCore", "ImageFiltering", "PrecompileTools", "StaticArrays", "StatsBase"]
+git-tree-sha1 = "24c52de051293745a9bad7d73497708954562b79"
+uuid = "89d5987c-236e-4e32-acd0-25bd6bd87b70"
+version = "0.1.3"
+
+[[deps.ImageDistances]]
+deps = ["Distances", "ImageCore", "ImageMorphology", "LinearAlgebra", "Statistics"]
+git-tree-sha1 = "08b0e6354b21ef5dd5e49026028e41831401aca8"
+uuid = "51556ac3-7006-55f5-8cb3-34580c88182d"
+version = "0.2.17"
+
+[[deps.ImageFiltering]]
+deps = ["CatIndices", "ComputationalResources", "DataStructures", "FFTViews", "FFTW", "ImageBase", "ImageCore", "LinearAlgebra", "OffsetArrays", "PrecompileTools", "Reexport", "SparseArrays", "StaticArrays", "Statistics", "TiledIteration"]
+git-tree-sha1 = "432ae2b430a18c58eb7eca9ef8d0f2db90bc749c"
+uuid = "6a3955dd-da59-5b1f-98d4-e7296123deb5"
+version = "0.7.8"
+
+[[deps.ImageIO]]
+deps = ["FileIO", "IndirectArrays", "JpegTurbo", "LazyModules", "Netpbm", "OpenEXR", "PNGFiles", "QOI", "Sixel", "TiffImages", "UUIDs"]
+git-tree-sha1 = "bca20b2f5d00c4fbc192c3212da8fa79f4688009"
+uuid = "82e4d734-157c-48bb-816b-45c225c6df19"
+version = "0.6.7"
+
+[[deps.ImageMagick]]
+deps = ["FileIO", "ImageCore", "ImageMagick_jll", "InteractiveUtils"]
+git-tree-sha1 = "b0b765ff0b4c3ee20ce6740d843be8dfce48487c"
+uuid = "6218d12a-5da1-5696-b52f-db25d2ecc6d1"
+version = "1.3.0"
+
+[[deps.ImageMagick_jll]]
+deps = ["JpegTurbo_jll", "Libdl", "Libtiff_jll", "Pkg", "Zlib_jll", "libpng_jll"]
+git-tree-sha1 = "1c0a2295cca535fabaf2029062912591e9b61987"
+uuid = "c73af94c-d91f-53ed-93a7-00f77d67a9d7"
+version = "6.9.10-12+3"
+
+[[deps.ImageMetadata]]
+deps = ["AxisArrays", "ImageAxes", "ImageBase", "ImageCore"]
+git-tree-sha1 = "355e2b974f2e3212a75dfb60519de21361ad3cb7"
+uuid = "bc367c6b-8a6b-528e-b4bd-a4b897500b49"
+version = "0.9.9"
+
+[[deps.ImageMorphology]]
+deps = ["DataStructures", "ImageCore", "LinearAlgebra", "LoopVectorization", "OffsetArrays", "Requires", "TiledIteration"]
+git-tree-sha1 = "6f0a801136cb9c229aebea0df296cdcd471dbcd1"
+uuid = "787d08f9-d448-5407-9aad-5290dd7ab264"
+version = "0.4.5"
+
+[[deps.ImageQualityIndexes]]
+deps = ["ImageContrastAdjustment", "ImageCore", "ImageDistances", "ImageFiltering", "LazyModules", "OffsetArrays", "PrecompileTools", "Statistics"]
+git-tree-sha1 = "783b70725ed326340adf225be4889906c96b8fd1"
+uuid = "2996bd0c-7a13-11e9-2da2-2f5ce47296a9"
+version = "0.3.7"
+
+[[deps.ImageSegmentation]]
+deps = ["Clustering", "DataStructures", "Distances", "Graphs", "ImageCore", "ImageFiltering", "ImageMorphology", "LinearAlgebra", "MetaGraphs", "RegionTrees", "SimpleWeightedGraphs", "StaticArrays", "Statistics"]
+git-tree-sha1 = "3ff0ca203501c3eedde3c6fa7fd76b703c336b5f"
+uuid = "80713f31-8817-5129-9cf8-209ff8fb23e1"
+version = "1.8.2"
+
+[[deps.ImageShow]]
+deps = ["Base64", "ColorSchemes", "FileIO", "ImageBase", "ImageCore", "OffsetArrays", "StackViews"]
+git-tree-sha1 = "3b5344bcdbdc11ad58f3b1956709b5b9345355de"
+uuid = "4e3cecfd-b093-5904-9786-8bbb286a6a31"
+version = "0.3.8"
+
+[[deps.ImageTransformations]]
+deps = ["AxisAlgorithms", "CoordinateTransformations", "ImageBase", "ImageCore", "Interpolations", "OffsetArrays", "Rotations", "StaticArrays"]
+git-tree-sha1 = "7ec124670cbce8f9f0267ba703396960337e54b5"
+uuid = "02fcd773-0e25-5acc-982a-7f6622650795"
+version = "0.10.0"
+
+[[deps.Images]]
+deps = ["Base64", "FileIO", "Graphics", "ImageAxes", "ImageBase", "ImageBinarization", "ImageContrastAdjustment", "ImageCore", "ImageCorners", "ImageDistances", "ImageFiltering", "ImageIO", "ImageMagick", "ImageMetadata", "ImageMorphology", "ImageQualityIndexes", "ImageSegmentation", "ImageShow", "ImageTransformations", "IndirectArrays", "IntegralArrays", "Random", "Reexport", "SparseArrays", "StaticArrays", "Statistics", "StatsBase", "TiledIteration"]
+git-tree-sha1 = "d438268ed7a665f8322572be0dabda83634d5f45"
+uuid = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
+version = "0.26.0"
+
+[[deps.Imath_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "3d09a9f60edf77f8a4d99f9e015e8fbf9989605d"
+uuid = "905a6f67-0a94-5f89-b386-d35d92009cd1"
+version = "3.1.7+0"
+
+[[deps.IndirectArrays]]
+git-tree-sha1 = "012e604e1c7458645cb8b436f8fba789a51b257f"
+uuid = "9b13fd28-a010-5f03-acff-a1bbcff69959"
+version = "1.0.0"
+
 [[deps.Inflate]]
 git-tree-sha1 = "ea8031dea4aff6bd41f1df8f2fdfb25b33626381"
 uuid = "d25df0c9-e2be-5dd7-82c8-3ad0b3e990b9"
 version = "0.1.4"
+
+[[deps.IntegralArrays]]
+deps = ["ColorTypes", "FixedPointNumbers", "IntervalSets"]
+git-tree-sha1 = "be8e690c3973443bec584db3346ddc904d4884eb"
+uuid = "1d092043-8f09-5a30-832f-7509e371ab51"
+version = "0.1.5"
 
 [[deps.IntelOpenMP_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -1951,15 +2713,42 @@ version = "2024.0.2+0"
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
+[[deps.Interpolations]]
+deps = ["Adapt", "AxisAlgorithms", "ChainRulesCore", "LinearAlgebra", "OffsetArrays", "Random", "Ratios", "Requires", "SharedArrays", "SparseArrays", "StaticArrays", "WoodburyMatrices"]
+git-tree-sha1 = "721ec2cf720536ad005cb38f50dbba7b02419a15"
+uuid = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
+version = "0.14.7"
+
+[[deps.IntervalSets]]
+deps = ["Dates", "Random"]
+git-tree-sha1 = "3d8866c029dd6b16e69e0d4a939c4dfcb98fac47"
+uuid = "8197267c-284f-5f27-9208-e0e47529a953"
+version = "0.7.8"
+weakdeps = ["Statistics"]
+
+    [deps.IntervalSets.extensions]
+    IntervalSetsStatisticsExt = "Statistics"
+
 [[deps.IrrationalConstants]]
 git-tree-sha1 = "630b497eafcc20001bba38a4651b327dcfc491d2"
 uuid = "92d709cd-6900-40b7-9082-c6be49f344b6"
 version = "0.2.2"
 
+[[deps.IterTools]]
+git-tree-sha1 = "274c38bd733f9d29036d0a73658fff1dc1d3a065"
+uuid = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
+version = "1.9.0"
+
 [[deps.IteratorInterfaceExtensions]]
 git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
 uuid = "82899510-4779-5014-852e-03e436cf321d"
 version = "1.0.0"
+
+[[deps.JLD2]]
+deps = ["FileIO", "MacroTools", "Mmap", "OrderedCollections", "Pkg", "PrecompileTools", "Printf", "Reexport", "Requires", "TranscodingStreams", "UUIDs"]
+git-tree-sha1 = "c2d0f45afcb5f6209155670bffd100c3b4937ea3"
+uuid = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+version = "0.4.40"
 
 [[deps.JLFzf]]
 deps = ["Pipe", "REPL", "Random", "fzf_jll"]
@@ -1978,6 +2767,12 @@ deps = ["Dates", "Mmap", "Parsers", "Unicode"]
 git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
+
+[[deps.JpegTurbo]]
+deps = ["CEnum", "FileIO", "ImageCore", "JpegTurbo_jll", "TOML"]
+git-tree-sha1 = "fa6d0bcff8583bac20f1ffa708c3913ca605c611"
+uuid = "b835a17e-a41a-41e7-81f0-2f016b05efe0"
+version = "0.1.5"
 
 [[deps.JpegTurbo_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -2076,6 +2871,11 @@ weakdeps = ["StaticArrays"]
 deps = ["Artifacts", "Pkg"]
 uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
 
+[[deps.LazyModules]]
+git-tree-sha1 = "a560dd966b386ac9ae60bdd3a3d3a326062d3c3e"
+uuid = "8cdb02fc-e678-4876-92c5-9defec4f444e"
+version = "0.3.1"
+
 [[deps.LevyArea]]
 deps = ["LinearAlgebra", "Random", "SpecialFunctions"]
 git-tree-sha1 = "56513a09b8e0ae6485f34401ea9e2f31357958ec"
@@ -2146,10 +2946,10 @@ uuid = "4b2f31a3-9ecc-558c-b454-b3730dcb73e9"
 version = "2.35.0+0"
 
 [[deps.Libtiff_jll]]
-deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "LERC_jll", "Libdl", "XZ_jll", "Zlib_jll", "Zstd_jll"]
-git-tree-sha1 = "2da088d113af58221c52828a80378e16be7d037a"
+deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "LERC_jll", "Libdl", "Pkg", "Zlib_jll", "Zstd_jll"]
+git-tree-sha1 = "3eb79b0ca5764d4799c06699573fd8f533259713"
 uuid = "89763e89-9b03-5906-acba-b20f662cd828"
-version = "4.5.1+1"
+version = "4.4.0+0"
 
 [[deps.Libuuid_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -2232,15 +3032,11 @@ deps = ["ArrayInterface", "CPUSummary", "CloseOpenIntervals", "DocStringExtensio
 git-tree-sha1 = "0f5648fbae0d015e3abe5867bca2b362f67a5894"
 uuid = "bdcacae8-1622-11e9-2a5c-532679323890"
 version = "0.12.166"
+weakdeps = ["ChainRulesCore", "ForwardDiff", "SpecialFunctions"]
 
     [deps.LoopVectorization.extensions]
     ForwardDiffExt = ["ChainRulesCore", "ForwardDiff"]
     SpecialFunctionsExt = "SpecialFunctions"
-
-    [deps.LoopVectorization.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
-    SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [[deps.MIMEs]]
 git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
@@ -2263,6 +3059,11 @@ version = "0.5.12"
 git-tree-sha1 = "bcaef4fc7a0cfe2cba636d84cda54b5e4e4ca3cd"
 uuid = "d125e4d3-2237-4719-b19c-fa641b8a4667"
 version = "0.1.8"
+
+[[deps.MappedArrays]]
+git-tree-sha1 = "2dab0221fe2b0f2cb6754eaa743cc266339f527e"
+uuid = "dbb5928d-eab1-5f90-85c2-b9b0edb7c900"
+version = "0.4.2"
 
 [[deps.Markdown]]
 deps = ["Base64"]
@@ -2296,6 +3097,12 @@ git-tree-sha1 = "c13304c81eec1ed3af7fc20e75fb6b26092a1102"
 uuid = "442fdcdd-2543-5da2-b0f3-8c86c306513e"
 version = "0.3.2"
 
+[[deps.MetaGraphs]]
+deps = ["Graphs", "JLD2", "Random"]
+git-tree-sha1 = "1130dbe1d5276cb656f6e1094ce97466ed700e5a"
+uuid = "626554b9-1ddb-594c-aa3c-2596fe9399a5"
+version = "0.7.2"
+
 [[deps.Missings]]
 deps = ["DataAPI"]
 git-tree-sha1 = "f66bdc5de519e8f8ae43bdc598782d35a25b1272"
@@ -2304,6 +3111,12 @@ version = "1.1.0"
 
 [[deps.Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
+
+[[deps.MosaicViews]]
+deps = ["MappedArrays", "OffsetArrays", "PaddedViews", "StackViews"]
+git-tree-sha1 = "7b86a5d4d70a9f5cdf2dacb3cbe6d251d1a61dbe"
+uuid = "e94cdb99-869f-56ef-bcf0-1ae2bcbe0389"
+version = "0.3.4"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
@@ -2331,6 +3144,18 @@ deps = ["OpenLibm_jll"]
 git-tree-sha1 = "0877504529a3e5c3343c6f8b4c0381e57e4387e4"
 uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
 version = "1.0.2"
+
+[[deps.NearestNeighbors]]
+deps = ["Distances", "StaticArrays"]
+git-tree-sha1 = "ded64ff6d4fdd1cb68dfcbb818c69e144a5b2e4c"
+uuid = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
+version = "0.4.16"
+
+[[deps.Netpbm]]
+deps = ["FileIO", "ImageCore", "ImageMetadata"]
+git-tree-sha1 = "d92b107dbb887293622df7697a2223f9f8176fcd"
+uuid = "f09324ee-3d7c-5217-9330-fc30815ba969"
+version = "1.1.1"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
@@ -2386,6 +3211,18 @@ deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 version = "0.3.23+2"
 
+[[deps.OpenEXR]]
+deps = ["Colors", "FileIO", "OpenEXR_jll"]
+git-tree-sha1 = "327f53360fdb54df7ecd01e96ef1983536d1e633"
+uuid = "52e1d378-f018-4a11-a4be-720524705ac7"
+version = "0.3.2"
+
+[[deps.OpenEXR_jll]]
+deps = ["Artifacts", "Imath_jll", "JLLWrappers", "Libdl", "Zlib_jll"]
+git-tree-sha1 = "a4ca623df1ae99d09bc9868b008262d0c0ac1e4f"
+uuid = "18a262bb-aa17-5467-a713-aee519bc75cb"
+version = "3.1.4+0"
+
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
@@ -2399,9 +3236,9 @@ version = "1.4.1"
 
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "cc6e1927ac521b659af340e0ca45828a3ffc748f"
+git-tree-sha1 = "a12e56c72edee3ce6b96667745e6cbbe5498f200"
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
-version = "3.0.12+0"
+version = "1.1.23+0"
 
 [[deps.OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]
@@ -2443,11 +3280,23 @@ git-tree-sha1 = "949347156c25054de2db3b166c52ac4728cbad65"
 uuid = "90014a1f-27ba-587c-ab20-58faa44d9150"
 version = "0.11.31"
 
+[[deps.PNGFiles]]
+deps = ["Base64", "CEnum", "ImageCore", "IndirectArrays", "OffsetArrays", "libpng_jll"]
+git-tree-sha1 = "67186a2bc9a90f9f85ff3cc8277868961fb57cbd"
+uuid = "f57f5aa1-a3ce-4bc8-8ab9-96f992907883"
+version = "0.4.3"
+
 [[deps.PackageExtensionCompat]]
 git-tree-sha1 = "fb28e33b8a95c4cee25ce296c817d89cc2e53518"
 uuid = "65ce6f38-6b18-4e1d-a461-8949797d7930"
 version = "1.0.2"
 weakdeps = ["Requires", "TOML"]
+
+[[deps.PaddedViews]]
+deps = ["OffsetArrays"]
+git-tree-sha1 = "0fac6313486baae819364c52b4f483450a9d793f"
+uuid = "5432bcbf-9aad-5242-b902-cca2824c8663"
+version = "0.5.12"
 
 [[deps.Parameters]]
 deps = ["OrderedCollections", "UnPack"]
@@ -2476,6 +3325,12 @@ version = "0.42.2+0"
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 version = "1.10.0"
+
+[[deps.PkgVersion]]
+deps = ["Pkg"]
+git-tree-sha1 = "f9501cc0430a26bc3d156ae1b5b0c1b47af4d6da"
+uuid = "eebad327-c553-4316-9ea0-9fa01ccd7688"
+version = "0.3.3"
 
 [[deps.PlotThemes]]
 deps = ["PlotUtils", "Statistics"]
@@ -2533,6 +3388,22 @@ git-tree-sha1 = "240d7170f5ffdb285f9427b92333c3463bf65bf6"
 uuid = "1d0040c9-8b98-4ee7-8388-3f51789ca0ad"
 version = "0.2.1"
 
+[[deps.Polynomials]]
+deps = ["LinearAlgebra", "RecipesBase"]
+git-tree-sha1 = "3aa2bb4982e575acd7583f01531f241af077b163"
+uuid = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
+version = "3.2.13"
+
+    [deps.Polynomials.extensions]
+    PolynomialsChainRulesCoreExt = "ChainRulesCore"
+    PolynomialsMakieCoreExt = "MakieCore"
+    PolynomialsMutableArithmeticsExt = "MutableArithmetics"
+
+    [deps.Polynomials.weakdeps]
+    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+    MakieCore = "20f20a25-4f0e-4fdf-b5d1-57303727442b"
+    MutableArithmetics = "d8a4904e-b15c-11e9-3269-09a3773c0cb0"
+
 [[deps.PositiveFactorizations]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "17275485f373e6673f7e7f97051f703ed5b15b20"
@@ -2567,17 +3438,35 @@ version = "1.4.1"
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
-[[deps.Qt6Base_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "Fontconfig_jll", "Glib_jll", "JLLWrappers", "Libdl", "Libglvnd_jll", "OpenSSL_jll", "Vulkan_Loader_jll", "Xorg_libSM_jll", "Xorg_libXext_jll", "Xorg_libXrender_jll", "Xorg_libxcb_jll", "Xorg_xcb_util_cursor_jll", "Xorg_xcb_util_image_jll", "Xorg_xcb_util_keysyms_jll", "Xorg_xcb_util_renderutil_jll", "Xorg_xcb_util_wm_jll", "Zlib_jll", "libinput_jll", "xkbcommon_jll"]
-git-tree-sha1 = "37b7bb7aabf9a085e0044307e1717436117f2b3b"
-uuid = "c0090381-4147-56d7-9ebc-da0b1113ec56"
-version = "6.5.3+1"
+[[deps.ProgressMeter]]
+deps = ["Distributed", "Printf"]
+git-tree-sha1 = "00099623ffee15972c16111bcf84c58a0051257c"
+uuid = "92933f4c-e287-5a05-a399-4b506db050ca"
+version = "1.9.0"
+
+[[deps.QOI]]
+deps = ["ColorTypes", "FileIO", "FixedPointNumbers"]
+git-tree-sha1 = "18e8f4d1426e965c7b532ddd260599e1510d26ce"
+uuid = "4b34888f-f399-49d4-9bb3-47ed5cae4e65"
+version = "1.0.0"
+
+[[deps.Qt5Base_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Fontconfig_jll", "Glib_jll", "JLLWrappers", "Libdl", "Libglvnd_jll", "OpenSSL_jll", "Pkg", "Xorg_libXext_jll", "Xorg_libxcb_jll", "Xorg_xcb_util_image_jll", "Xorg_xcb_util_keysyms_jll", "Xorg_xcb_util_renderutil_jll", "Xorg_xcb_util_wm_jll", "Zlib_jll", "xkbcommon_jll"]
+git-tree-sha1 = "0c03844e2231e12fda4d0086fd7cbe4098ee8dc5"
+uuid = "ea2cea3b-5b76-57ae-a6ef-0a8af62496e1"
+version = "5.15.3+2"
 
 [[deps.QuadGK]]
 deps = ["DataStructures", "LinearAlgebra"]
 git-tree-sha1 = "9ebcd48c498668c7fa0e97a9cae873fbee7bfee1"
 uuid = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
 version = "2.9.1"
+
+[[deps.Quaternions]]
+deps = ["LinearAlgebra", "Random", "RealDot"]
+git-tree-sha1 = "9a46862d248ea548e340e30e2894118749dc7f51"
+uuid = "94ee1d12-ae83-5a48-8b1c-48b8ff168ae0"
+version = "0.7.5"
 
 [[deps.REPL]]
 deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
@@ -2598,6 +3487,27 @@ deps = ["Random", "Requires"]
 git-tree-sha1 = "043da614cc7e95c703498a491e2c21f58a2b8111"
 uuid = "e6cf234a-135c-5ec9-84dd-332b85af5143"
 version = "1.5.3"
+
+[[deps.RangeArrays]]
+git-tree-sha1 = "b9039e93773ddcfc828f12aadf7115b4b4d225f5"
+uuid = "b3c3ace0-ae52-54e7-9d0b-2c1406fd6b9d"
+version = "0.3.2"
+
+[[deps.Ratios]]
+deps = ["Requires"]
+git-tree-sha1 = "1342a47bf3260ee108163042310d26f2be5ec90b"
+uuid = "c84ed2f1-dad5-54f0-aa8e-dbefe2724439"
+version = "0.4.5"
+weakdeps = ["FixedPointNumbers"]
+
+    [deps.Ratios.extensions]
+    RatiosFixedPointNumbersExt = "FixedPointNumbers"
+
+[[deps.RealDot]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "9f0a1b71baaf7650f4fa8a1d168c7fb6ee41f0c9"
+uuid = "c1ae055f-0cd5-4b69-90a6-9a35b1a98df9"
+version = "0.1.0"
 
 [[deps.RecipesBase]]
 deps = ["PrecompileTools"]
@@ -2642,6 +3552,12 @@ git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
 
+[[deps.RegionTrees]]
+deps = ["IterTools", "LinearAlgebra", "StaticArrays"]
+git-tree-sha1 = "4618ed0da7a251c7f92e869ae1a19c74a7d2a7f9"
+uuid = "dee08c22-ab7f-5625-9660-a9af2021b33f"
+version = "0.3.2"
+
 [[deps.RelocatableFolders]]
 deps = ["SHA", "Scratch"]
 git-tree-sha1 = "ffdaf70d81cf6ff22c2b6e733c900c3321cab864"
@@ -2671,6 +3587,12 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "6ed52fdd3382cf21947b15e8870ac0ddbff736da"
 uuid = "f50d1b31-88e8-58de-be2c-1cc44531875f"
 version = "0.4.0+0"
+
+[[deps.Rotations]]
+deps = ["LinearAlgebra", "Quaternions", "Random", "StaticArrays"]
+git-tree-sha1 = "792d8fd4ad770b6d517a13ebb8dadfcac79405b8"
+uuid = "6038ab10-8711-5258-84ad-4b1120ba62dc"
+version = "1.6.1"
 
 [[deps.RuntimeGeneratedFunctions]]
 deps = ["ExprTools", "SHA", "Serialization"]
@@ -2775,6 +3697,18 @@ git-tree-sha1 = "58e6353e72cde29b90a69527e56df1b5c3d8c437"
 uuid = "ce78b400-467f-4804-87d8-8f486da07d0a"
 version = "1.1.0"
 
+[[deps.SimpleWeightedGraphs]]
+deps = ["Graphs", "LinearAlgebra", "Markdown", "SparseArrays"]
+git-tree-sha1 = "4b33e0e081a825dbfaf314decf58fa47e53d6acb"
+uuid = "47aef6b3-ad0c-573a-a1e2-d07658019622"
+version = "1.4.0"
+
+[[deps.Sixel]]
+deps = ["Dates", "FileIO", "ImageCore", "IndirectArrays", "OffsetArrays", "REPL", "libsixel_jll"]
+git-tree-sha1 = "2da10356e31327c7096832eb9cd86307a50b1eb6"
+uuid = "45858cf5-a6b0-47a3-bbea-62219f50df47"
+version = "0.1.3"
+
 [[deps.Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
 
@@ -2816,12 +3750,16 @@ deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_j
 git-tree-sha1 = "e2cfc4012a19088254b3950b85c3c1d8882d864d"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
 version = "2.3.1"
+weakdeps = ["ChainRulesCore"]
 
     [deps.SpecialFunctions.extensions]
     SpecialFunctionsChainRulesCoreExt = "ChainRulesCore"
 
-    [deps.SpecialFunctions.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+[[deps.StackViews]]
+deps = ["OffsetArrays"]
+git-tree-sha1 = "46e589465204cd0c08b4bd97385e4fa79a0c770c"
+uuid = "cae243ae-269e-4f55-b966-ac2d0dc13c15"
+version = "0.1.1"
 
 [[deps.Static]]
 deps = ["IfElse"]
@@ -2845,14 +3783,11 @@ deps = ["LinearAlgebra", "PrecompileTools", "Random", "StaticArraysCore"]
 git-tree-sha1 = "fba11dbe2562eecdfcac49a05246af09ee64d055"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
 version = "1.8.1"
+weakdeps = ["ChainRulesCore", "Statistics"]
 
     [deps.StaticArrays.extensions]
     StaticArraysChainRulesCoreExt = "ChainRulesCore"
     StaticArraysStatisticsExt = "Statistics"
-
-    [deps.StaticArrays.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [[deps.StaticArraysCore]]
 git-tree-sha1 = "36b3d696ce6366023a0ea192b4cd442268995a0d"
@@ -2972,6 +3907,18 @@ git-tree-sha1 = "eda08f7e9818eb53661b3deb74e3159460dfbc27"
 uuid = "8290d209-cae3-49c0-8002-c8c24d57dab5"
 version = "0.5.2"
 
+[[deps.TiffImages]]
+deps = ["ColorTypes", "DataStructures", "DocStringExtensions", "FileIO", "FixedPointNumbers", "IndirectArrays", "Inflate", "Mmap", "OffsetArrays", "PkgVersion", "ProgressMeter", "UUIDs"]
+git-tree-sha1 = "34cc045dd0aaa59b8bbe86c644679bc57f1d5bd0"
+uuid = "731e570b-9d59-4bfa-96dc-6df516fadf69"
+version = "0.6.8"
+
+[[deps.TiledIteration]]
+deps = ["OffsetArrays", "StaticArrayInterface"]
+git-tree-sha1 = "1176cc31e867217b06928e2f140c90bd1bc88283"
+uuid = "06e1c1a7-607b-532d-9fad-de7d9aa2abac"
+version = "0.5.0"
+
 [[deps.TranscodingStreams]]
 git-tree-sha1 = "1fbeaaca45801b4ba17c251dd8603ef24801dd84"
 uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
@@ -3058,12 +4005,6 @@ git-tree-sha1 = "8351f8d73d7e880bfc042a8b6922684ebeafb35c"
 uuid = "19fa3120-7c27-5ec5-8db8-b0b0aa330d6f"
 version = "0.2.0"
 
-[[deps.Vulkan_Loader_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Wayland_jll", "Xorg_libX11_jll", "Xorg_libXrandr_jll", "xkbcommon_jll"]
-git-tree-sha1 = "2f0486047a07670caad3a81a075d2e518acc5c59"
-uuid = "a44049a8-05dd-5a78-86c9-5fde0876e88c"
-version = "1.3.243+0"
-
 [[deps.Wayland_jll]]
 deps = ["Artifacts", "EpollShim_jll", "Expat_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg", "XML2_jll"]
 git-tree-sha1 = "7558e29847e99bc3f04d6569e82d0f5c54460703"
@@ -3076,6 +4017,12 @@ git-tree-sha1 = "4528479aa01ee1b3b4cd0e6faef0e04cf16466da"
 uuid = "2381bf8a-dfd0-557d-9999-79630e7b1b91"
 version = "1.25.0+0"
 
+[[deps.WoodburyMatrices]]
+deps = ["LinearAlgebra", "SparseArrays"]
+git-tree-sha1 = "5f24e158cf4cee437052371455fe361f526da062"
+uuid = "efce3f68-66dc-5838-9240-27a6d6f5f9b6"
+version = "0.5.6"
+
 [[deps.XML2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libiconv_jll", "Zlib_jll"]
 git-tree-sha1 = "801cbe47eae69adc50f36c3caec4758d2650741b"
@@ -3087,24 +4034,6 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Libgcrypt_jll", "Libgpg_error_jll"
 git-tree-sha1 = "91844873c4085240b95e795f692c4cec4d805f8a"
 uuid = "aed1982a-8fda-507f-9586-7b0439959a61"
 version = "1.1.34+0"
-
-[[deps.XZ_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "522b8414d40c4cbbab8dee346ac3a09f9768f25d"
-uuid = "ffd25f8a-64ca-5728-b0f7-c24cf3aae800"
-version = "5.4.5+0"
-
-[[deps.Xorg_libICE_jll]]
-deps = ["Libdl", "Pkg"]
-git-tree-sha1 = "e5becd4411063bdcac16be8b66fc2f9f6f1e8fe5"
-uuid = "f67eecfb-183a-506d-b269-f58e52b52d7c"
-version = "1.0.10+1"
-
-[[deps.Xorg_libSM_jll]]
-deps = ["Libdl", "Pkg", "Xorg_libICE_jll"]
-git-tree-sha1 = "4a9d9e4c180e1e8119b5ffc224a7b59d3a7f7e18"
-uuid = "c834827a-8449-5923-a945-d239c165b7dd"
-version = "1.2.3+0"
 
 [[deps.Xorg_libX11_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libxcb_jll", "Xorg_xtrans_jll"]
@@ -3184,12 +4113,6 @@ git-tree-sha1 = "730eeca102434283c50ccf7d1ecdadf521a765a4"
 uuid = "cc61e674-0454-545c-8b26-ed2c68acab7a"
 version = "1.1.2+0"
 
-[[deps.Xorg_xcb_util_cursor_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_xcb_util_image_jll", "Xorg_xcb_util_jll", "Xorg_xcb_util_renderutil_jll"]
-git-tree-sha1 = "04341cb870f29dcd5e39055f895c39d016e18ccd"
-uuid = "e920d4aa-a673-5f3a-b3d7-f755a4d47c43"
-version = "0.1.4+0"
-
 [[deps.Xorg_xcb_util_image_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "Xorg_xcb_util_jll"]
 git-tree-sha1 = "0fab0a40349ba1cba2c1da699243396ff8e94b97"
@@ -3249,23 +4172,11 @@ git-tree-sha1 = "49ce682769cd5de6c72dcf1b94ed7790cd08974c"
 uuid = "3161d3a3-bdf6-5164-811a-617609db77b4"
 version = "1.5.5+0"
 
-[[deps.eudev_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "gperf_jll"]
-git-tree-sha1 = "431b678a28ebb559d224c0b6b6d01afce87c51ba"
-uuid = "35ca27e7-8b34-5b7f-bca9-bdc33f59eb06"
-version = "3.2.9+0"
-
 [[deps.fzf_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
 git-tree-sha1 = "a68c9655fbe6dfcab3d972808f1aafec151ce3f8"
 uuid = "214eeab7-80f7-51ab-84ad-2988db7cef09"
 version = "0.43.0+0"
-
-[[deps.gperf_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "3516a5630f741c9eecb3720b1ec9d8edc3ecc033"
-uuid = "1a1c6b14-54f6-533d-8383-74cd7377aa70"
-version = "3.1.1+0"
 
 [[deps.libaom_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -3284,23 +4195,11 @@ deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
 version = "5.8.0+1"
 
-[[deps.libevdev_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "141fe65dc3efabb0b1d5ba74e91f6ad26f84cc22"
-uuid = "2db6ffa8-e38f-5e21-84af-90c45d0032cc"
-version = "1.11.0+0"
-
 [[deps.libfdk_aac_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "daacc84a041563f965be61859a36e17c4e4fcd55"
 uuid = "f638f0a6-7fb0-5443-88ba-1cc74229b280"
 version = "2.0.2+0"
-
-[[deps.libinput_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "eudev_jll", "libevdev_jll", "mtdev_jll"]
-git-tree-sha1 = "ad50e5b90f222cfe78aa3d5183a20a12de1322ce"
-uuid = "36db933b-70db-51c0-b978-0f229ee0e533"
-version = "1.18.0+0"
 
 [[deps.libpng_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Zlib_jll"]
@@ -3308,17 +4207,17 @@ git-tree-sha1 = "93284c28274d9e75218a416c65ec49d0e0fcdf3d"
 uuid = "b53b4c65-9356-5827-b1ea-8c7a1a84506f"
 version = "1.6.40+0"
 
+[[deps.libsixel_jll]]
+deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Pkg", "libpng_jll"]
+git-tree-sha1 = "d4f63314c8aa1e48cd22aa0c17ed76cd1ae48c3c"
+uuid = "075b6546-f08a-558a-be8f-8157d0f608a5"
+version = "1.10.3+0"
+
 [[deps.libvorbis_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Ogg_jll", "Pkg"]
 git-tree-sha1 = "b910cb81ef3fe6e78bf6acee440bda86fd6ae00c"
 uuid = "f27f6e37-5d2b-51aa-960f-b287f2bc3b7a"
 version = "1.3.7+1"
-
-[[deps.mtdev_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "814e154bdb7be91d78b6802843f76b6ece642f11"
-uuid = "009596ad-96f7-51b1-9f1b-5ce2d5e8a71e"
-version = "1.1.6+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -3350,8 +4249,12 @@ version = "1.4.1+1"
 """
 
 # ╔═╡ Cell order:
-# ╠═60f6f4ca-a684-11ee-26bd-6b50dd5567a6
-# ╠═fea3c300-7aaf-4da8-bed7-6e9426b4ac3d
+# ╟─60f6f4ca-a684-11ee-26bd-6b50dd5567a6
+# ╟─fea3c300-7aaf-4da8-bed7-6e9426b4ac3d
+# ╟─04de8d60-346d-4c05-8290-a47e6d47829c
+# ╟─a0d7ab14-ac6c-4469-9dd7-ac89c9d3f0e9
+# ╠═8946501b-dbdd-448f-a49f-02a9f8755939
+# ╟─4767dceb-4bb7-4eb1-80ae-83ec6eb7a34d
 # ╠═498a2906-9a95-47ef-b3e3-a5ef24ee0a77
 # ╟─772351cf-cddd-45d8-9f34-f3ef6ccb2a66
 # ╟─d3b956b4-885a-447c-bd00-de5fa18fdcad
@@ -3368,11 +4271,14 @@ version = "1.4.1+1"
 # ╟─41de1814-a88d-4c4e-901b-a69a0a6ca655
 # ╟─22ac1b86-a2b6-4562-adb3-61718a1c9a59
 # ╟─60e1b0f7-b91f-4121-80f8-673ce117dccf
-# ╠═009cca40-5d1b-4ce2-a15b-058cb76cc8f3
-# ╠═8dbe74e9-9871-44b2-8076-1c5980a762b4
+# ╟─009cca40-5d1b-4ce2-a15b-058cb76cc8f3
+# ╟─8dbe74e9-9871-44b2-8076-1c5980a762b4
+# ╟─2d494ec7-9ff4-4fc8-bc31-cc7ce1c24864
+# ╠═8d97519b-3801-440d-85ba-a472889ff9c8
 # ╠═6d43ce5f-5e34-4d4e-bcd1-b876c5744be8
 # ╠═ddc8420f-1212-459f-91b1-be62db8032dd
 # ╠═9e38c88c-fb6a-4623-b3aa-c7c487ff919f
+# ╠═89302bdf-4c0d-40de-9196-40d8bdfe88a9
 # ╠═6dbe79d8-f3f5-45d7-946a-7454542df74e
 # ╠═ce9769d3-a234-4718-b3b1-2ee6fda2d733
 # ╠═29daeb98-190b-4972-9a7b-1407ed3c4b1a
@@ -3392,9 +4298,11 @@ version = "1.4.1+1"
 # ╠═fe1990d5-7f2f-4782-ac12-fc8f5309d557
 # ╠═cc6cf6cd-2995-4069-b5cf-e38b8c2781eb
 # ╠═f64849fa-12f0-45cc-8f71-85465b911f6b
+# ╠═335a67a2-5bc0-401c-a206-3b11511c5137
 # ╠═e3231fde-9713-4ba4-a2ff-713174bfb1fd
 # ╠═092df61f-d380-4817-af27-c45ad5439872
 # ╠═4ddc1cae-b3ed-4167-b115-db18a256e34c
+# ╠═9e3d7d4f-187b-4711-9222-04c62767e60d
 # ╠═5e33d199-29f5-493e-9863-f02b61711e26
 # ╠═a2d049bb-4d27-469d-8626-d0c0fedbced3
 # ╠═ee5cd57e-cacb-44a3-bc17-95c382c285ee
@@ -3402,11 +4310,20 @@ version = "1.4.1+1"
 # ╠═c84145c4-277e-4d5f-8582-b1fec3715780
 # ╠═1409a6ad-ab49-4413-b3d5-7ab42d699728
 # ╠═459c43a7-88c6-4481-a713-3ce62631d41b
+# ╠═dcf9a141-d813-476c-99cd-6251430c411f
+# ╠═8ca3e39e-778a-46fb-a7c6-5fdc8fbb86bd
 # ╠═9162780a-5c20-4d89-9984-9bf2b9550203
 # ╠═4a679082-b16c-4e91-bb8f-04ffdab18026
+# ╠═ff8944bf-17fe-47fe-ab54-e8945a17de47
 # ╠═6654f511-9709-40e8-abdd-ea44c1874fa2
-# ╠═46d75d31-4d10-4247-9daf-4561d1b9a9fa
-# ╠═548e51f4-8c76-46e9-91a9-3ab4fdbb3fe7
+# ╠═6863f787-0508-44c7-9fc6-0df05a7a2d90
+# ╠═c04d253b-b66c-486d-b58f-73a5094d1360
+# ╠═a2deae22-6783-49db-8097-c8221e54933b
+# ╠═2986b2e1-bda5-4d76-abae-58067014e3ff
+# ╠═bb407baf-7270-40ab-9881-d6249d851ff0
+# ╠═6d0b59d4-9302-4574-9252-c09e7076c858
+# ╠═71fb096a-b622-455a-a92a-4c98e06b66fa
+# ╠═84dc3afe-638e-41e1-a29c-59eb7cf60e8b
 # ╠═959627bd-489a-4e66-aac9-63de0df9fc52
 # ╠═61d1fa00-b844-47ee-bd54-5dce24f243d0
 # ╠═9b0089e8-7865-4a70-bc1d-b8731f2222a8
@@ -3417,7 +4334,18 @@ version = "1.4.1+1"
 # ╠═0876298b-0efc-42ce-a123-c3924f0f76d2
 # ╠═387f22bd-8ea6-4ac0-847c-d1dd3f33389e
 # ╠═912d93e7-c073-46b3-9287-a8a646381492
-# ╠═f7fe6bf0-86c5-4eb5-875b-be935719ac18
+# ╠═92e95285-dc85-417f-a43c-4885866755b6
+# ╠═e50fd52e-451d-48b3-96bd-96f6627d45e8
+# ╠═378dff1f-1ecd-4a01-9c49-244365cbcdf6
+# ╠═8cbbbfb6-79ed-43b4-bece-ba7239cb7940
+# ╠═1527f8ba-ea0c-4046-9160-9dfc4b960e8c
+# ╠═d3dbbda4-a00f-45c4-a092-267d1e0a7bb8
+# ╠═380d53c9-87e5-4ac8-bad1-59efe62c6f9c
+# ╠═d150b41b-dee5-49e4-9a94-1fb22cac0ade
+# ╠═2e80e6c2-6317-4e63-a2c8-bfddffe45322
+# ╠═b4bb36c0-a9ca-4284-9b69-6db744a9a65f
+# ╠═c195ee92-0bb2-45e3-ad22-0e2ff5358f39
+# ╟─f7fe6bf0-86c5-4eb5-875b-be935719ac18
 # ╠═7a8ef3b1-2d49-4bbe-b722-16f9c2f21432
 # ╠═30df8e1a-28c3-49ed-8193-d6a594ce90d9
 # ╠═a2929307-3f1b-4184-8de4-d00b331daf55
@@ -3441,6 +4369,14 @@ version = "1.4.1+1"
 # ╠═472637ca-befd-49b6-9c5e-c829e7e84ede
 # ╠═1f84ef10-2776-415b-ad60-6c2a5eb5b568
 # ╠═fef4d315-5440-40db-9e35-122187b55567
+# ╠═bbe80737-b446-43f7-aed0-e49b3331b976
+# ╠═3db81e95-4d29-41cd-a6dc-adaccf547942
+# ╠═1b3c8171-f7b6-4cca-9d4f-a34d83f65401
+# ╠═050bdfb9-10bd-41ca-b9c1-0b7bdee63eb9
+# ╠═86085d2c-1308-4cdd-a680-8ccdb225951e
+# ╠═c7b4b4cd-a97c-4592-9718-ca8dff9729cd
+# ╠═ff80d7d6-c4a7-4c12-8ed9-66145179d1e1
+# ╠═795d5c3f-e800-4cdf-a6ef-dbb2954603c6
 # ╠═a4fcf0b1-9625-4be3-a71b-0a4966a017e4
 # ╠═208f6604-701a-47f9-b934-1e4e546ee722
 # ╠═15129817-9644-4d23-9c3f-c46fbc6bc267
@@ -3479,5 +4415,25 @@ version = "1.4.1+1"
 # ╠═d3fa42c0-deb3-400d-9b62-ca7b32749955
 # ╠═7d1fda00-8528-4186-9a8d-80ea6ab9071d
 # ╠═b618efad-30b6-42c3-ba78-4add20b925fc
+# ╟─f8d03a5e-5876-4ef8-afdf-8a4b71ea7a10
+# ╠═d4ca84f1-84ac-4d30-9dc3-cb40c8e4a376
+# ╠═e5d15711-d1fa-4af9-8521-225ed270d99c
+# ╠═0602090d-d318-414e-b641-e0932f1a69db
+# ╠═65c18fb8-093d-465a-863f-dea9f237907b
+# ╠═45e58ab3-56c1-47e0-8625-b69d7e54e2f4
+# ╠═c300c284-d77e-49c3-8fc5-39ec35dba71d
+# ╠═73558ee3-1d94-4ede-9cbf-41d290b601c6
+# ╠═1b97d8a5-ddbf-4f81-9614-a749e8f0fb1c
+# ╠═93e0aa9d-4056-4c0b-a14d-ef6667e3e330
+# ╠═03204f07-bc4f-4856-918a-a8f50bd15f1a
+# ╠═7e4832cd-74c4-44c2-b215-f359a27d495e
+# ╠═1c225073-3917-4fb1-96d5-0b16b4aa311b
+# ╠═7afd146e-0164-43f0-a1da-1c611d34501e
+# ╠═3f32941d-d7a6-44c3-a93c-1deed4c387ab
+# ╠═30f30139-a8e3-4f49-97b4-b25db5fb4df6
+# ╠═a52ee62d-ee31-403b-8c6d-dd16d2ad4cee
+# ╠═7895676b-6329-4e96-bb32-295806666f5c
+# ╠═c13065dd-0ea0-45aa-806b-3383547c7d75
+# ╠═9cdb714b-8f1f-4727-b24f-584a81ff6a2f
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
