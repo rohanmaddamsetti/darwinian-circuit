@@ -244,9 +244,8 @@ def download_fastq_long_reads(SRA_data_dir, RunID_table_file):
         my_cwd = os.getcwd()
         os.chdir(SRA_data_dir)
         for Run_ID in Run_IDs:
-            sra_fastq_file_1 = Run_ID + "_1.fastq"
-            sra_fastq_file_2 = Run_ID + "_2.fastq"
-            if os.path.exists(sra_fastq_file_1) and os.path.exists(sra_fastq_file_2):
+            sra_fastq_file = Run_ID + ".fastq"
+            if os.path.exists(sra_fastq_file):
                 continue
             else:
                 print ("Generating fastq for: " + Run_ID)
@@ -390,6 +389,27 @@ def main():
         with open(stage_3_complete_file, "w") as stage_3_complete_log:
             stage_3_complete_log.write("SRA read data downloaded successfully.\n")
 
+    #####################################################################################
+    ## Stage 4: use minimap2 to align long reads to the high copy number plasmids. 
+    stage_4_complete_file = "../results/stage4.done"
+    if exists(stage_4_complete_file):
+        print(f"{stage_4_complete_file} exists on disk-- skipping stage 4.")
+    else:
+        stage4_start_time = time.time()  # Record the start time
+
+        
+        ## CODE GOES HERE
+        quit()
+        
+        stage4_end_time = time.time()  # Record the end time
+        stage4_execution_time = stage4_end_time - stage4_start_time
+        Stage4TimeMessage = f"Stage 4 execution time: {stage4_execution_time} seconds"
+        print(Stage4TimeMessage)
+        logging.info(Stage4TimeMessage)
+        with open(stage_4_complete_file, "w") as stage_4_complete_log:
+            stage_4_complete_log.write("Stage 4 complete.\n")
+
+            
     return
 
 
