@@ -10,11 +10,10 @@ I filtered those data for high confidence plasmids with copy numbers > 100.
 These data are in ../data/high-PCN-plasmids.csv
 
 This pipeline runs the following steps:
-1) download ONLY long-read data for these genomes.
-2) make a file of sequencing metadata for these long-read datasets for these genomes.
-3) use minimap2 -L mode, using the sequencing metadata to set parameters for minimap2
+1) download long-read data for these genomes.
+2) use minimap2 -L mode, with either ONT or PacBio parameters for minimap2
 to make BAM alignments for Sniffles2.
-4) Use Sniffles2 to call structural variants on these HCN plasmids.
+3) Use Sniffles2 to call structural variants on these HCN plasmids.
 
 Then, I will report how common structural variation is on these plasmids,
 and report details of those structural variants.
@@ -59,7 +58,7 @@ def get_SRA_ID_from_RefSeqID(refseq_id):
     return(sra_id)
 
 
-def get_Run_IDs(sra_id):
+def get_RunID_and_longread_datatype_tuples(sra_id):
     ## pysradb must be in $PATH.
     pysradb_command = f'pysradb metadata {sra_id}'
     pysradb_attempts = 5
@@ -72,41 +71,59 @@ def get_Run_IDs(sra_id):
             pysra_command_worked = True
         except subprocess.CalledProcessError:
             pysradb_attempts -= 1
-    ## initialize an empty list of run_ids for this sra_id.
-    run_accessions = list()
     ## check to see if pysradb_output is meaningful.
     if pysra_command_worked:
         pysradb_output_str = pysradb_output.decode('utf-8')
         # Splits the metadata of the SRA ID into respective rows. 
         # And isolates the rows that use the Illumina instrument.
         rows = pysradb_output_str.strip().split('\n')
-        ## the Run_ID is the 3rd field from the end.
-        run_accessions = [row.split("\t")[-3] for row in rows if ("Illumina") in row and ("WGS") in row]
-    return(run_accessions)
+        run_accession_longreadtype_tuples = list()
+        for row in rows:
+            if ("OXFORD_NANOPORE" in row or "PACBIO_SMRT" in row) and ("WGS" in row):
+                ## the Run_ID is the 3rd field from the end.
+                my_run_accession = row.split("\t")[-3]
+                if "OXFORD_NANOPORE" in row:
+                    my_longreadtype = "OXFORD_NANOPORE"
+                elif "PACBIO_SMRT" in row:
+                    my_longreadtype = "PACBIO_SMRT"
+                else:
+                    raise AssertionError("ERROR: Unrecognized datatype")
+                my_tuple = (my_run_accession, my_longreadtype)
+                run_accession_longreadtype_tuples.append(my_tuple)
+        if len(run_accession_longreadtype_tuples) == 0:
+            print(f"No ONT or PacBio data found for accession {sra_id}")
+            print("Non-Illumina PYSRADB DATA DUMP:")
+            for row in rows:
+                if "ILLUMINA" in row:
+                    continue
+                else:
+                    print(row)
+    return(run_accession_longreadtype_tuples)
 
 
-def create_RefSeq_SRA_RunID_table(prokaryotes_with_plasmids_file, RunID_table_outfile):
-    ## first, get all RefSeq IDs in the prokaryotes-with-plasmids.txt file.
-    with open(prokaryotes_with_plasmids_file, "r") as prok_with_plasmids_file_obj:
-        prok_with_plasmids_lines = prok_with_plasmids_file_obj.read().splitlines()
+def create_HighPCN_plasmid_SRA_RunID_table(high_PCN_plasmid_csv, RunID_table_outfile):
+    ## first, get all RefSeq IDs in the ../data/high-PCN-plasmids.csv file.
+    with open(high_PCN_plasmid_csv, "r") as plasmids_fh:
+        plasmids_lines = plasmids_fh.read().splitlines()
     ## skip the header.
-    prok_with_plasmids_data = prok_with_plasmids_lines[1:]
-    ## get the right column (5th from end) and turn GCA Genbank IDs into GCF RefSeq IDs.
-    refseq_id_column = [line.split("\t")[-5].replace("GCA", "GCF") for line in prok_with_plasmids_data]
-    ## filter for valid IDs (some rows have a '-' as a blank placeholder).
-    refseq_ids = [x for x in refseq_id_column if x.startswith("GCF")]
+    plasmids_data = plasmids_lines[1:]
+    ## get the first column containing RefSeqIDs_AssemblyAccession strings.
+    AnnotationAccession_column = [line.split(",")[0] for line in plasmids_data]
+    ## split to get the RefSeq IDs.
+    refseq_ids = ["_".join(x.split("_")[:2]) for x in AnnotationAccession_column]
+  
     ## now make the RunID csv file.
-    with open(RunID_table_outfile, "w") as RunID_table_outfile_obj:
-        header = "RefSeq_ID,SRA_ID,Run_ID\n"
-        RunID_table_outfile_obj.write(header) 
+    with open(RunID_table_outfile, "w") as RunID_table_fh:
+        header = "RefSeq_ID,SRA_ID,Run_ID,LongReadDataType\n"
+        RunID_table_fh.write(header) 
         for RefSeq_accession in refseq_ids:
             my_SRA_ID = get_SRA_ID_from_RefSeqID(RefSeq_accession)
             if my_SRA_ID == "NA": continue ## skip genomes without SRA data.
-            Run_IDs = get_Run_IDs(my_SRA_ID)
-            for my_Run_ID in Run_IDs:
-                row = f"{RefSeq_accession},{my_SRA_ID},{my_Run_ID}\n"
+            RunID_longread_datatype_tuples = get_RunID_and_longread_datatype_tuples(my_SRA_ID)
+            for my_Run_ID, my_longread_datatype in RunID_longread_datatype_tuples:
+                row = f"{RefSeq_accession},{my_SRA_ID},{my_Run_ID},{my_longread_datatype}\n"
                 print(row) ## just to show that the program is running properly.
-                RunID_table_outfile_obj.write(row)
+                RunID_table_fh.write(row)
     return
 
 
@@ -205,7 +222,7 @@ def fetch_reference_genomes(RunID_table_file, refseq_accession_to_ftp_path_dict,
     return
  
 
-def download_fastq_reads(SRA_data_dir, RunID_table_file):
+def download_fastq_long_reads(SRA_data_dir, RunID_table_file):
         """
         the Run_ID has to be the last part of the directory.
         see documentation here:
@@ -313,14 +330,16 @@ def make_NCBI_replicon_fasta_refs_for_themisto(refgenomes_dir, themisto_fasta_re
 
 
 ################################################################################
-
+## Run the pipeline.
 def main():
 
     run_log_file = "../results/plasmid-SV-pipeline-log.txt"
     ## Configure logging
     logging.basicConfig(filename=run_log_file, level=logging.INFO)
-    
-    RunID_table_csv = "../results/RunID_table.csv"
+
+    high_PCN_plasmid_csv = "../data/high-PCN-plasmids.csv"
+    RunID_table_csv = "../results/high-PCN-plasmid-RunID_table.csv"
+    prokaryotes_with_plasmids_file = "../data/prokaryotes-with-chromosomes-and-plasmids.txt"
     reference_genome_dir = "../data/NCBI-reference-genomes/"
     SRA_data_dir = "../data/SRA/"
 
@@ -331,32 +350,30 @@ def main():
         Stage1DoneMessage = f"{RunID_table_csv} exists on disk-- skipping stage 1."
         print(Stage1DoneMessage)
         logging.info(Stage1DoneMessage)
-    else: ## This takes 34513 seconds (9.5h) to get RunIDs for 4921 genomes.
+    else:
         RunID_table_start_time = time.time()  # Record the start time
-        create_RefSeq_SRA_RunID_table(prokaryotes_with_plasmids_file, RunID_table_csv)
+        create_HighPCN_plasmid_SRA_RunID_table(high_PCN_plasmid_csv, RunID_table_csv)        
         RunID_table_end_time = time.time()  # Record the end time
         RunID_table_execution_time = RunID_table_end_time - RunID_table_start_time
         Stage1TimeMessage = f"Stage 1 execution time: {RunID_table_execution_time} seconds"
         print(Stage1TimeMessage)
         logging.info(Stage1TimeMessage)
-
     
     #####################################################################################
     ## Stage 2: download reference genomes for each of the bacterial genomes containing plasmids,
-    ## for which we can download PacBio or Oxford Nanopore long-read data from the NCBI Short Read Archive.
+    ## for which we can download Oxford Nanopore long-read data from the NCBI Sequencing Read Archive.
     ## first, make a dictionary from RefSeq accessions to ftp paths using the
-    ## prokaryotes-with-plasmids.txt file.
+    ## ../data/prokaryotes-with-chromosomes-and-plasmids.txt file.
     stage_2_complete_file = "../results/stage2.done"
     if exists(stage_2_complete_file):
         print(f"{stage_2_complete_file} exists on disk-- skipping stage 2.")
     else:
         refseq_accession_to_ftp_path_dict = create_refseq_accession_to_ftp_path_dict(prokaryotes_with_plasmids_file)
-        ## now download the reference genomes.
-        fetch_reference_genomes(RunID_table_csv, refseq_accession_to_ftp_path_dict, reference_genome_dir)
+        ## now download the reference genomes for the high PCN plasmid genomes in the RunID_table_csv.
+        fetch_reference_genomes(RunID_table_csv, refseq_accession_to_ftp_path_dict, reference_genome_dir)        
         with open(stage_2_complete_file, "w") as stage_2_complete_log:
             stage_2_complete_log.write("reference genomes downloaded successfully.\n")
-
-    
+            
     #####################################################################################
     ## Stage 3: download long reads for the genomes from the NCBI Short Read Archive (SRA).
     stage_3_complete_file = "../results/stage3.done"
@@ -364,7 +381,7 @@ def main():
         print(f"{stage_3_complete_file} exists on disk-- skipping stage 3.")
     else:
         SRA_download_start_time = time.time()  # Record the start time
-        ###download_fastq_long_reads(SRA_data_dir, RunID_table_csv)
+        download_fastq_long_reads(SRA_data_dir, RunID_table_csv)
         SRA_download_end_time = time.time()  # Record the end time
         SRA_download_execution_time = SRA_download_end_time - SRA_download_start_time
         Stage3TimeMessage = f"Stage 3 (SRA download) execution time: {SRA_download_execution_time} seconds"
