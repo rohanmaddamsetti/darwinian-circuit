@@ -3,7 +3,7 @@
 """
 high-PCN-plasmid-SV-pipeline.py by Rohan Maddamsetti.
 
-For this pipeline to work, ncbi datasets and pysradb must be in the $PATH.
+For this pipeline to work, ncbi datasets, pysradb, minimap2, samtools, and sniffles2 must be in the $PATH.
 
 In a separate project, I calculated a large dataset of plasmid copy numbers.
 I filtered those data for high confidence plasmids with copy numbers > 100.
@@ -12,8 +12,9 @@ These data are in ../data/high-PCN-plasmids.csv
 This pipeline runs the following steps:
 1) download long-read data for these genomes.
 2) use minimap2 -L mode, with either ONT or PacBio parameters for minimap2
-to make BAM alignments for Sniffles2.
-3) Use Sniffles2 to call structural variants on these HCN plasmids.
+to make SAM alignments.
+3) use samtools to conver the SAM alignments to CRAM alignments for sniffles.
+4) Use Sniffles2 to call structural variants on these HCN plasmids.
 
 Then, I will report how common structural variation is on these plasmids,
 and report details of those structural variants.
@@ -257,24 +258,10 @@ def download_fastq_long_reads(SRA_data_dir, RunID_table_file):
         return
 
 
-def make_RefSeq_to_SRA_RunList_dict(RunID_table_csv):
-    RefSeq_to_SRA_RunList_dict = dict()
-    with open(RunID_table_csv, "r") as csv_fh:
-        for i, line in enumerate(csv_fh):
-            if i == 0: continue ## skip the header.
-            line = line.strip() 
-            RefSeqID, SRA_ID, RunID = line.split(',')
-            if RefSeqID in RefSeq_to_SRA_RunList_dict:
-                RefSeq_to_SRA_RunList_dict[RefSeqID].append(RunID)
-            else:
-                RefSeq_to_SRA_RunList_dict[RefSeqID] = [RunID]
-    return RefSeq_to_SRA_RunList_dict
-
-
-def generate_replicon_fasta_references_for_themisto(gbk_gz_path, fasta_outdir):
+def write_fasta_replicon_references(gbk_gz_path, fastafile_outpath):
     print("reading in as input:", gbk_gz_path)
-    ## open the input reference genome file.
-    with gzip.open(gbk_gz_path, 'rt') as gbk_gz_fh:
+    ## open the input gbk genome file, and open the output fasta genome file.
+    with gzip.open(gbk_gz_path, 'rt') as gbk_gz_fh, open(fastafile_outpath, 'w') as outfh:
         SeqID = None
         SeqType = None
         for i, record in enumerate(SeqIO.parse(gbk_gz_fh, "genbank")):
@@ -289,42 +276,50 @@ def generate_replicon_fasta_references_for_themisto(gbk_gz_path, fasta_outdir):
             ## replace spaces with underscores in the replicon annotation field.
             replicon_description = record.description.replace(" ","_")
             header = ">" + "|".join(["SeqID="+SeqID,"SeqType="+SeqType,"replicon="+replicon_description])
-            my_replicon_fastafile = SeqID + ".fna"
-            my_replicon_outfilepath = os.path.join(fasta_outdir, my_replicon_fastafile)
-            with open(my_replicon_outfilepath, "w") as outfh:
-                outfh.write(header + "\n")
-                outfh.write(str(record.seq) + "\n")
-
-
-def generate_replicon_fasta_reference_list_file_for_themisto(fasta_outdir):
-    genome_id = os.path.basename(fasta_outdir)
-    replicon_fasta_filelist = [x for x in os.listdir(fasta_outdir) if x.endswith(".fna")]
-    replicon_listfile = os.path.join(fasta_outdir, genome_id + ".txt")
-    with open(replicon_listfile, "w") as fastatxtfile_fh:
-        for fastafile in replicon_fasta_filelist:
-            my_replicon_fasta_path = os.path.join(fasta_outdir, fastafile)
-            fastatxtfile_fh.write(my_replicon_fasta_path + "\n")
+            outfh.write(header + "\n")
+            outfh.write(str(record.seq) + "\n")
     return
 
 
-def make_NCBI_replicon_fasta_refs_for_themisto(refgenomes_dir, themisto_fasta_ref_outdir):
-    ## this function makes a genome directory for each genome.
-    ## each directory contains separate fasta files for each replicon.
-
+def make_fasta_genome_references(refgenomes_dir, fasta_outdir):
+    ## This function writes out files containing fasta sequences for each replicon
+    ## in a genome into the directory fasta_ref_outdir.
+    
     ## make the output directory if it does not exist.
-    if not exists(themisto_fasta_ref_outdir):
-        os.mkdir(themisto_fasta_ref_outdir)
-
+    if not exists(fasta_outdir):
+        os.mkdir(fasta_outdir)
     gzfilelist = [x for x in os.listdir(refgenomes_dir) if x.endswith("gbff.gz")]
     for gzfile in gzfilelist:
         gzpath = os.path.join(refgenomes_dir, gzfile)
-        genome_id = gzfile.split(".gbff.gz")[0]
-        fasta_outdir = os.path.join(themisto_fasta_ref_outdir, genome_id)
-        ## make the fasta output directory if it does not exist.
-        if not exists(fasta_outdir):
-            os.mkdir(fasta_outdir)
-        generate_replicon_fasta_references_for_themisto(gzpath, fasta_outdir)
-        generate_replicon_fasta_reference_list_file_for_themisto(fasta_outdir)
+        genome_name = gzfile.split(".gbff.gz")[0]
+        genome_fastafile = genome_name + ".fna"
+        fastafile_path = os.path.join(fasta_outdir, genome_fastafile)
+        write_fasta_replicon_references(gzpath, fastafile_path)
+    return
+
+
+def align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir, alignment_outdir):
+    ## make the output directory if it does not exist.
+    if not exists(alignment_outdir):
+        os.mkdir(alignment_outdir)
+
+    ## we make separate alignments for each fastq file.
+    with open(RunID_table_csv, "r") as csv_fh:
+        for i, line in enumerate(csv_fh):
+            if i == 0: continue ## skip the header.
+            line = line.strip()
+            RefSeq_ID, SRA_ID, Run_ID, LongReadDataType = line.split(',')
+            sra_fastq_file = Run_ID + ".fastq"
+            sra_fastq_path = os.path.join(SRA_data_dir, sra_fastq_file)
+            ## WORKING HERE!        
+            minimap2_args = ["minimap2", "-L", ]
+
+            quit()
+
+            print(" ".join(minimap2_args))
+            ##subprocess.run(minimap2_args)
+            ## quit()
+            
     return
 
 
@@ -341,6 +336,8 @@ def main():
     prokaryotes_with_plasmids_file = "../data/prokaryotes-with-chromosomes-and-plasmids.txt"
     reference_genome_dir = "../data/NCBI-reference-genomes/"
     SRA_data_dir = "../data/SRA/"
+    fasta_ref_dir = "../results/FASTA-reference-genomes/"
+    minimap_alignment_ref_dir = "../results/minimap2_alignments/"
 
 
     #####################################################################################
@@ -390,17 +387,16 @@ def main():
             stage_3_complete_log.write("SRA read data downloaded successfully.\n")
 
     #####################################################################################
-    ## Stage 4: use minimap2 to align long reads to the high copy number plasmids. 
+    ## Stage 4: make FASTA genome references to make alignments with minimap2.
     stage_4_complete_file = "../results/stage4.done"
     if exists(stage_4_complete_file):
         print(f"{stage_4_complete_file} exists on disk-- skipping stage 4.")
     else:
         stage4_start_time = time.time()  # Record the start time
-
-        
-        ## CODE GOES HERE
-        quit()
-        
+        ## generate FASTA references for the genomes with long-read data and high PCN plasmids.
+        ## for this project, we only need the alignments for the high PCN plasmids,
+        ## but I can reuse the code and results for the plasmid copy number project.
+        make_fasta_genome_references(reference_genome_dir, fasta_ref_dir)
         stage4_end_time = time.time()  # Record the end time
         stage4_execution_time = stage4_end_time - stage4_start_time
         Stage4TimeMessage = f"Stage 4 execution time: {stage4_execution_time} seconds"
@@ -408,6 +404,33 @@ def main():
         logging.info(Stage4TimeMessage)
         with open(stage_4_complete_file, "w") as stage_4_complete_log:
             stage_4_complete_log.write("Stage 4 complete.\n")
+            
+    #####################################################################################
+    ## Stage 5: use minimap2 to align each long read dataset to genomes containing high copy number plasmids. 
+    stage_5_complete_file = "../results/stage5.done"
+    if exists(stage_5_complete_file):
+        print(f"{stage_5_complete_file} exists on disk-- skipping stage 5.")
+    else:
+        stage5_start_time = time.time()  # Record the start time
+        ## now use minimap2 to make alignments in SAM format.
+        align_long_reads_with_minimap2(RunID_table_csv, alignment_outdir)
+        quit()
+        
+        stage5_end_time = time.time()  # Record the end time
+        stage5_execution_time = stage5_end_time - stage5_start_time
+        Stage5TimeMessage = f"Stage 5 execution time: {stage5_execution_time} seconds"
+        print(Stage5TimeMessage)
+        logging.info(Stage5TimeMessage)
+        with open(stage_5_complete_file, "w") as stage_5_complete_log:
+            stage_5_complete_log.write("Stage 5 complete.\n")
+
+        
+        ## then use samtools to convert the SAM format alignments to CRAM format for sniffles.
+        ## use sniffles to generate VCF files given the CRAM alignments.
+        ## examine the VCF files to see if there is evidence of structural variation
+        
+        quit()
+        
 
             
     return
