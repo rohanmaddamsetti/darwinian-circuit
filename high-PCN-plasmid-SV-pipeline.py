@@ -34,7 +34,6 @@ from os.path import basename, exists
 import urllib.request
 import time
 import logging
-import glob
 import pprint
 
 
@@ -112,17 +111,21 @@ def create_HighPCN_plasmid_SRA_RunID_table(high_PCN_plasmid_csv, RunID_table_out
     AnnotationAccession_column = [line.split(",")[0] for line in plasmids_data]
     ## split to get the RefSeq IDs.
     refseq_ids = ["_".join(x.split("_")[:2]) for x in AnnotationAccession_column]
-  
+
+    ## quick hack to add the full annotation accession to the output file.
+    refseq_id_to_annotation_accession_dict = {"_".join(x.split("_")[:2]) : x for x in AnnotationAccession_column}
+    
     ## now make the RunID csv file.
     with open(RunID_table_outfile, "w") as RunID_table_fh:
-        header = "RefSeq_ID,SRA_ID,Run_ID,LongReadDataType\n"
+        header = "RefSeq_ID,AnnotationAccession,SRA_ID,Run_ID,LongReadDataType\n"
         RunID_table_fh.write(header) 
         for RefSeq_accession in refseq_ids:
+            AnnotationAccession = refseq_id_to_annotation_accession_dict[RefSeq_accession]
             my_SRA_ID = get_SRA_ID_from_RefSeqID(RefSeq_accession)
             if my_SRA_ID == "NA": continue ## skip genomes without SRA data.
             RunID_longread_datatype_tuples = get_RunID_and_longread_datatype_tuples(my_SRA_ID)
             for my_Run_ID, my_longread_datatype in RunID_longread_datatype_tuples:
-                row = f"{RefSeq_accession},{my_SRA_ID},{my_Run_ID},{my_longread_datatype}\n"
+                row = f"{RefSeq_accession},{AnnotationAccession},{my_SRA_ID},{my_Run_ID},{my_longread_datatype}\n"
                 print(row) ## just to show that the program is running properly.
                 RunID_table_fh.write(row)
     return
@@ -307,19 +310,31 @@ def align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir,
     with open(RunID_table_csv, "r") as csv_fh:
         for i, line in enumerate(csv_fh):
             if i == 0: continue ## skip the header.
-            line = line.strip()
-            RefSeq_ID, SRA_ID, Run_ID, LongReadDataType = line.split(',')
+            line = line.strip() ## remove trailing newline characters.
+            RefSeq_ID, AnnotationAccession, SRA_ID, Run_ID, LongReadDataType = line.split(',')
             sra_fastq_file = Run_ID + ".fastq"
             sra_fastq_path = os.path.join(SRA_data_dir, sra_fastq_file)
-            ## WORKING HERE!        
-            minimap2_args = ["minimap2", "-L", ]
 
-            quit()
+            ref_fastadb_path = os.path.join(fasta_ref_dir, AnnotationAccession + "_genomic.fna")
 
-            print(" ".join(minimap2_args))
-            ##subprocess.run(minimap2_args)
-            ## quit()
+            ## Give the name of the actual dataset being aligned to the reference genome.
+            ## Note that there is one alignment per fastq read dataset, but each genome
+            ## may be reused on multiple datasets (i.e. the genome was sequenced twice.)
+            aln_sam_outfile = Run_ID + "-aln.sam"
+            aln_sam_outpath = os.path.join(alignment_outdir, aln_sam_outfile)
             
+            ## let's construct the arguments for minimap2.
+            minimap2_args = ["minimap2", "-ax"]
+            if LongReadDataType == "OXFORD_NANOPORE":
+                minimap2_args.append("map-ont")
+            elif LongReadDataType == "PACBIO_SMRT":
+                minimap2_args.append("map-pb")
+            else:
+                raise AssertionError("UNKNOWN DATATYPE")
+            minimap2_args += [ref_fastadb_path, sra_fastq_path, ">" , aln_sam_outpath]
+            minimap2_cmd_string = " ".join(minimap2_args)
+            print(minimap2_cmd_string)
+            subprocess.run(minimap2_cmd_string, shell=True)
     return
 
 
@@ -337,11 +352,12 @@ def main():
     reference_genome_dir = "../data/NCBI-reference-genomes/"
     SRA_data_dir = "../data/SRA/"
     fasta_ref_dir = "../results/FASTA-reference-genomes/"
-    minimap_alignment_ref_dir = "../results/minimap2_alignments/"
+    alignment_outdir = "../results/minimap2-longread-alignments/"
 
 
-    #####################################################################################
-    ## Stage 1: get SRA IDs and Run IDs for the RefSeq bacterial genomes containing high copy number plasmids.
+    #############################################################################
+    ## Stage 1: get SRA IDs and Run IDs for the RefSeq bacterial genomes
+    ## containing high copy number plasmids.
     if exists(RunID_table_csv):
         Stage1DoneMessage = f"{RunID_table_csv} exists on disk-- skipping stage 1."
         print(Stage1DoneMessage)
@@ -355,7 +371,7 @@ def main():
         print(Stage1TimeMessage)
         logging.info(Stage1TimeMessage)
     
-    #####################################################################################
+    ############################################################################
     ## Stage 2: download reference genomes for each of the bacterial genomes containing plasmids,
     ## for which we can download Oxford Nanopore long-read data from the NCBI Sequencing Read Archive.
     ## first, make a dictionary from RefSeq accessions to ftp paths using the
@@ -370,7 +386,7 @@ def main():
         with open(stage_2_complete_file, "w") as stage_2_complete_log:
             stage_2_complete_log.write("reference genomes downloaded successfully.\n")
             
-    #####################################################################################
+    ############################################################################
     ## Stage 3: download long reads for the genomes from the NCBI Short Read Archive (SRA).
     stage_3_complete_file = "../results/stage3.done"
     if exists(stage_3_complete_file):
@@ -386,7 +402,7 @@ def main():
         with open(stage_3_complete_file, "w") as stage_3_complete_log:
             stage_3_complete_log.write("SRA read data downloaded successfully.\n")
 
-    #####################################################################################
+    ############################################################################
     ## Stage 4: make FASTA genome references to make alignments with minimap2.
     stage_4_complete_file = "../results/stage4.done"
     if exists(stage_4_complete_file):
@@ -405,17 +421,16 @@ def main():
         with open(stage_4_complete_file, "w") as stage_4_complete_log:
             stage_4_complete_log.write("Stage 4 complete.\n")
             
-    #####################################################################################
-    ## Stage 5: use minimap2 to align each long read dataset to genomes containing high copy number plasmids. 
+    ############################################################################
+    ## Stage 5: use minimap2 to align each long read dataset to genomes
+    ## containing high copy number plasmids. 
     stage_5_complete_file = "../results/stage5.done"
     if exists(stage_5_complete_file):
         print(f"{stage_5_complete_file} exists on disk-- skipping stage 5.")
     else:
         stage5_start_time = time.time()  # Record the start time
         ## now use minimap2 to make alignments in SAM format.
-        align_long_reads_with_minimap2(RunID_table_csv, alignment_outdir)
-        quit()
-        
+        align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir, alignment_outdir)        
         stage5_end_time = time.time()  # Record the end time
         stage5_execution_time = stage5_end_time - stage5_start_time
         Stage5TimeMessage = f"Stage 5 execution time: {stage5_execution_time} seconds"
@@ -424,12 +439,30 @@ def main():
         with open(stage_5_complete_file, "w") as stage_5_complete_log:
             stage_5_complete_log.write("Stage 5 complete.\n")
 
+    ############################################################################
+    ## Stage 6: Use samtools to convert the SAM format alignments to CRAM format for sniffles.
+    stage_6_complete_file = "../results/stage6.done"
+    if exists(stage_6_complete_file):
+        print(f"{stage_6_complete_file} exists on disk-- skipping stage 6.")
+    else:
+        stage6_start_time = time.time()  # Record the start time
+        ## now use samtools to convert the SAM format alignments to CRAM format for sniffles.
+
+        ## FUNCTION CALL GOES HERE
+        quit()
         
-        ## then use samtools to convert the SAM format alignments to CRAM format for sniffles.
+        stage6_end_time = time.time()  # Record the end time
+        stage6_execution_time = stage6_end_time - stage6_start_time
+        Stage6TimeMessage = f"Stage 6 execution time: {stage6_execution_time} seconds"
+        print(Stage6TimeMessage)
+        logging.info(Stage6TimeMessage)
+        with open(stage_6_complete_file, "w") as stage_6_complete_log:
+            stage_6_complete_log.write("Stage 6 complete.\n")
+
+
         ## use sniffles to generate VCF files given the CRAM alignments.
         ## examine the VCF files to see if there is evidence of structural variation
         
-        quit()
         
 
             
