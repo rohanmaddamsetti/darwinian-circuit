@@ -361,7 +361,7 @@ def align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir,
     return
 
 
-def convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir):
+def convert_SAM_to_BAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir):
     ## Example command from ChatGPT: samtools view -C -T reference.fa input.sam -o output.cram
     with open(RunID_table_csv, "r") as csv_fh:
         for i, line in enumerate(csv_fh):
@@ -377,14 +377,14 @@ def convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir
             aln_sam_infile = Run_ID + "-aln.sam"
             SAM_inpath = os.path.join(alignment_dir, aln_sam_infile)
 
-            aln_cram_outfile = Run_ID + "-aln.cram"
-            CRAM_outpath = os.path.join(alignment_dir, aln_cram_outfile)
-            ## don't run if the CRAM file already exists.
-            if exists(CRAM_outpath):
+            aln_bam_outfile = Run_ID + "-aln.bam"
+            BAM_outpath = os.path.join(alignment_dir, aln_bam_outfile)
+            ## don't run if the BAM file already exists.
+            if exists(BAM_outpath):
                 continue
             
             ## let's construct the arguments for samtools.
-            samtools_args = ["samtools", "view", "-C", "-T", ref_fastadb_path, SAM_inpath, "-o", CRAM_outpath]
+            samtools_args = ["samtools", "view", "-bT", ref_fastadb_path, SAM_inpath, "-o", BAM_outpath]
             samtools_cmd_string = " ".join(samtools_args)
             ## if we're on DCC, wrap the cmd_string.
             if sys.platform == "linux":
@@ -418,7 +418,7 @@ def sort_and_index_alignments_with_samtools(alignment_dir):
         ## don't run if the sorted and indexed file already exists.
         if exists(sorted_and_indexed_alignment_path):
             continue
-        samtools_sort_and_index_args = ["samtools", "sort", "--write-index", "--output-fmt", "CRAM", "-o", sorted_and_indexed_alignment_path, alignment_path]
+        samtools_sort_and_index_args = ["samtools", "sort", "--write-index", "--output-fmt", "BAM", "-o", sorted_and_indexed_alignment_path, alignment_path]
         samtools_sort_cmd_string = " ".join(samtools_sort_and_index_args)
         ## if we're on DCC, wrap the cmd_string.
         if sys.platform == "linux":
@@ -434,12 +434,12 @@ def run_sniffles2_on_alignments(alignment_dir, sniffles_outdir):
     if not exists(sniffles_outdir):
         os.mkdir(sniffles_outdir)
 
-    sorted_cram_files = [x for x in os.listdir(alignment_dir) if x.startswith("sorted_") and x.endswith(".cram")]
-    sorted_cram_pathlist = [os.path.join(alignment_dir, x) for x in sorted_cram_files]
-    for cram_path in sorted_cram_pathlist:
-        vcf_outfile = basename(cram_path).split(".cram")[0] + ".vcf"
+    sorted_bam_files = [x for x in os.listdir(alignment_dir) if x.startswith("sorted_") and x.endswith(".bam")]
+    sorted_bam_pathlist = [os.path.join(alignment_dir, x) for x in sorted_bam_files]
+    for bam_path in sorted_bam_pathlist:
+        vcf_outfile = basename(bam_path).split(".bam")[0] + ".vcf"
         vcf_outpath = os.path.join(sniffles_outdir, vcf_outfile)
-        sniffles2_args = ["sniffles", "--input", cram_path, "--vcf", vcf_outpath, "--mosaic"]
+        sniffles2_args = ["sniffles", "--input", bam_path, "--vcf", vcf_outpath, "--mosaic"]
         sniffles2_cmd_string = " ".join(sniffles2_args)
         ## if we're on DCC, wrap the cmd_string.
         if sys.platform == "linux":
@@ -576,14 +576,14 @@ def main():
         quit()
     
     ############################################################################
-    ## Stage 6: Use samtools to convert the SAM format alignments to CRAM format.
+    ## Stage 6: Use samtools to convert the SAM format alignments to BAM format.
     stage_6_complete_file = "../results/stage6.done"
     if exists(stage_6_complete_file):
         print(f"{stage_6_complete_file} exists on disk-- skipping stage 6.")
     else:
         stage6_start_time = time.time()  # Record the start time
-        ## now use samtools to convert the SAM format alignments to CRAM format for sniffles.
-        ## Example command from ChatGPT: samtools view -C -T reference.fa input.sam -o output.cram
+        ## now use samtools to convert the SAM format alignments to BAM format for sniffles.
+        ## Example command from ChatGPT: samtools view -bT reference.fa input.sam -o output.cram
         convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir)
         stage6_end_time = time.time()  # Record the end time
         stage6_execution_time = stage6_end_time - stage6_start_time
@@ -595,7 +595,7 @@ def main():
         quit()
     
     ############################################################################
-    ## Stage 7: Index each reference genome using samtools faidx.
+    ## Stage 7: Index each reference genome using samtools faidx if needed.
     stage_7_complete_file = "../results/stage7.done"
     if exists(stage_7_complete_file):
         print(f"{stage_7_complete_file} exists on disk-- skipping stage 7.")
