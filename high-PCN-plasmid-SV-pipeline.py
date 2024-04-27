@@ -8,6 +8,9 @@ For this pipeline to work, ncbi datasets, pysradb, minimap2, samtools, and sniff
 IMPORTANT: this script assumes it is being run on the Duke Compute Cluster (DCC) if sys.platform == "linux".
 This means that users on a linux machine will need to modify a couple functions if they are running this code
 locally, and cannot use slurm to submit many jobs in parallel.
+In addition, this script quits once each new stage has completed. The purpose of this design is to let
+parallel sbatch jobs to complete before running the next stage, without having this script run indefinitely
+while waiting for those sbatch jobs to finish.
 
 In a separate project, I calculated a large dataset of plasmid copy numbers.
 I filtered those data for high confidence plasmids with copy numbers > 100.
@@ -20,8 +23,13 @@ to make SAM alignments.
 3) use samtools to conver the SAM alignments to CRAM alignments for Sniffles2.
 4) Use Sniffles2 to call structural variants on these HCN plasmids.
 
+This code also re-estimates the PCN of the high PCN plasmids using samtools
+on the the minimap2 alignments. This part of the code may be refactored into
+the codebase for the PCN estimation project.
+
 Then, I will report how common structural variation is on these plasmids,
 and report details of those structural variants.
+
 
 """
 
@@ -331,6 +339,9 @@ def align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir,
             ## may be reused on multiple datasets (i.e. the genome was sequenced twice.)
             aln_sam_outfile = Run_ID + "-aln.sam"
             aln_sam_outpath = os.path.join(alignment_dir, aln_sam_outfile)
+            ## don't run if the SAM file already exists.
+            if exists(aln_sam_outpath):
+                continue
             
             ## let's construct the arguments for minimap2.
             minimap2_args = ["minimap2", "-ax"]
@@ -368,6 +379,9 @@ def convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir
 
             aln_cram_outfile = Run_ID + "-aln.cram"
             CRAM_outpath = os.path.join(alignment_dir, aln_cram_outfile)
+            ## don't run if the CRAM file already exists.
+            if exists(CRAM_outpath):
+                continue
             
             ## let's construct the arguments for samtools.
             samtools_args = ["samtools", "view", "-C", "-T", ref_fastadb_path, SAM_inpath, "-o", CRAM_outpath]
@@ -380,16 +394,49 @@ def convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir
     return
 
 
+def index_fasta_reference_genomes_with_samtools(fasta_ref_dir):
+    fasta_genomes = [x for x in os.listdir(fasta_ref_dir) if x.endswith(".fna")]
+    fasta_genomepaths = [os.path.join(fasta_ref_dir, x) for x in fasta_genomes]
+    for fastapath in fasta_genomepaths:
+        ## don't run if the index file already exists.
+        output_index_path = fastapath + ".fai"
+        if exists(output_index_path):
+            continue
+        samtools_faidx_args = ["samtools", "faidx", fastapath]
+        samtools_faidx_cmd_string = " ".join(samtools_faidx_args)
+        ## This step is fast-- no need to run with sbatch.
+        print(samtools_faidx_cmd_string)
+        subprocess.run(samtools_faidx_cmd_string, shell=True)
+    return
+
+
+def sort_and_index_alignments_with_samtools(alignment_dir):
+    alignment_files = [x for x in os.listdir(alignment_dir) if x.endswith(".cram")]
+    for alignment_file in alignment_files:
+        alignment_path = os.path.join(alignment_dir, alignment_file)
+        sorted_and_indexed_alignment_path = os.path.join(alignment_dir, "sorted_" + alignment_file)
+        ## don't run if the sorted and indexed file already exists.
+        if exists(sorted_and_indexed_alignment_path):
+            continue
+        samtools_sort_and_index_args = ["samtools", "sort", "--write-index", "--output-fmt", "CRAM", "-o", sorted_and_indexed_alignment_path, alignment_path]
+        samtools_sort_cmd_string = " ".join(samtools_sort_and_index_args)
+        ## if we're on DCC, wrap the cmd_string.
+        if sys.platform == "linux":
+            samtools_sort_cmd_string = wrap_cmd_for_sbatch(samtools_sort_cmd_string)
+        print(samtools_sort_cmd_string)
+        subprocess.run(samtools_sort_cmd_string, shell=True)
+    return
+
+
 def run_sniffles2_on_alignments(alignment_dir, sniffles_outdir):
     ## Example: sniffles --input mapped_input.bam --vcf output.vcf --mosaic
-
     ## make the output directory if it does not exist.
     if not exists(sniffles_outdir):
         os.mkdir(sniffles_outdir)
 
-    cram_files = [x for x in os.listdir(alignment_dir) if x.endswith(".cram")]
-    cram_pathlist = [os.path.join(alignment_dir, x) for x in cram_files]
-    for cram_path in cram_pathlist:
+    sorted_cram_files = [x for x in os.listdir(alignment_dir) if x.startswith("sorted_") and x.endswith(".cram")]
+    sorted_cram_pathlist = [os.path.join(alignment_dir, x) for x in sorted_cram_files]
+    for cram_path in sorted_cram_pathlist:
         vcf_outfile = basename(cram_path).split(".cram")[0] + ".vcf"
         vcf_outpath = os.path.join(sniffles_outdir, vcf_outfile)
         sniffles2_args = ["sniffles", "--input", cram_path, "--vcf", vcf_outpath, "--mosaic"]
@@ -400,6 +447,26 @@ def run_sniffles2_on_alignments(alignment_dir, sniffles_outdir):
         print(sniffles2_cmd_string)
         subprocess.run(sniffles2_cmd_string, shell=True)
     return
+
+
+def calculate_sorted_alignment_coverage_depth_with_samtools(alignment_dir, coverage_depth_dir):
+    if not exists(coverage_depth_dir):
+        os.mkdir(coverage_depth_dir)
+
+    sorted_alignment_files = [x for x in os.listdir(alignment_dir) if x.startswith("sorted_") and x.endswith(".cram")]
+    for sorted_alignment_file in sorted_alignment_files:
+        sorted_alignment_path = os.path.join(alignment_dir, sorted_alignment_file)
+        my_seq_dataset = basename(sorted_alignment_file).split("sorted_")[-1].split(".cram")[0].split("-aln")[0]
+        coverage_output_file = my_seq_dataset + "-coverage.txt"
+        coverage_output_path = os.path.join(coverage_depth_dir, coverage_output_file)
+        samtools_depth_args = ["samtools", "depth", sorted_alignment_path, ">", coverage_output_file]
+        samtools_depth_cmd_string = " ".join(samtools_depth_args)
+        ## This step is fast-- no need to run with sbatch.
+        print(samtools_depth_cmd_string)
+        subprocess.run(samtools_depth_cmd_string, shell=True)
+    return
+
+
 ################################################################################
 ## Run the pipeline.
 def main():
@@ -416,6 +483,7 @@ def main():
     fasta_ref_dir = "../results/FASTA-reference-genomes/"
     alignment_dir = "../results/minimap2-longread-alignments/"
     sniffles_outdir = "../results/sniffles2-results/"
+    coverage_depth_dir = "../results/longread-alignment-coverage-results/"
 
 
     #############################################################################
@@ -433,6 +501,7 @@ def main():
         Stage1TimeMessage = f"Stage 1 execution time: {RunID_table_execution_time} seconds"
         print(Stage1TimeMessage)
         logging.info(Stage1TimeMessage)
+        quit()
     
     ############################################################################
     ## Stage 2: download reference genomes for each of the bacterial genomes containing plasmids,
@@ -448,6 +517,7 @@ def main():
         fetch_reference_genomes(RunID_table_csv, refseq_accession_to_ftp_path_dict, reference_genome_dir)        
         with open(stage_2_complete_file, "w") as stage_2_complete_log:
             stage_2_complete_log.write("reference genomes downloaded successfully.\n")
+        quit()
             
     ############################################################################
     ## Stage 3: download long reads for the genomes from the NCBI Short Read Archive (SRA).
@@ -464,6 +534,7 @@ def main():
         logging.info(Stage3TimeMessage)
         with open(stage_3_complete_file, "w") as stage_3_complete_log:
             stage_3_complete_log.write("SRA read data downloaded successfully.\n")
+        quit()
 
     ############################################################################
     ## Stage 4: make FASTA genome references to make alignments with minimap2.
@@ -483,6 +554,7 @@ def main():
         logging.info(Stage4TimeMessage)
         with open(stage_4_complete_file, "w") as stage_4_complete_log:
             stage_4_complete_log.write("Stage 4 complete.\n")
+        quit()
             
     ############################################################################
     ## Stage 5: use minimap2 to align each long read dataset to genomes
@@ -502,8 +574,9 @@ def main():
         with open(stage_5_complete_file, "w") as stage_5_complete_log:
             stage_5_complete_log.write("Stage 5 complete.\n")
         quit()
+    
     ############################################################################
-    ## Stage 6: Use samtools to convert the SAM format alignments to CRAM format for sniffles.
+    ## Stage 6: Use samtools to convert the SAM format alignments to CRAM format.
     stage_6_complete_file = "../results/stage6.done"
     if exists(stage_6_complete_file):
         print(f"{stage_6_complete_file} exists on disk-- skipping stage 6.")
@@ -519,18 +592,16 @@ def main():
         logging.info(Stage6TimeMessage)
         with open(stage_6_complete_file, "w") as stage_6_complete_log:
             stage_6_complete_log.write("Stage 6 complete.\n")
-
+        quit()
+    
     ############################################################################
-    ## Stage 7: Use Sniffles2 to generate VCF files given the CRAM alignments.
+    ## Stage 7: Index each reference genome using samtools faidx.
     stage_7_complete_file = "../results/stage7.done"
     if exists(stage_7_complete_file):
         print(f"{stage_7_complete_file} exists on disk-- skipping stage 7.")
     else:
         stage7_start_time = time.time()  # Record the start time
-        ## now use sniffles to generate VCF files given the CRAM alignments.
-        run_sniffles2_on_alignments(alignment_dir, sniffles_outdir)
-        quit()
-
+        index_fasta_reference_genomes_with_samtools(fasta_ref_dir)
         stage7_end_time = time.time()  # Record the end time
         stage7_execution_time = stage7_end_time - stage7_start_time
         Stage7TimeMessage = f"Stage 7 execution time: {stage7_execution_time} seconds"
@@ -538,10 +609,86 @@ def main():
         logging.info(Stage7TimeMessage)
         with open(stage_7_complete_file, "w") as stage_7_complete_log:
             stage_7_complete_log.write("Stage 7 complete.\n")
+        quit()
 
+    ############################################################################
+    ## Stage 8: Sort and index each alignment file: use samtools sort and then index it with samtools index.
+    stage_8_complete_file = "../results/stage8.done"
+    if exists(stage_8_complete_file):
+        print(f"{stage_8_complete_file} exists on disk-- skipping stage 8.")
+    else:
+        stage8_start_time = time.time()  # Record the start time
+        sort_and_index_alignments_with_samtools(alignment_dir)
+        stage8_end_time = time.time()  # Record the end time
+        stage8_execution_time = stage8_end_time - stage8_start_time
+        Stage8TimeMessage = f"Stage 8 execution time: {stage8_execution_time} seconds"
+        print(Stage8TimeMessage)
+        logging.info(Stage8TimeMessage)
+        with open(stage_8_complete_file, "w") as stage_8_complete_log:
+            stage_8_complete_log.write("Stage 8 complete.\n")
+        quit()
+    ############################################################################
+    ## Stage 9: Use Sniffles2 to generate VCF files given the sorted and indexed CRAM alignments.
+    stage_9_complete_file = "../results/stage9.done"
+    if exists(stage_9_complete_file):
+        print(f"{stage_9_complete_file} exists on disk-- skipping stage 9.")
+    else:
+        stage9_start_time = time.time()  # Record the start time
+        ## now use sniffles to generate VCF files given the sorted CRAM alignments.
+        run_sniffles2_on_alignments(alignment_dir, sniffles_outdir)
+        stage9_end_time = time.time()  # Record the end time
+        stage9_execution_time = stage9_end_time - stage9_start_time
+        Stage9TimeMessage = f"Stage 9 execution time: {stage9_execution_time} seconds"
+        print(Stage9TimeMessage)
+        logging.info(Stage9TimeMessage)
+        with open(stage_9_complete_file, "w") as stage_9_complete_log:
+            stage_9_complete_log.write("Stage 9 complete.\n")
+        quit()
 
+    ############################################################################
+    ## Stage 10:  Re-estimate PCN using longread data and minimap2. Part 1: estimate coverage depth.
+    ## Generate coverage statistics: use samtools depth to calculate sequencing coverage at each position in the alignment.
 
+    stage_10_complete_file = "../results/stage10.done"
+    if exists(stage_10_complete_file):
+        print(f"{stage_10_complete_file} exists on disk-- skipping stage 10.")
+    else:
+        stage10_start_time = time.time()  # Record the start time
+        calculate_sorted_alignment_coverage_depth_with_samtools(alignment_dir, coverage_depth_dir)
+        stage10_end_time = time.time()  # Record the end time
+        stage10_execution_time = stage10_end_time - stage10_start_time
+        Stage10TimeMessage = f"Stage 10 execution time: {stage10_execution_time} seconds"
+        print(Stage10TimeMessage)
+        logging.info(Stage10TimeMessage)
+        with open(stage_10_complete_file, "w") as stage_10_complete_log:
+            stage_10_complete_log.write("Stage 8 complete.\n")
+        quit()
+
+    ############################################################################
+    ## Stage 11:  Re-estimate PCN using longread data and minimap2. Part 2: 
+    ## aggregate coverage data to get coverage statistics for each replicon and re-estimate PCN.
     
+    stage_11_complete_file = "../results/stage11.done"
+    if exists(stage_11_complete_file):
+        print(f"{stage_11_complete_file} exists on disk-- skipping stage 11.")
+    else:
+        stage11_start_time = time.time()  # Record the start time
+
+        ## CODE GOES HERE
+        quit()
+
+        stage11_end_time = time.time()  # Record the end time
+        stage11_execution_time = stage11_end_time - stage11_start_time
+        Stage11TimeMessage = f"Stage 11 execution time: {stage11_execution_time} seconds"
+        print(Stage11TimeMessage)
+        logging.info(Stage11TimeMessage)
+        with open(stage_11_complete_file, "w") as stage_11_complete_log:
+            stage_11_complete_log.write("Stage 11 complete.\n")
+
+
+
+
+            
         ## examine the VCF files to see if there is evidence of structural variation.
         
 
@@ -550,5 +697,3 @@ def main():
 
 
 main()
-
-
