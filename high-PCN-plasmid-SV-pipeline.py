@@ -5,15 +5,19 @@ high-PCN-plasmid-SV-pipeline.py by Rohan Maddamsetti.
 
 For this pipeline to work, ncbi datasets, pysradb, minimap2, samtools, and sniffles2 must be in the $PATH.
 
+IMPORTANT: this script assumes it is being run on the Duke Compute Cluster (DCC) if sys.platform == "linux".
+This means that users on a linux machine will need to modify a couple functions if they are running this code
+locally, and cannot use slurm to submit many jobs in parallel.
+
 In a separate project, I calculated a large dataset of plasmid copy numbers.
 I filtered those data for high confidence plasmids with copy numbers > 100.
 These data are in ../data/high-PCN-plasmids.csv
 
 This pipeline runs the following steps:
 1) download long-read data for these genomes.
-2) use minimap2 -L mode, with either ONT or PacBio parameters for minimap2
+2) use minimap2 with either ONT or PacBio parameters depending on the dataset
 to make SAM alignments.
-3) use samtools to conver the SAM alignments to CRAM alignments for sniffles.
+3) use samtools to conver the SAM alignments to CRAM alignments for Sniffles2.
 4) Use Sniffles2 to call structural variants on these HCN plasmids.
 
 Then, I will report how common structural variation is on these plasmids,
@@ -306,7 +310,7 @@ def wrap_cmd_for_sbatch(cmd_string):
     return wrapped_cmd_string
 
 
-def align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir, alignment_dir,using_DCC=False):
+def align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir, alignment_dir):
     ## make the output directory if it does not exist.
     if not exists(alignment_dir):
         os.mkdir(alignment_dir)
@@ -339,16 +343,16 @@ def align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir,
             minimap2_args += [ref_fastadb_path, sra_fastq_path, ">" , aln_sam_outpath]
             minimap2_cmd_string = " ".join(minimap2_args)
             ## if we're on DCC, wrap the cmd_string.
-            if using_DCC:
+            if sys.platform == "linux":
                 minimap2_cmd_string = wrap_cmd_for_sbatch(minimap2_cmd_string)
             print(minimap2_cmd_string)
             subprocess.run(minimap2_cmd_string, shell=True)
     return
 
 
-def convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir, using_DCC=False):
+def convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir):
     ## Example command from ChatGPT: samtools view -C -T reference.fa input.sam -o output.cram
-        with open(RunID_table_csv, "r") as csv_fh:
+    with open(RunID_table_csv, "r") as csv_fh:
         for i, line in enumerate(csv_fh):
             if i == 0: continue ## skip the header.
             line = line.strip() ## remove trailing newline characters.
@@ -369,14 +373,10 @@ def convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir
             samtools_args = ["samtools", "view", "-C", "-T", ref_fastadb_path, SAM_inpath, "-o", CRAM_outpath]
             samtools_cmd_string = " ".join(samtools_args)
             ## if we're on DCC, wrap the cmd_string.
-            if using_DCC:
+            if sys.platform == "linux":
                 samtools_cmd_string = wrap_cmd_for_sbatch(samtools_cmd_string)
-
             print(samtools_cmd_string)
-            quit()  ### FOR DEBUGGING
             subprocess.run(samtools_cmd_string, shell=True)
-
-            quit()  ### FOR DEBUGGING
     return
 
     
@@ -490,10 +490,7 @@ def main():
         stage6_start_time = time.time()  # Record the start time
         ## now use samtools to convert the SAM format alignments to CRAM format for sniffles.
         ## Example command from ChatGPT: samtools view -C -T reference.fa input.sam -o output.cram
-        quit() ## for debugging.
         convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir)
-        quit()
-        
         stage6_end_time = time.time()  # Record the end time
         stage6_execution_time = stage6_end_time - stage6_start_time
         Stage6TimeMessage = f"Stage 6 execution time: {stage6_execution_time} seconds"
@@ -502,10 +499,30 @@ def main():
         with open(stage_6_complete_file, "w") as stage_6_complete_log:
             stage_6_complete_log.write("Stage 6 complete.\n")
 
+    ############################################################################
+    ## Stage 7: Use Sniffles2 to generate VCF files given the CRAM alignments.
+    stage_7_complete_file = "../results/stage7.done"
+    if exists(stage_7_complete_file):
+        print(f"{stage_7_complete_file} exists on disk-- skipping stage 7.")
+    else:
+        stage7_start_time = time.time()  # Record the start time
+        ## now use sniffles to generate VCF files given the CRAM alignments.
 
-        ## use sniffles to generate VCF files given the CRAM alignments.
-        ## examine the VCF files to see if there is evidence of structural variation
-        
+        ## COMMAND GOES HERE
+        quit()
+
+        stage7_end_time = time.time()  # Record the end time
+        stage7_execution_time = stage7_end_time - stage7_start_time
+        Stage7TimeMessage = f"Stage 7 execution time: {stage7_execution_time} seconds"
+        print(Stage7TimeMessage)
+        logging.info(Stage7TimeMessage)
+        with open(stage_7_complete_file, "w") as stage_7_complete_log:
+            stage_7_complete_log.write("Stage 7 complete.\n")
+
+
+
+    
+        ## examine the VCF files to see if there is evidence of structural variation.
         
 
             
