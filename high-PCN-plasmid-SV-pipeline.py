@@ -379,7 +379,27 @@ def convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir
             subprocess.run(samtools_cmd_string, shell=True)
     return
 
-    
+
+def run_sniffles2_on_alignments(alignment_dir, sniffles_outdir):
+    ## Example: sniffles --input mapped_input.bam --vcf output.vcf --mosaic
+
+    ## make the output directory if it does not exist.
+    if not exists(sniffles_outdir):
+        os.mkdir(sniffles_outdir)
+
+    cram_files = [x for x in os.listdir(alignment_dir) if x.endswith(".cram")]
+    cram_pathlist = [os.path.join(alignment_dir, x) for x in cram_files]
+    for cram_path in cram_pathlist:
+        vcf_outfile = basename(cram_path).split(".cram")[0] + ".vcf"
+        vcf_outpath = os.path.join(sniffles_outdir, vcf_outfile)
+        sniffles2_args = ["sniffles", "--input", cram_path, "--vcf", vcf_outpath, "--mosaic"]
+        sniffles2_cmd_string = " ".join(sniffles2_args)
+        ## if we're on DCC, wrap the cmd_string.
+        if sys.platform == "linux":
+            sniffles2_cmd_string = wrap_cmd_for_sbatch(sniffles2_cmd_string)
+        print(sniffles2_cmd_string)
+        subprocess.run(sniffles2_cmd_string, shell=True)
+    return
 ################################################################################
 ## Run the pipeline.
 def main():
@@ -395,6 +415,7 @@ def main():
     SRA_data_dir = "../data/SRA/"
     fasta_ref_dir = "../results/FASTA-reference-genomes/"
     alignment_dir = "../results/minimap2-longread-alignments/"
+    sniffles_outdir = "../results/sniffles2-results/"
 
 
     #############################################################################
@@ -480,7 +501,7 @@ def main():
         logging.info(Stage5TimeMessage)
         with open(stage_5_complete_file, "w") as stage_5_complete_log:
             stage_5_complete_log.write("Stage 5 complete.\n")
-
+        quit()
     ############################################################################
     ## Stage 6: Use samtools to convert the SAM format alignments to CRAM format for sniffles.
     stage_6_complete_file = "../results/stage6.done"
@@ -507,8 +528,7 @@ def main():
     else:
         stage7_start_time = time.time()  # Record the start time
         ## now use sniffles to generate VCF files given the CRAM alignments.
-
-        ## COMMAND GOES HERE
+        run_sniffles2_on_alignments(alignment_dir, sniffles_outdir)
         quit()
 
         stage7_end_time = time.time()  # Record the end time
