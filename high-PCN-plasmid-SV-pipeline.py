@@ -612,7 +612,7 @@ def main():
         quit()
 
     ############################################################################
-    ## Stage 8: Sort and index each alignment file: use samtools sort and then index it with samtools index.
+    ## Stage 8: Sort and index each alignment file with samtools sort --write-index.
     stage_8_complete_file = "../results/stage8.done"
     if exists(stage_8_complete_file):
         print(f"{stage_8_complete_file} exists on disk-- skipping stage 8.")
