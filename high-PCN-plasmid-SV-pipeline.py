@@ -301,10 +301,15 @@ def make_fasta_genome_references(refgenomes_dir, fasta_outdir):
     return
 
 
-def align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir, alignment_outdir):
+def wrap_cmd_for_sbatch(cmd_string):
+    wrapped_cmd_string = "sbatch -p scavenger --mem=16G --wrap=" + "\"" + cmd_string + "\""
+    return wrapped_cmd_string
+
+
+def align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir, alignment_dir,using_DCC=False):
     ## make the output directory if it does not exist.
-    if not exists(alignment_outdir):
-        os.mkdir(alignment_outdir)
+    if not exists(alignment_dir):
+        os.mkdir(alignment_dir)
 
     ## we make separate alignments for each fastq file.
     with open(RunID_table_csv, "r") as csv_fh:
@@ -321,7 +326,7 @@ def align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir,
             ## Note that there is one alignment per fastq read dataset, but each genome
             ## may be reused on multiple datasets (i.e. the genome was sequenced twice.)
             aln_sam_outfile = Run_ID + "-aln.sam"
-            aln_sam_outpath = os.path.join(alignment_outdir, aln_sam_outfile)
+            aln_sam_outpath = os.path.join(alignment_dir, aln_sam_outfile)
             
             ## let's construct the arguments for minimap2.
             minimap2_args = ["minimap2", "-ax"]
@@ -333,11 +338,48 @@ def align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir,
                 raise AssertionError("UNKNOWN DATATYPE")
             minimap2_args += [ref_fastadb_path, sra_fastq_path, ">" , aln_sam_outpath]
             minimap2_cmd_string = " ".join(minimap2_args)
+            ## if we're on DCC, wrap the cmd_string.
+            if using_DCC:
+                minimap2_cmd_string = wrap_cmd_for_sbatch(minimap2_cmd_string)
             print(minimap2_cmd_string)
             subprocess.run(minimap2_cmd_string, shell=True)
     return
 
 
+def convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir, using_DCC=False):
+    ## Example command from ChatGPT: samtools view -C -T reference.fa input.sam -o output.cram
+        with open(RunID_table_csv, "r") as csv_fh:
+        for i, line in enumerate(csv_fh):
+            if i == 0: continue ## skip the header.
+            line = line.strip() ## remove trailing newline characters.
+            RefSeq_ID, AnnotationAccession, SRA_ID, Run_ID, LongReadDataType = line.split(',')
+
+            ref_fastadb_path = os.path.join(fasta_ref_dir, AnnotationAccession + "_genomic.fna")
+
+            ## Give the name of the actual dataset being aligned to the reference genome.
+            ## Note that there is one alignment per fastq read dataset, but each genome
+            ## may be reused on multiple datasets (i.e. the genome was sequenced twice.)
+            aln_sam_infile = Run_ID + "-aln.sam"
+            SAM_inpath = os.path.join(alignment_dir, aln_sam_infile)
+
+            aln_cram_outfile = Run_ID + "-aln.cram"
+            CRAM_outpath = os.path.join(alignment_dir, aln_cram_outfile)
+            
+            ## let's construct the arguments for samtools.
+            samtools_args = ["samtools", "view", "-C", "-T", ref_fastadb_path, SAM_inpath, "-o", CRAM_outpath]
+            samtools_cmd_string = " ".join(samtools_args)
+            ## if we're on DCC, wrap the cmd_string.
+            if using_DCC:
+                samtools_cmd_string = wrap_cmd_for_sbatch(samtools_cmd_string)
+
+            print(samtools_cmd_string)
+            quit()  ### FOR DEBUGGING
+            subprocess.run(samtools_cmd_string, shell=True)
+
+            quit()  ### FOR DEBUGGING
+    return
+
+    
 ################################################################################
 ## Run the pipeline.
 def main():
@@ -352,7 +394,7 @@ def main():
     reference_genome_dir = "../data/NCBI-reference-genomes/"
     SRA_data_dir = "../data/SRA/"
     fasta_ref_dir = "../results/FASTA-reference-genomes/"
-    alignment_outdir = "../results/minimap2-longread-alignments/"
+    alignment_dir = "../results/minimap2-longread-alignments/"
 
 
     #############################################################################
@@ -430,7 +472,7 @@ def main():
     else:
         stage5_start_time = time.time()  # Record the start time
         ## now use minimap2 to make alignments in SAM format.
-        align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir, alignment_outdir)        
+        align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir, alignment_dir)        
         stage5_end_time = time.time()  # Record the end time
         stage5_execution_time = stage5_end_time - stage5_start_time
         Stage5TimeMessage = f"Stage 5 execution time: {stage5_execution_time} seconds"
@@ -447,8 +489,9 @@ def main():
     else:
         stage6_start_time = time.time()  # Record the start time
         ## now use samtools to convert the SAM format alignments to CRAM format for sniffles.
-
-        ## FUNCTION CALL GOES HERE
+        ## Example command from ChatGPT: samtools view -C -T reference.fa input.sam -o output.cram
+        quit() ## for debugging.
+        convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir)
         quit()
         
         stage6_end_time = time.time()  # Record the end time
