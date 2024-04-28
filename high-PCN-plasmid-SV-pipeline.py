@@ -20,7 +20,7 @@ This pipeline runs the following steps:
 1) download long-read data for these genomes.
 2) use minimap2 with either ONT or PacBio parameters depending on the dataset
 to make SAM alignments.
-3) use samtools to conver the SAM alignments to CRAM alignments for Sniffles2.
+3) use samtools to conver the SAM alignments to BAM alignments for Sniffles2.
 4) Use Sniffles2 to call structural variants on these HCN plasmids.
 
 This code also re-estimates the PCN of the high PCN plasmids using samtools
@@ -362,7 +362,7 @@ def align_long_reads_with_minimap2(RunID_table_csv, SRA_data_dir, fasta_ref_dir,
 
 
 def convert_SAM_to_BAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir):
-    ## Example command from ChatGPT: samtools view -C -T reference.fa input.sam -o output.cram
+    ## Example command from ChatGPT: samtools view -C -T reference.fa input.sam -o output.bam
     with open(RunID_table_csv, "r") as csv_fh:
         for i, line in enumerate(csv_fh):
             if i == 0: continue ## skip the header.
@@ -411,7 +411,7 @@ def index_fasta_reference_genomes_with_samtools(fasta_ref_dir):
 
 
 def sort_and_index_alignments_with_samtools(alignment_dir):
-    alignment_files = [x for x in os.listdir(alignment_dir) if x.endswith(".cram")]
+    alignment_files = [x for x in os.listdir(alignment_dir) if x.endswith(".bam")]
     for alignment_file in alignment_files:
         alignment_path = os.path.join(alignment_dir, alignment_file)
         sorted_and_indexed_alignment_path = os.path.join(alignment_dir, "sorted_" + alignment_file)
@@ -453,10 +453,10 @@ def calculate_sorted_alignment_coverage_depth_with_samtools(alignment_dir, cover
     if not exists(coverage_depth_dir):
         os.mkdir(coverage_depth_dir)
 
-    sorted_alignment_files = [x for x in os.listdir(alignment_dir) if x.startswith("sorted_") and x.endswith(".cram")]
+    sorted_alignment_files = [x for x in os.listdir(alignment_dir) if x.startswith("sorted_") and x.endswith(".bam")]
     for sorted_alignment_file in sorted_alignment_files:
         sorted_alignment_path = os.path.join(alignment_dir, sorted_alignment_file)
-        my_seq_dataset = basename(sorted_alignment_file).split("sorted_")[-1].split(".cram")[0].split("-aln")[0]
+        my_seq_dataset = basename(sorted_alignment_file).split("sorted_")[-1].split(".bam")[0].split("-aln")[0]
         coverage_output_file = my_seq_dataset + "-coverage.txt"
         coverage_output_path = os.path.join(coverage_depth_dir, coverage_output_file)
         samtools_depth_args = ["samtools", "depth", sorted_alignment_path, ">", coverage_output_file]
@@ -583,8 +583,8 @@ def main():
     else:
         stage6_start_time = time.time()  # Record the start time
         ## now use samtools to convert the SAM format alignments to BAM format for sniffles.
-        ## Example command from ChatGPT: samtools view -bT reference.fa input.sam -o output.cram
-        convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir)
+        ## Example command from ChatGPT: samtools view -bT reference.fa input.sam -o output.bam
+        convert_SAM_to_BAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir)
         stage6_end_time = time.time()  # Record the end time
         stage6_execution_time = stage6_end_time - stage6_start_time
         Stage6TimeMessage = f"Stage 6 execution time: {stage6_execution_time} seconds"
@@ -628,13 +628,13 @@ def main():
             stage_8_complete_log.write("Stage 8 complete.\n")
         quit()
     ############################################################################
-    ## Stage 9: Use Sniffles2 to generate VCF files given the sorted and indexed CRAM alignments.
+    ## Stage 9: Use Sniffles2 to generate VCF files given the sorted and indexed BAM alignments.
     stage_9_complete_file = "../results/stage9.done"
     if exists(stage_9_complete_file):
         print(f"{stage_9_complete_file} exists on disk-- skipping stage 9.")
     else:
         stage9_start_time = time.time()  # Record the start time
-        ## now use sniffles to generate VCF files given the sorted CRAM alignments.
+        ## now use sniffles to generate VCF files given the sorted BAM alignments.
         run_sniffles2_on_alignments(alignment_dir, sniffles_outdir)
         stage9_end_time = time.time()  # Record the end time
         stage9_execution_time = stage9_end_time - stage9_start_time
