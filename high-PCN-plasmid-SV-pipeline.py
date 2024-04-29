@@ -391,7 +391,7 @@ def convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir
                 continue
             
             ## let's construct the arguments for samtools.
-            samtools_args = ["samtools", "view", "-bT", ref_fastadb_path, SAM_inpath, "-o", CRAM_outpath]
+            samtools_args = ["samtools", "view", "-C", "-T", ref_fastadb_path, SAM_inpath, "-o", CRAM_outpath]
             samtools_cmd_string = " ".join(samtools_args)
             ## if we're on DCC, wrap the cmd_string.
             if sys.platform == "linux":
