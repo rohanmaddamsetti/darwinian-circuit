@@ -436,7 +436,8 @@ def sort_and_index_alignments_with_samtools(alignment_dir):
 
 
 def run_sniffles2_on_alignments(alignment_dir, sniffles_outdir):
-    ## Example: sniffles --input mapped_input.cram --vcf output.vcf --mosaic
+    ## try to find structural variants between 0.1 and 0.9 allele frequency.
+    ## Example: sniffles --input mapped_input.cram --vcf output.vcf --mosaic --mosaic-af-min 0.1 --mosaic-af-max 0.9
     ## make the output directory if it does not exist.
     if not exists(sniffles_outdir):
         os.mkdir(sniffles_outdir)
@@ -446,7 +447,7 @@ def run_sniffles2_on_alignments(alignment_dir, sniffles_outdir):
     for cram_path in sorted_cram_pathlist:
         vcf_outfile = basename(cram_path).split(".cram")[0] + ".vcf"
         vcf_outpath = os.path.join(sniffles_outdir, vcf_outfile)
-        sniffles2_args = ["sniffles", "--input", cram_path, "--vcf", vcf_outpath, "--mosaic"]
+        sniffles2_args = ["sniffles", "--input", cram_path, "--vcf", vcf_outpath, "--mosaic", "--mosaic-af-min", "0.1", "--mosaic-af-max", "0.9"]
         sniffles2_cmd_string = " ".join(sniffles2_args)
         ## if we're on DCC, wrap the cmd_string.
         if sys.platform == "linux":
