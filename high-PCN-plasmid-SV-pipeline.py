@@ -30,7 +30,6 @@ the codebase for the PCN estimation project.
 Then, I will report how common structural variation is on these plasmids,
 and report details of those structural variants.
 
-
 """
 
 import subprocess
@@ -295,12 +294,9 @@ def write_fasta_replicon_references(gbk_gz_path, fastafile_outpath):
             For sniffles2, FASTA headers must be consistent with the SAM specification
             (Sequence Alignment/Map Optional Fields Specification) as described in
             sections 1.2 and 1.4 of that document.
-            
-            This means that commas and semicolons must be removed. To keep things
-            reversible, I replace spaces with one underscore, commas with two underscores,
-            and semicolons with three underscores.
+            This means that commas and semicolons must be removed. 
             """ 
-            replicon_description = record.description.replace(" ","_").replace(",","__").replace(";","___")
+            replicon_description = record.description.replace(" ","_").replace(",","").replace(";","")
             header = ">" + "|".join(["SeqID="+SeqID,"SeqType="+SeqType,"replicon="+replicon_description])
             outfh.write(header + "\n")
             outfh.write(str(record.seq) + "\n")
@@ -587,15 +583,13 @@ def main():
         quit()
     
     ############################################################################
-    ## Stage 6: Use samtools to convert the SAM format alignments to CRAM format.
+    ## Stage 6: Index each reference genome using samtools faidx if needed.
     stage_6_complete_file = "../results/stage6.done"
     if exists(stage_6_complete_file):
         print(f"{stage_6_complete_file} exists on disk-- skipping stage 6.")
     else:
         stage6_start_time = time.time()  # Record the start time
-        ## now use samtools to convert the SAM format alignments to CRAM format for sniffles.
-        ## Example command from ChatGPT: samtools view -bT reference.fa input.sam -o output.cram
-        convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir)
+        index_fasta_reference_genomes_with_samtools(fasta_ref_dir)
         stage6_end_time = time.time()  # Record the end time
         stage6_execution_time = stage6_end_time - stage6_start_time
         Stage6TimeMessage = f"Stage 6 execution time: {stage6_execution_time} seconds"
@@ -606,13 +600,15 @@ def main():
         quit()
     
     ############################################################################
-    ## Stage 7: Index each reference genome using samtools faidx if needed.
+    ## Stage 7: Use samtools to convert the SAM format alignments to CRAM format.
     stage_7_complete_file = "../results/stage7.done"
     if exists(stage_7_complete_file):
         print(f"{stage_7_complete_file} exists on disk-- skipping stage 7.")
     else:
         stage7_start_time = time.time()  # Record the start time
-        index_fasta_reference_genomes_with_samtools(fasta_ref_dir)
+        ## now use samtools to convert the SAM format alignments to CRAM format for sniffles.
+        ## Example command from ChatGPT: samtools view -bT reference.fa input.sam -o output.cram
+        convert_SAM_to_CRAM_alignments(RunID_table_csv, fasta_ref_dir, alignment_dir)
         stage7_end_time = time.time()  # Record the end time
         stage7_execution_time = stage7_end_time - stage7_start_time
         Stage7TimeMessage = f"Stage 7 execution time: {stage7_execution_time} seconds"
