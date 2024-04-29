@@ -467,7 +467,7 @@ def calculate_sorted_alignment_coverage_depth_with_samtools(alignment_dir, cover
         my_seq_dataset = basename(sorted_alignment_file).split("sorted_")[-1].split(".cram")[0].split("-aln")[0]
         coverage_output_file = my_seq_dataset + "-coverage.txt"
         coverage_output_path = os.path.join(coverage_depth_dir, coverage_output_file)
-        samtools_depth_args = ["samtools", "depth", sorted_alignment_path, ">", coverage_output_file]
+        samtools_depth_args = ["samtools", "depth", sorted_alignment_path, ">", coverage_output_path]
         samtools_depth_cmd_string = " ".join(samtools_depth_args)
         ## This step is fast-- no need to run with sbatch.
         print(samtools_depth_cmd_string)
