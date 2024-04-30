@@ -555,9 +555,37 @@ def estimate_PCN_from_alignment_coverage(coverage_depth_dir, alignment_PCN_estim
     return
 
 
-def report_SV_in_high_PCN_plasmids(high_PCN_plasmid_csv, sniffles_outdir):
-    print("Hello!")
+def get_high_PCN_plasmids_SeqIDs(high_PCN_plasmid_csv):
+    SeqIDs = []
+    with open(high_PCN_plasmid_csv, "r") as my_fh:
+        for i, line in enumerate(my_fh):
+            if i == 0: continue ## skip the header
+            fields = line.split(",")
+            my_SeqID = fields[1]
+            SeqIDs.append(my_SeqID)
+    return SeqIDs
+
+
+def report_SV_in_high_PCN_plasmids(high_PCN_plasmid_csv, sniffles_results_dir, high_PCN_SV_report_file):
+    ## get SeqIDs for pattern matching.
+    high_PCN_plasmids_SeqIDs = get_high_PCN_plasmids_SeqIDs(high_PCN_plasmid_csv)
+    ## store matching lines in a list.
+    high_PCN_SVs = []
+    ## iterate over the sniffles2 VCF files.
+    vcf_files = [x for x in os.listdir(sniffles_results_dir) if x.endswith(".vcf")]
+    for vcf_file in vcf_files:
+        vcf_path = os.path.join(sniffles_results_dir, vcf_file)
+        with open(vcf_path, "r") as vcf_fh:
+            for line in vcf_fh:
+                for seq_id in high_PCN_plasmids_SeqIDs:
+                    if seq_id in line and not line.startswith("#"):
+                        high_PCN_SVs.append(line)
+    ## write the matching SVs to file.
+    with open(high_PCN_SV_report_file, "w") as outfh:
+        for line in high_PCN_SVs:
+            outfh.write(line)
     return
+
 
 ################################################################################
 ## Run the pipeline.
@@ -577,7 +605,7 @@ def main():
     sniffles_outdir = "../results/sniffles2-results/"
     coverage_depth_dir = "../results/longread-alignment-coverage-results/"
     alignment_PCN_estimates_file = "../results/longread-alignment-PCN-estimates.csv"
-    
+    high_PCN_SV_report_file = "../results/high-PCN-SV-report.txt"
     
     #############################################################################
     ## Stage 1: get SRA IDs and Run IDs for the RefSeq bacterial genomes
@@ -786,9 +814,7 @@ def main():
         print(f"{stage_12_complete_file} exists on disk-- skipping stage 12.")
     else:
         stage12_start_time = time.time()  # Record the start time
-        report_SV_in_high_PCN_plasmids(high_PCN_plasmid_csv, sniffles_outdir)
-        quit()
-        
+        report_SV_in_high_PCN_plasmids(high_PCN_plasmid_csv, sniffles_outdir, high_PCN_SV_report_file)
         stage12_end_time = time.time()  # Record the end time
         stage12_execution_time = stage12_end_time - stage12_start_time
         Stage12TimeMessage = f"Stage 12 execution time: {stage12_execution_time} seconds"
@@ -798,8 +824,6 @@ def main():
             stage_12_complete_log.write("Stage 12 complete.\n")
         quit()
 
-
-            
     return
 
 
