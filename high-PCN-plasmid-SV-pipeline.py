@@ -46,6 +46,7 @@ import urllib.request
 import time
 import logging
 import pprint
+from cyvcf2 import VCF ## for parsing VCF files output by Sniffles2
 
 
 ################################################################################
@@ -475,6 +476,89 @@ def calculate_sorted_alignment_coverage_depth_with_samtools(alignment_dir, cover
     return
 
 
+def parse_replicon_coverage_metadata(target_metadata):
+    ## this function does not remove underscores from the replicon_describ
+    fields = target_metadata.split("|")
+    SeqID = fields[0].split("=")[-1]
+    SeqType = fields[1].split("=")[-1]
+    ## in this case DON'T convert underscores back into spaces.
+    replicon_description_as_is = fields[2].split("=")[-1]
+    metadata_tuple = (SeqID, SeqType, replicon_description_as_is)
+    return(metadata_tuple)
+
+
+def estimate_PCN_from_alignment_coverage(coverage_depth_dir, alignment_PCN_estimates_file):
+    ## open the output file
+    with open(alignment_PCN_estimates_file, "w") as output_fh:
+        ## write the header
+        header = "Run_ID,SeqID,SeqType,replicon_description,replicon_length,MeanCoverageDepth,LongestRepliconCoverageDepth,CopyNumber"
+        output_fh.write(header + "\n")
+        ## iterate over the coverage files for each genome of interest.
+        coverage_files = [x for x in os.listdir(coverage_depth_dir) if x.endswith("-coverage.txt")]
+        for coverage_file in coverage_files:
+            coverage_path = os.path.join(coverage_depth_dir, coverage_file)
+            Run_ID = basename(coverage_file).split("-coverage.txt")[0]
+
+            ## target_metadata : (replicon_length, replicon_coverage_sum)
+            replicon_statistics_dict = dict()
+            
+            ## initialize counter variables.
+            cur_replicon_metadata = ""
+            cur_maximum_position = 0
+            replicon_coverage_sum = 0
+            with open(coverage_path, "r") as coverage_fh:
+                ## IMPORTANT: the coverage files don't have first-line headers!
+                for line in coverage_fh:
+                    target_metadata, position, position_coverage = line.split()
+
+                    if target_metadata != cur_replicon_metadata:
+                        if cur_replicon_metadata != "":
+                            ## Then we need to save data for the cur_replicon
+                            ## before moving on to the next replicon.
+                            replicon_statistics_dict[cur_replicon_metadata] = (cur_maximum_position, replicon_coverage_sum)
+                        cur_replicon_metadata = target_metadata
+                        cur_maximum_position = int(position)
+                        replicon_coverage_sum = float(position_coverage)
+                    else: ## update the length and coverage_sum for the current replicon.
+                        cur_maximum_position = int(position)
+                        replicon_coverage_sum += float(position_coverage)
+            ## once the coverage file is closed, store data for the last replicon.
+            replicon_statistics_dict[cur_replicon_metadata] = (cur_maximum_position, replicon_coverage_sum)
+
+            ## now get the longest replicon in the genome.
+            longest_replicon = ""
+            longest_replicon_length = 0
+            longest_replicon_coverage_sum = 0
+            
+            for my_replicon, my_replicon_value_tuple in replicon_statistics_dict.items():
+                my_replicon_length, my_replicon_coverage_sum = my_replicon_value_tuple
+                if my_replicon_length > longest_replicon_length:
+                    longest_replicon = my_replicon
+                    longest_replicon_length = my_replicon_length
+                    longest_replicon_coverage_sum = my_replicon_coverage_sum
+
+            longest_replicon_coverage_depth = float(longest_replicon_coverage_sum) / float(longest_replicon_length)
+                    
+            ## now calculate MeanCoverageDepth, LongestRepliconCoverageDepth, CopyNumber
+            ## for each replicon in this genome, and write these statistics to file.
+            for my_replicon_metadata, my_replicon_value_tuple in replicon_statistics_dict.items():
+                my_replicon_length, my_replicon_coverage_sum = my_replicon_value_tuple
+                my_mean_coverage_depth = float(my_replicon_coverage_sum) / float(my_replicon_length)
+                my_copy_number = my_mean_coverage_depth / longest_replicon_coverage_depth
+                
+                SeqID, SeqType, replicon_description = parse_replicon_coverage_metadata(my_replicon_metadata)
+                
+                row_data = [Run_ID, SeqID, SeqType, replicon_description, my_replicon_length, my_mean_coverage_depth, longest_replicon_coverage_depth, my_copy_number]
+                row_string = ",".join([str(x) for x in row_data])
+                print(row_string)
+                output_fh.write(row_string + "\n")
+    return
+
+
+def report_SV_in_high_PCN_plasmids(high_PCN_plasmid_csv, sniffles_outdir):
+    print("Hello!")
+    return
+
 ################################################################################
 ## Run the pipeline.
 def main():
@@ -492,6 +576,7 @@ def main():
     alignment_dir = "../results/minimap2-longread-alignments/"
     sniffles_outdir = "../results/sniffles2-results/"
     coverage_depth_dir = "../results/longread-alignment-coverage-results/"
+    alignment_PCN_estimates_file = "../results/longread-alignment-PCN-estimates.csv"
     
     
     #############################################################################
@@ -682,10 +767,7 @@ def main():
         print(f"{stage_11_complete_file} exists on disk-- skipping stage 11.")
     else:
         stage11_start_time = time.time()  # Record the start time
-
-        ## CODE GOES HERE
-        quit()
-
+        estimate_PCN_from_alignment_coverage(coverage_depth_dir, alignment_PCN_estimates_file)    
         stage11_end_time = time.time()  # Record the end time
         stage11_execution_time = stage11_end_time - stage11_start_time
         Stage11TimeMessage = f"Stage 11 execution time: {stage11_execution_time} seconds"
@@ -693,13 +775,29 @@ def main():
         logging.info(Stage11TimeMessage)
         with open(stage_11_complete_file, "w") as stage_11_complete_log:
             stage_11_complete_log.write("Stage 11 complete.\n")
+        quit()
 
+    ############################################################################
+    ## Stage 12: examine Sniffles2 VCF outputs to see if there is evidence of structural variation on
+    ## high copy-number plasmids.
 
-
-
-            
-        ## examine the VCF files to see if there is evidence of structural variation.
+    stage_12_complete_file = "../results/stage12.done"
+    if exists(stage_12_complete_file):
+        print(f"{stage_12_complete_file} exists on disk-- skipping stage 12.")
+    else:
+        stage12_start_time = time.time()  # Record the start time
+        report_SV_in_high_PCN_plasmids(high_PCN_plasmid_csv, sniffles_outdir)
+        quit()
         
+        stage12_end_time = time.time()  # Record the end time
+        stage12_execution_time = stage12_end_time - stage12_start_time
+        Stage12TimeMessage = f"Stage 12 execution time: {stage12_execution_time} seconds"
+        print(Stage12TimeMessage)
+        logging.info(Stage12TimeMessage)
+        with open(stage_12_complete_file, "w") as stage_12_complete_log:
+            stage_12_complete_log.write("Stage 12 complete.\n")
+        quit()
+
 
             
     return
