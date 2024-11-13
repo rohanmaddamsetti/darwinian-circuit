@@ -12,20 +12,21 @@ library(tidyverse)
 initial.darwin.data <- read.csv("../data/initial-test-experiment.csv") %>%
     mutate(normalized.GFP55 = GFP55/OD600) %>%
     mutate(normalized.GFP100 = GFP100/OD600) %>%
-    mutate(log.normalized.GFP55 = log(GFP55/OD600)) %>%
-    mutate(log.normalized.GFP100 = log(GFP100/OD600)) %>%
+    mutate(log.normalized.GFP55 = log10(GFP55/OD600)) %>%
+    mutate(log.normalized.GFP100 = log10(GFP100/OD600)) %>%
     ## let's remove the blank measurements for now.
     filter(Sample != "Blank") %>%
     mutate(Tet = as.factor(Tet))
     
 
 initial.GFP55.timecourse.plot <- ggplot(data=initial.darwin.data,
-                                        aes(x=Day, y=log(normalized.GFP55), color=Tet)) +
-    geom_line() + theme_classic()
-
-initial.GFP100.timecourse.plot <- ggplot(data=initial.darwin.data,
-                                        aes(x=Day, y=log(normalized.GFP100), color=Tet)) +
+                                        aes(x=Day, y=log10(normalized.GFP55), color=Tet)) +
     geom_point() + theme_classic()
 
-ggsave("../results/initial-GFP55-plot.pdf",initial.GFP55.timecourse.plot)
-ggsave("../results/initial-GFP100-plot.pdf",initial.GFP100.timecourse.plot)
+initial.GFP100.timecourse.plot <- ggplot(data=initial.darwin.data,
+                                        aes(x=Day, y=log10(normalized.GFP100), color=Tet)) +
+    geom_point() + theme_classic()
+
+ggsave("../results/initial-GFP55-plot.pdf",initial.GFP55.timecourse.plot, height=4, width=4)
+ggsave("../results/initial-GFP100-plot.pdf",initial.GFP100.timecourse.plot, height=4, width=4)
+
