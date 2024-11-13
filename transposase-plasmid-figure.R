@@ -82,7 +82,7 @@ revised.Fig1A <- revised.Fig1A.df %>%
     ylab("transposase density per Mbp") +
     coord_flip()
 
-ggsave("../results/transposase-plasmid-barchart-Fig1A.pdf", revised.Fig1A)
+ggsave("../results/transposase-plasmid-barchart-Fig1A.pdf", revised.Fig1A, height=1, width=4)
 
 ############################################################################
 
@@ -128,3 +128,66 @@ log10.Fig1C
 ## repeat the same figures, using length.
 ## aim for 10 bins to cover the whole range.
 ## I can re-use my binomial confidence interval code to put ranges on the intervals.
+
+## See Wikipedia reference:
+## https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
+
+## Make Z-distributed confidence intervals for the fraction of isolates with
+## duplicated ARGs (panel A),
+## the fraction of isolates with single-copy ARGs (panel B),
+## the fraction of isolates with duplicated genes (panel C).
+
+
+calc.plasmid.confints <- function(df) {
+    df %>%
+        ## use the normal approximation for binomial proportion conf.ints
+        mutate(se = sqrt(p*(1-p)/total_plasmids)) %>%
+        ## See Wikipedia reference:
+        ## https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
+        mutate(Left = p - 1.96*se) %>%
+        mutate(Right = p + 1.96*se) %>%
+        ## truncate confidence limits to interval [0,1].
+        rowwise() %>% mutate(Left = max(0, Left)) %>%
+        rowwise() %>% mutate(Right = min(1, Right))
+}
+
+
+make.plasmid.confint.figure.panel <- function(Table, title, no.category.label = FALSE) {    
+    Fig.panel <- Table %>%
+        mutate(label_text = paste0("n = ", total_plasmids)) %>%
+        ggplot(aes(y = log2_PCN_bin, x = p)) +
+        geom_point(size=1) +
+        ylab("floor(log2(PCN))") +
+        xlab("proportion of plasmids") +
+        theme_classic() +
+        ggtitle(title) +
+        ## plot CIs.
+        geom_errorbarh(aes(xmin=Left,xmax=Right), height=0.2, size=0.2) +
+        geom_text(aes(label=label_text), nudge_y = 0.5)
+    
+    if (no.category.label)
+        Fig.panel <- Fig.panel +
+            theme(axis.text.y=element_blank())
+    
+    return(Fig.panel)
+}
+
+
+revised.Fig1B.df <- PIRA.plasmid.transposase.data %>%
+    mutate(log2_PCN = log2(PIRACopyNumber)) %>%
+    mutate(log2_PCN_bin = floor(log2_PCN)) %>%
+    group_by(log2_PCN_bin) %>%
+    summarize(
+        total_plasmids = n(), ## total number of plasmids in this bin.
+        ## p is the frequency of plasmids containing a transposase in this bin.
+        p = sum(contains_transposase) / total_plasmids) %>%
+    calc.plasmid.confints() %>%
+    ## remove bins with fewer than 50 plasmids.
+    filter(total_plasmids >= 50)
+
+
+revised.Fig1B <- revised.Fig1B.df %>%
+                                    make.plasmid.confint.figure.panel("fraction of plasmids containing transposases")
+
+revised.Fig1 <- plot_grid(revised.Fig1A, revised.Fig1B, ncol=1, rel_heights=c(0.2,1), labels=c('A','B'))
+ggsave("../results/transposase-plasmid-barplot-Fig1.pdf", revised.Fig1, width=6)
