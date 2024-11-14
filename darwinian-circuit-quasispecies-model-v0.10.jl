@@ -647,10 +647,25 @@ md""" #### calculate the expected change in trait value due to mutation (in this
 md""" #### WORKING HERE"""
 
 # ╔═╡ 1955042b-e29d-4c54-84c3-8d32bed550a3
-function calc_delta_trait_by_mutation_vec(switching_matrix, pop_vec, Tet_conc)
+function calc_Δₘp_vec(switching_matrix, pop_vec, Tet_conc)
 	## WORKING HERE
-	
-	
+	nrow, ncol = size(switching_matrix)
+	@assert nrow == ncol == length(pop_vec) ## self-consistency check
+
+	Δₘp_vec = zeros(ncol)
+	println(Δₘp_vec)
+	for j in 1:ncol
+		for i in 1:nrow
+			## IMPORTANT: i,j indices in this code are swapped compared to
+			## notation in the Page and Nowak (2002) paper.
+			## In Page and Nowak, i->j represents ancestor -> mutant.
+			## This implement follows standard matrix multiplication notation,
+			## such that j->i represents ancestor to mutant.
+			
+			## So, the appropriate formula to implement is:
+			## Δₘpⱼ = ∑ᵢ qᵢⱼ(pᵢ - pⱼ)
+		end
+	end
 end
 
 # ╔═╡ 2cb2dae4-33af-4118-87c8-f41c8aba8225
@@ -665,7 +680,7 @@ function calc_expected_trait_change_by_mutation(switching_matrix, pop_vec, Tet_c
 
 	frequency_vec = pop_vec/sum(pop_vec)
 
-	delta_trait_by_mutation_vec = calc_delta_trait_by_mutation_vec(switching_matrix, pop_vec, Tet_conc)
+	delta_trait_by_mutation_vec = calc_Δₘp_vec(switching_matrix, pop_vec, Tet_conc)
 
 	## see the formula given in Page and Nowak (2002).
 	expected_trait_change_by_mutation = sum(frequency_vec .* growth_rate_vec .* delta_trait_by_mutation_vec)
@@ -843,8 +858,6 @@ function quasispecies_odefunc(du, u, p, t)
 	
 	## Define the ODE system
 	A = MutSelMatrix(pcn, tet_conc)
-	##A = MutSelMatrix3(pcn, tet_conc) ## This line is for playing with diffusion
-
 
 	## Enforce positivity constraint
     u .= max.(u, 0.0)
@@ -1129,6 +1142,19 @@ md""" ##### get the final distribution in the constant [Tet] population."""
 
 # ╔═╡ b9b75185-d33d-4715-a977-1409af903b5b
 final_const_Tet_population = result_matrix[end]
+
+# ╔═╡ 1d2339bc-9d05-49bb-9d08-111f61a36c2f
+md""" ## WORKING HERE:
+
+### TESTING the function calc\_Δₘp\_vec(switching\_matrix, pop\_vec, Tet\_conc)
+
+"""
+
+# ╔═╡ fdf3db4d-3018-4d7f-ad9a-bc08ccb4d0a6
+begin
+	my_switching_matrix = SwitchingBinomialMatrix(PCN)
+	calc_Δₘp_vec(my_switching_matrix, initial_pop_vec, TET_CONC)
+end
 
 # ╔═╡ a25df7df-eb57-48a2-a538-44f7b7432387
 md""" ##### check whether the final distribution matches the eigenvector corresponding to the dominant eigenvalue."""
@@ -4699,6 +4725,8 @@ version = "1.4.1+1"
 # ╠═6e3e1eec-03c2-4bb3-bb5a-9c27182753c7
 # ╠═65b1dc88-7938-44f7-a077-0d0571f53dc5
 # ╠═b9b75185-d33d-4715-a977-1409af903b5b
+# ╠═1d2339bc-9d05-49bb-9d08-111f61a36c2f
+# ╠═fdf3db4d-3018-4d7f-ad9a-bc08ccb4d0a6
 # ╠═a25df7df-eb57-48a2-a538-44f7b7432387
 # ╠═af8a47bd-e823-41ae-9813-0b484f040e4f
 # ╠═d03e6d49-2c29-4101-9918-b8917fb037d8

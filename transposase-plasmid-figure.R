@@ -1,10 +1,11 @@
 ## transposase-plasmid-figure.R by Rohan Maddamsetti
 
-## TODO: for the first panel, make two bars: one for the density of transposases
-## per million bp on the chromosome, and the density of transposases per million bp
-## on the plasmid.
+## TODO: change the Figure 1B axis to show logarithmically spaced ticks, but using normal PCN units
+## (not log-transformed).
 
-## TODO: for the second panel / graph, do a binned average analysis.
+## TODO: make the symbol size in Figure 1B to show the relative plasmid length for plasmids in each bin.
+## to do this, set some scale transformation for plasmid size, and add these relevant data to the data frame
+## for figure 1B.
 
 library(tidyverse)
 library(cowplot)
@@ -79,7 +80,7 @@ revised.Fig1A <- revised.Fig1A.df %>%
     geom_bar(stat="identity") +
     theme_cowplot() +
     xlab("") +
-    ylab("transposase density per Mbp") +
+    ylab("number of transposases per Mbp") +
     coord_flip()
 
 ggsave("../results/transposase-plasmid-barchart-Fig1A.pdf", revised.Fig1A, height=1, width=4)
@@ -110,15 +111,12 @@ Fig1C <- Fig1C.data %>%
     geom_point() +
     theme_classic()
 
-Fig1C
-
 log10.Fig1C <- Fig1C.data %>%
     ggplot(aes(x=log10(PCN_floor), y = transposase_frequency)) +
     geom_point() +
     #geom_bar(stat = "identity") +
     theme_classic()
 
-log10.Fig1C
 
 ############################################################################
 ## revised figure design.
@@ -152,18 +150,21 @@ calc.plasmid.confints <- function(df) {
 }
 
 
-make.plasmid.confint.figure.panel <- function(Table, title, no.category.label = FALSE) {    
+make.plasmid.confint.figure.panel <- function(Table, title, no.category.label = FALSE) {
+    
     Fig.panel <- Table %>%
-        mutate(label_text = paste0("n = ", total_plasmids)) %>%
+        ## back-transform to get into regulator copy number space.
+        mutate(exp_log2_PCN_bin = 2^(log2_PCN_bin)) %>%
+        mutate(label_text = paste(total_contains_transposase, total_plasmids, sep = "/")) %>%
         ggplot(aes(y = log2_PCN_bin, x = p)) +
         geom_point(size=1) +
-        ylab("floor(log2(PCN))") +
+        ylab("PCN bin") +
         xlab("proportion of plasmids") +
         theme_classic() +
         ggtitle(title) +
         ## plot CIs.
         geom_errorbarh(aes(xmin=Left,xmax=Right), height=0.2, size=0.2) +
-        geom_text(aes(label=label_text), nudge_y = 0.5)
+        geom_text(aes(label=label_text), nudge_x = 0.1)
     
     if (no.category.label)
         Fig.panel <- Fig.panel +
@@ -178,9 +179,10 @@ revised.Fig1B.df <- PIRA.plasmid.transposase.data %>%
     mutate(log2_PCN_bin = floor(log2_PCN)) %>%
     group_by(log2_PCN_bin) %>%
     summarize(
+        total_contains_transposase = sum(contains_transposase),
         total_plasmids = n(), ## total number of plasmids in this bin.
         ## p is the frequency of plasmids containing a transposase in this bin.
-        p = sum(contains_transposase) / total_plasmids) %>%
+        p = total_contains_transposase / total_plasmids) %>%
     calc.plasmid.confints() %>%
     ## remove bins with fewer than 50 plasmids.
     filter(total_plasmids >= 50)
@@ -189,5 +191,38 @@ revised.Fig1B.df <- PIRA.plasmid.transposase.data %>%
 revised.Fig1B <- revised.Fig1B.df %>%
                                     make.plasmid.confint.figure.panel("fraction of plasmids containing transposases")
 
-revised.Fig1 <- plot_grid(revised.Fig1A, revised.Fig1B, ncol=1, rel_heights=c(0.2,1), labels=c('A','B'))
-ggsave("../results/transposase-plasmid-barplot-Fig1.pdf", revised.Fig1, width=6)
+revised.Fig1 <- plot_grid(revised.Fig1A, revised.Fig1B, ncol=1, rel_heights=c(0.4,1), labels=c('A','B'))
+ggsave("../results/transposase-plasmid-barplot-Fig1.pdf", revised.Fig1, height = 4, width=9)
+
+## TODO: take the bins in the panel B, and calculate the density of transposases
+## for each bin, and calculate the mean length of plasmids in each bin, etc.
+## do this as a sanity check for the testfigure below.
+
+
+## If the following figure is correct, then this analysis indicates that smaller plasmids,
+## per capita, have more transposases per Mbp. Larger plasmids have a higher
+## chance of having some transposase, but normalizing for size, smaller plasmids
+## may be enriched with transposases-- CAREFULLY DOUBLE-CHECK THIS!!
+
+## TODO: plot the number of transposases per Mbp per bin defined by plasmid length
+## CRITICAL TODO: CHECK IF THIS CALCULATION IS CORRECT!!
+
+
+
+
+test.df <- transposase.plasmid.summary %>%
+    filter(SeqType == "plasmid") %>%
+    mutate(SeqLengthBin = floor(log10(SeqLength))) %>%
+    group_by(SeqLengthBin) %>%
+    summarize(
+        total_transposases = sum(transposase_count),
+        total_length = sum(SeqLength)) %>%
+    mutate(transposase_density = total_transposases / total_length) %>%
+    mutate(transposase_density_per_Mbp = transposase_density * 1000000)
+    
+testfig <- test.df %>%
+    ggplot(aes(x=SeqLengthBin, y = transposase_density_per_Mbp)) +
+    geom_bar(stat="identity") +
+    theme_cowplot() +
+    ylab("number of transposases per Mbp") +
+    coord_flip()
