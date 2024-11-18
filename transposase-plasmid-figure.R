@@ -170,6 +170,7 @@ Fig1C <- Fig1C.df %>%
     coord_flip()
 
 
+
 test.fig <-  transposase.plasmid.summary %>%
     filter(SeqType == "plasmid") %>%
     mutate(transposon_density = transposase_length / SeqLength) %>%
