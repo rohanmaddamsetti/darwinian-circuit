@@ -10,6 +10,48 @@
 library(tidyverse)
 library(cowplot)
 
+
+calc.plasmid.confints <- function(df) {
+    ## See Wikipedia reference:
+    ## https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
+    ## this code makes Z-distributed confidence intervals around the point estimate.
+    df %>%
+        ## use the normal approximation for binomial proportion conf.ints
+        mutate(se = sqrt(p*(1-p)/total_plasmids)) %>%
+        ## See Wikipedia reference:
+        ## https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
+        mutate(Left = p - 1.96*se) %>%
+        mutate(Right = p + 1.96*se) %>%
+        ## truncate confidence limits to interval [0,1].
+        rowwise() %>% mutate(Left = max(0, Left)) %>%
+        rowwise() %>% mutate(Right = min(1, Right))
+}
+
+
+make.plasmid.confint.figure.panel <- function(Table, title, no.category.label = FALSE) {
+    Fig.panel <- Table %>%
+        ## back-transform to get into regulator copy number space.
+        mutate(exp_log2_PCN_bin = 2^(log2_PCN_bin)) %>%
+        mutate(label_text = paste(total_contains_transposase, total_plasmids, sep = "/")) %>%
+        ggplot(aes(y = log2_PCN_bin, x = p)) +
+        geom_point(size=1) +
+        ylab("PCN bin") +
+        xlab("proportion of plasmids") +
+        theme_classic() +
+        ggtitle(title) +
+        ## plot CIs.
+        geom_errorbarh(aes(xmin=Left,xmax=Right), height=0.2, size=0.2) +
+        geom_text(aes(label=label_text), nudge_x = 0.1)
+    
+    if (no.category.label)
+        Fig.panel <- Fig.panel +
+            theme(axis.text.y=element_blank())
+    
+    return(Fig.panel)
+}
+
+
+## Import the transposase summary data.
 transposase.plasmid.summary <- read.csv("../results/transposase-counts.csv")
 
 ## 250,337 transposases on plasmids
@@ -62,53 +104,6 @@ Fig1A <- Fig1A.df %>%
 ## aim for 10 bins to cover the whole range.
 ## I can re-use my binomial confidence interval code to put ranges on the intervals.
 
-## See Wikipedia reference:
-## https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
-
-## Make Z-distributed confidence intervals for the fraction of isolates with
-## duplicated ARGs (panel A),
-## the fraction of isolates with single-copy ARGs (panel B),
-## the fraction of isolates with duplicated genes (panel C).
-
-
-calc.plasmid.confints <- function(df) {
-    df %>%
-        ## use the normal approximation for binomial proportion conf.ints
-        mutate(se = sqrt(p*(1-p)/total_plasmids)) %>%
-        ## See Wikipedia reference:
-        ## https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
-        mutate(Left = p - 1.96*se) %>%
-        mutate(Right = p + 1.96*se) %>%
-        ## truncate confidence limits to interval [0,1].
-        rowwise() %>% mutate(Left = max(0, Left)) %>%
-        rowwise() %>% mutate(Right = min(1, Right))
-}
-
-
-make.plasmid.confint.figure.panel <- function(Table, title, no.category.label = FALSE) {
-    
-    Fig.panel <- Table %>%
-        ## back-transform to get into regulator copy number space.
-        mutate(exp_log2_PCN_bin = 2^(log2_PCN_bin)) %>%
-        mutate(label_text = paste(total_contains_transposase, total_plasmids, sep = "/")) %>%
-        ggplot(aes(y = log2_PCN_bin, x = p)) +
-        geom_point(size=1) +
-        ylab("PCN bin") +
-        xlab("proportion of plasmids") +
-        theme_classic() +
-        ggtitle(title) +
-        ## plot CIs.
-        geom_errorbarh(aes(xmin=Left,xmax=Right), height=0.2, size=0.2) +
-        geom_text(aes(label=label_text), nudge_x = 0.1)
-    
-    if (no.category.label)
-        Fig.panel <- Fig.panel +
-            theme(axis.text.y=element_blank())
-    
-    return(Fig.panel)
-}
-
-
 PIRA.data <- read.csv("../data/Maddamsetti2025-S2Data-PIRA-PCN-estimates-with-normalization.csv")
 
 PIRA.plasmid.transposase.data <- PIRA.data %>%
@@ -156,7 +151,7 @@ ggsave("../results/transposase-plasmid-barplot-Fig1.pdf", Fig1, height = 4, widt
 ## CRITICAL TODO: CHECK IF THIS CALCULATION IS CORRECT!!
 
 
-test.df <- transposase.plasmid.summary %>%
+Fig1C.df <- transposase.plasmid.summary %>%
     filter(SeqType == "plasmid") %>%
     mutate(SeqLengthBin = floor(log10(SeqLength))) %>%
     group_by(SeqLengthBin) %>%
@@ -165,10 +160,23 @@ test.df <- transposase.plasmid.summary %>%
         total_length = sum(SeqLength)) %>%
     mutate(transposase_density = total_transposases / total_length) %>%
     mutate(transposase_density_per_Mbp = transposase_density * 1000000)
-    
-testfig <- test.df %>%
+
+## PROBLEM WITH THIS FIGURE: DENSITY AND SEQLENGTH ARE CORRELATED!
+Fig1C <- Fig1C.df %>%
     ggplot(aes(x=SeqLengthBin, y = transposase_density_per_Mbp)) +
     geom_bar(stat="identity") +
     theme_cowplot() +
     ylab("number of transposases per Mbp") +
     coord_flip()
+
+
+test.fig <-  transposase.plasmid.summary %>%
+    filter(SeqType == "plasmid") %>%
+    mutate(transposon_density = transposase_length / SeqLength) %>%
+    ggplot(aes(x = log10(SeqLength),y= transposon_density)) +
+##    ggplot(aes(x = log10(SeqLength),y= log10(transposase_length))) +
+    geom_point(size=0.2,alpha=0.5) +
+    theme_cowplot() +
+    geom_smooth()
+
+test.fig
