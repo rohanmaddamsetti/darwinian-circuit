@@ -27,41 +27,38 @@ end
 
 # ╔═╡ 44e8209c-8d79-11ef-24db-ff1ea28d01b3
 md"""
-# darwinian-circuit-quasispecies-model-v0.10.jl 
+# darwinian-circuit-quasispecies-model-v0.11.jl 
 
 by Rohan Maddamsetti  
 
 Julia version 1.11.1.  
 
-## Mobile genetic elements drive the emergence of collective computation in bacterial populations
+## Mobile genetic elements drive the emergence of collective computation in bacteria
 
 ##### Abstract
 
-Despite considerable interest, the emergence and evolution of collective computation in biological systems remains poorly understood. Here, we demonstrate the emergence of tunable gene expression dynamics in bacterial populations containing multicopy antibiotic-resistance plasmids. Theory and experiments reveal the importance of high plasmid copy numbers for tunable dynamics. As plasmid copy numbers increase, the intracellular balance of coexisting plasmid variants becomes more robust to stochastic plasmid loss. When plasmid copy numbers are sufficiently high to maintain diverse plasmids within single cells, tunable dynamics emerge in otherwise clonal populations. Theory shows that the rate at which gene expression changes in response to antibiotic depends on the fitness landscape that maps plasmid copy numbers and specific configurations of intracellular plasmids to bacterial growth rates. Finally, we show how transposons enable the de novo evolution of tunable gene expression dynamics in bacteria containing high-copy plasmids. Together, our results describe fundamental principles for engineering population-level gene expression with multicopy plasmids and show how plasmids enable bacterial populations to rapidly evolve the ability to compute pulses in environmental stressors such as antibiotics.
+Despite considerable interest, the emergence and evolution of collective computation in systems composed of simple equivalent components (e.g. cells, neurons) remains poorly understood. Here, we show the _de novo_ evolution of clonal bacterial populations that fluoresce in response to pulses of antibiotic. Genetic diversity is maintained within single cells by balancing selection on intracellular populations of plasmids containing a toxic TetA-GFP transposon. Theory and experiments reveal that when plasmid copy numbers are sufficiently high, diverse plasmids can be maintained within single cells, triggering the emergence of tunable dynamics in clonal populations. Theory shows that the rate at which gene expression changes in response to antibiotic depends on how gene expression covaries with fitness. This work demonstrates how mobile genetic elements allow host populations to rapidly evolve the ability to compute pulses in environmental stressors such as antibiotics, and describes a fundamental evolutionary principle for engineering population-level gene expression with intracellular populations of mobile genetic elements.
 
 """
 
 # ╔═╡ d4d1f72f-7aa7-46e7-9be0-f38fe991bc0c
 md""" ## ANALYSIS TODO. Test the following claims with the mathematical model:"""
 
-# ╔═╡ 9f9b084c-4426-48b5-9c9d-96e772dd0720
-md""" 
-
-##### Claim (1): First, as ecDNA copy number is increased, the intracellular balance of coexisting ecDNA variants becomes more resilient to stochastic fluctuations. When ecDNA copy number is sufficiently high to maintain diverse ecDNAs in single cells, tunable evolutionary dynamics can emerge in otherwise clonal populations.
-
-##### Claim (2): The speed at which selection tunes population-level gene expression in response to environmental change is determined by the covariance between gene expression and fitness in the population (Price's theorem).
-
-We examine Claim (2) by randomly sampling 10,000 random initial conditions with random plasmid copy numbers (PCN) and [Tet] concentrations.
-
-"""
-
 # ╔═╡ c3d81737-fc16-44a0-b3de-bab5e0f7aab2
-md""" ##### Claim (1) First, as ecDNA copy number is increased, the intracellular balance of coexisting ecDNA variants becomes more resilient to stochastic fluctuations. When ecDNA copy number is sufficiently high to maintain diverse ecDNAs in single cells, tunable evolutionary dynamics can emerge in otherwise clonal populations.
-
-
+md""" ##### Claim (1) When ecDNA copy number is sufficiently high to maintain diverse ecDNAs in single cells, tunable evolutionary dynamics can emerge in otherwise clonal populations.
+\
+The nice thing about the eigenvalue result is that we can immediately get the stationary distribution without having to simulate the differential equations. So, we can show how the stationary distribution changes as a function of the matrix, which is a function of PCN and [Tet] concentration.
+\
+\
 Results: The model shows this behavior at PCN == 5, Tet == 4. Set initial population to 100% TetA == 4. **Fitness declines!!** This is a very nice result. Also note that the stationary distribution depends on which absorbing state (tetA == 1 or tetA == PCN+1) has higher fitness.
 
 ##### TODO: Figure out a nice figure to show result (1).
+
+##### TODO: vary the optimum (by varying [Tet] concentration), and show in terms of allele frequency.
+
+##### As we vary PCN, how does the stability of the internal equilibrium vary?
+
+We may be able to answer this question with a single figure, using this model!
 
 Idea to make this point: set TET\_CONC to 50% of PCN. Set the initial configuration of the population to 100% "fitness optimum", that is, at TCN == TET_CONC. Then show how the distribution evolves.
 
@@ -77,46 +74,33 @@ When PCN == 40 and TET_CONC == 20, there is a nice bell curve, and no distributi
 
 # ╔═╡ 3931b5c1-51df-42f5-86e9-09ddba2d2f11
 md"""
-##### IMPORTANT COUNTEREXAMPLE! 
+##### It is not the case that increasing PCN always results in more tunable dynamics. Here is a counterexample.
 
-Again, we set the initial configuration of the population to 100% "fitness optimum", that is, at TCN == TET_CONC. Then we examine how the distribution evolves.
+We set the initial configuration of the population to 100% "fitness optimum", that is, at TCN == TET_CONC. Then we examine how the distribution evolves.
 
 Set TET_CONC == 5.
 
 Set PCN to 50. The distribution is no longer tunable, due to stochastic loss (too close to bottom absorbing state.)
 
-BUT-- when I set PCN to 5, the population is tunable again! The population goes to the tetA == 6 state, but can still go down to the tetA == 1 state since the population is large. In my experiment, I expect that the population will just get "stuck" at the tetA = 6 state, as long as there is selection for plasmid maintenance.
-
-##### KEY DISTINCTION: we have to make a clear distinction between the internal fixed point in terms of "allele frequency" versus absolute number of copies.
-
-For the case of the optimum being 6 TetA copies, for the case of PCN = 5, the allele frequency equilibrium is 100%, and the population stably goes to 6 tetA copies.
-But when PCN = 50, the allele frequency equilibrium is 6/51 = 11%, and this cannot be stably maintained in the population, 
-
-The nice thing about the eigenvalue result is that we can immediately get the stationary distribution without having to simulate the differential equations. So, we can show how the stationary distribution changes as a function of the matrix, which is a function of PCN and [Tet] concentration.
+BUT-- when I set PCN to 5, the population is tunable again! The population goes to the tetA == 6 state, but can still go down to the tetA == 1 state by mutation since the population is large.
 """
 
-# ╔═╡ 663c10a0-267b-4729-99d8-be325091e525
+# ╔═╡ 644f1128-fa1e-442a-9fec-d805284240e9
 md"""
-##### TODO: vary the optimum (by varying [Tet] concentration), and show in terms of allele frequency.
+##### Claim (2): The speed at which selection tunes population-level gene expression in response to environmental change is determined by the covariance between gene expression and fitness in the population (Price's theorem).
 
-##### As we vary PCN, how does the stability of the internal equilibrium vary?
+We examine Claim (2) by randomly sampling 10,000 random initial conditions with random plasmid copy numbers (PCN) and [Tet] concentrations.
 
-We may be able to answer this question with a single figure, using this model!
+##### CRITICAL BUG: this is not true in the model right now. qualitatively the trend is there, but the magnitude of the effect is off, and not by a constant factor.
 
 """
 
 # ╔═╡ f8be1737-038a-41c0-9f61-e1980b005ed2
 md"""
 ## DEBUGGING TODO: 
-1) fix scaling factor bugs-- use continuous-time Price equation for quasispecies that is described by Page and Nowak (2006).
+1) PRICE EQUATION DOES NOT HOLD??, tetA-fitness covariance does not exactly equal rate of change of mean tetA copy number. 
 
-Note that the fit is really good when covariance is positive, but not good when covariance is negative... this may be a clue as to the bug.
-
-2) in the pulse [Tet] model, tetA-fitness covariance does not exactly equal rate of change of mean tetA copy number. 
-
-3) the dominant eigenvector corresponds to final distribution in the constant [Tet] analysis, but after putting back into original basis, values are off by a factor of 1/2.
-
-4) refactor code to package up things that depend on each other (switching matrices, models, etc.) into classes / structures to avoid inadvertent inconsistencies
+2) refactor code to package up things that depend on each other (switching matrices, models, etc.) into classes / structures to avoid inadvertent inconsistencies.
 
 """
 
@@ -124,7 +108,7 @@ Note that the fit is really good when covariance is positive, but not good when 
 md"""
 ## **Model description**
 
-I built a simple evolutionary model to examine how plasmid copy number affects tetA-GFP copy number dynamics in the tetA-transposon system.
+I built a mathematical model to examine how plasmid copy number affects tetA-GFP copy number dynamics in the tetA-transposon system.
 
 
 ##### Quasispecies model formulation.
@@ -571,34 +555,6 @@ function calc_tetA_copy_number_fitness_covariance(pop_vec, Tet_conc)
 	return tetA_fitness_covariance
 end
 
-# ╔═╡ c341747c-5af5-436f-9ebb-c5dc6fcf1f42
-function ZeroBasedHypergeometricSwitchingEntry(a, b, plasmid_copy_num)
-	""" Input parameters:
-	    a: number of tetA transposons in offspring.
-	    b: number of tetA transposons in parent.
-	    plasmid_copy_num: total plasmid copy number. """
-	## Hypergeometric(s, f, n)  
-	## Hypergeometric distribution for a population with s successes and f failures, and a sequence of n trials.	
-	## We add a factor of 2 to encode the assumption that the plasmid copy number
-	## doubles before cell division-- otherwise copy number gets trapped at 1 copy on the plasmid (since sampling without replacement).
-	return pdf(Hypergeometric(2b, 2(plasmid_copy_num - b), plasmid_copy_num), a)
-end
-
-# ╔═╡ 53c2fdc4-9893-460e-817f-2bdd7874149f
-function OneBasedHypergeometricSwitchingEntry(i, j, plasmid_copy_num)
-	""" Input parameters:
-	    i: row-index of hypergeometric switching matrix: 1 + number of tetA transposons in offspring.
-	    j: column-index of hypergeometric switching matrix: 1 + number of tetA transposons in parent.
-	    plasmid_copy_num: plasmid copy number. 
-
-	Use ZeroBasedHypergeometricSwitchingEntry() with this change-of-variables:
-	i = a + 1 ## a is number of tetA transposons in offspring.
-	j = b + 1 ## b is number of tetA transposons in parent.
-	
-	"""
-	return ZeroBasedHypergeometricSwitchingEntry(i-1,j-1,plasmid_copy_num)
-end
-
 # ╔═╡ 412c944d-168d-4146-8bc8-7219db9c291a
 function ZeroBasedBinomialSwitchingEntry(a, b, plasmid_copy_num)
 	""" Input parameters:
@@ -643,9 +599,6 @@ end
 # ╔═╡ b2abea77-c124-446d-b341-e0334bf5e687
 md""" #### calculate the expected change in trait value due to mutation (in this case, plasmid segregation)"""
 
-# ╔═╡ 3e958e94-e54c-43da-8725-d6b1391876bf
-md""" #### WORKING HERE"""
-
 # ╔═╡ 1955042b-e29d-4c54-84c3-8d32bed550a3
 function calc_Δₘp_vec(switching_matrix, pop_vec, Tet_conc)
 	## WORKING HERE
@@ -653,7 +606,7 @@ function calc_Δₘp_vec(switching_matrix, pop_vec, Tet_conc)
 	@assert nrow == ncol == length(pop_vec) ## self-consistency check
 
 	Δₘp_vec = zeros(ncol)
-	println(Δₘp_vec)
+	
 	for j in 1:ncol
 		for i in 1:nrow
 			## IMPORTANT: i,j indices in this code are swapped compared to
@@ -664,8 +617,15 @@ function calc_Δₘp_vec(switching_matrix, pop_vec, Tet_conc)
 			
 			## So, the appropriate formula to implement is:
 			## Δₘpⱼ = ∑ᵢ qᵢⱼ(pᵢ - pⱼ)
+			## where qᵢⱼ is switching_matrix[i,j]
+			## and pᵢ is the trait value--
+			## the number of TetA transposons, or i in this case,
+			## since there is always a minimum of one copy on the chromosome.
+			Δₘp_vec[j] += switching_matrix[i,j]*(i - j)
 		end
 	end
+
+	return Δₘp_vec
 end
 
 # ╔═╡ 2cb2dae4-33af-4118-87c8-f41c8aba8225
@@ -680,19 +640,35 @@ function calc_expected_trait_change_by_mutation(switching_matrix, pop_vec, Tet_c
 
 	frequency_vec = pop_vec/sum(pop_vec)
 
-	delta_trait_by_mutation_vec = calc_Δₘp_vec(switching_matrix, pop_vec, Tet_conc)
+	Δₘp_vec = calc_Δₘp_vec(switching_matrix, pop_vec, Tet_conc)
 
 	## see the formula given in Page and Nowak (2002).
-	expected_trait_change_by_mutation = sum(frequency_vec .* growth_rate_vec .* delta_trait_by_mutation_vec)
+	expected_trait_change_by_mutation = sum(frequency_vec .* growth_rate_vec .* Δₘp_vec)
 
 	return expected_trait_change_by_mutation
+end
+
+# ╔═╡ 7ea2ecf4-29d4-41c5-9efe-e86e370f7f7c
+md""" #### calculate the time derivative of the expected change in trait value (Equation 5 in Page and Nowak 2002)."""
+
+# ╔═╡ c99d3673-9f9a-4508-b257-360cc6d0733d
+function calc_delta_expected_trait_change(switching_matrix, pop_vec, Tet_conc)
+
+	covariance_term = calc_tetA_copy_number_fitness_covariance(pop_vec, Tet_conc)
+
+	## IMPORTANT: let's assume that the expected change in the trait value == 0.
+	
+	mut_term = calc_expected_trait_change_by_mutation(switching_matrix, pop_vec, Tet_conc)
+
+	return (covariance_term + mut_term)
+
 end
 
 # ╔═╡ 25b88824-0bca-4f2c-a838-e7a5a1cb3676
 md""" ##### sometimes the PCN and TET\_CONC variables do not update properly when the slider is changed-- we have to double check the actual values of the PCN and TET_CONC variables before each slider..."""
 
 # ╔═╡ 6bd86018-8a50-4b8d-a2bd-40bfbe45829b
-PCNSlider = @bind PCN Slider(1:100, default=30, show_value=true)
+PCNSlider = @bind PCN Slider(1:100, default=5, show_value=true)
 
 # ╔═╡ 260df35d-6d1c-42be-8270-01fb62627938
 function SwitchingBinomialMatrix(plasmid_copy_num=PCN, η=η₀)
@@ -721,49 +697,6 @@ function SwitchingBinomialMatrix(plasmid_copy_num=PCN, η=η₀)
 	return(switching_matrix)
 end
 
-# ╔═╡ 6819b3bc-465f-4fe4-bcb1-f678470d1c66
-function SwitchingHypergeometricMatrix(plasmid_copy_num=PCN, η=η₀)
-	""" We set a final absorbing state in the Markov chain,
-	based on maximum plasmid copy number (like 3 for SC101, 2000 for pUC)."""
-	
-	## max transposon copy number is plasmid copy number + one chromosomal copy.
-	max_TCN = plasmid_copy_num + 1
-
-	## initialize as an m x m identity matrix with ones on the diagonal.
-	switching_matrix = Matrix{BigFloat}(I, max_TCN, max_TCN)
-
-	## update binomial entries (overwrite ones and zeros as needed).
-	for i in 1:max_TCN
-		for j in 1:max_TCN
-			if (i <= max_TCN) && (j <= max_TCN)
-				switching_matrix[i,j] = OneBasedHypergeometricSwitchingEntry(i,j,plasmid_copy_num)
-			end
-		end
-	end
-
-	## now add in transpositions from chromosome to plasmid in the zero-plasmid state.
-	switching_matrix[1,1] = 1 - η
-	switching_matrix[2,1] = η
-	
-	return(switching_matrix)
-end
-
-# ╔═╡ 2bcc66f2-aa0a-440c-8304-bd0b61f3ab85
-function SwitchingTridiagonalMatrix(plasmid_copy_num=PCN)
-	""" We set a final absorbing state in the Markov chain,
-	based on maximum plasmid copy number (like 3 for SC101, 2000 for pUC)."""
-	## max transposon copy number is plasmid copy number + one chromosomal copy.
-	max_TCN = plasmid_copy_num + 1
-	n = max_TCN ## syntactic sugar
-	K = 0.001
-	superdiag = vcat([K for i in 2:n-1], 0)
-	diag = vcat(-K, [-2K for i in 1:n-2], 1.0)
-	subdiag = [K for i in 1:n-1]
-	## have to add an identity matrix to get a stochastic mutation matrix
-	switching_matrix = Tridiagonal(subdiag, diag, superdiag) + I(n)
-	return(switching_matrix)
-end
-
 # ╔═╡ 243ee5e3-1489-4c65-ae18-c14516962c68
 PCN
 
@@ -771,7 +704,7 @@ PCN
 MAX_TCN = PCN + 1 ## max transposon copy number is tied to plasmid_copy_number
 
 # ╔═╡ a506ff86-41c6-44ac-adf5-c3fdb368cb02
-TetConcSlider = @bind TET_CONC Slider(0:50, default=15, show_value=true)
+TetConcSlider = @bind TET_CONC Slider(0:50, default=6, show_value=true)
 
 # ╔═╡ 45362f0d-76ac-44e8-b6cd-0d1824b3a3b4
 function SelectionDiagonalMatrix(plasmid_copy_num=PCN, Tet_conc=TET_CONC)
@@ -796,20 +729,11 @@ function MutSelMatrix(plasmid_copy_num=PCN, Tet_conc=TET_CONC)
 	return(mutsel_matrix)
 end
 
-# ╔═╡ 72dc61fb-cca0-47b9-8525-abce0f3cf63b
-function MutSelMatrix2(plasmid_copy_num=PCN, Tet_conc=TET_CONC)
-	mutsel_matrix = SwitchingHypergeometricMatrix(plasmid_copy_num) * SelectionDiagonalMatrix(plasmid_copy_num, Tet_conc)
-	return(mutsel_matrix)
-end
-
-# ╔═╡ fa668251-e78f-44ef-93c8-c7825bc862e8
-function MutSelMatrix3(plasmid_copy_num=PCN, Tet_conc=TET_CONC)
-	mutsel_matrix = SwitchingTridiagonalMatrix(plasmid_copy_num) * SelectionDiagonalMatrix(plasmid_copy_num, Tet_conc)
-	return(mutsel_matrix)
-end
-
 # ╔═╡ c37a8b81-8fae-449d-a3f8-2b86081c0ed5
 TET_CONC
+
+# ╔═╡ eb9ea298-95f2-4df7-966a-069ca8965c67
+InitialCloneSlider = @bind INITIAL_CLONE_TCN Slider(1:MAX_TCN, default=1, show_value=true)
 
 # ╔═╡ c40e9cfa-f58f-459c-a994-34bab25c20ad
 begin
@@ -828,8 +752,8 @@ begin
 	## parameters used across time course simulations.
 	initial_pop_vec = zeros(BigFloat, MAX_TCN)
 	
-	## initialize the population with one cell with 1 tetA copy.
-	initial_pop_vec[1] = big"1.0"
+	## initialize the population with one cell with INITIAL_CLONE_TCN tetA copies.
+	initial_pop_vec[INITIAL_CLONE_TCN] = big"1.0"
 	
 	## to show how increasing PCN increases the stability of the optimal state,
 	## initialize the population at the highest fitness state (TCN == TET_CONC). 
@@ -847,11 +771,9 @@ function normalize_vector!(u)
     end
 end
 
-# ╔═╡ 7812782c-bf4c-49fc-9b6e-580574e9fdff
-md""" #### TODO: add an ϵ = (1/N) threshold to model bottlenecks in transfers/finite population sizes in experiments. """
-
 # ╔═╡ af2632c1-393b-43b1-a60b-9093cace4775
-function quasispecies_odefunc(du, u, p, t)
+function quasispecies_odefunc(du, u, p, t; ϵ=1e-12)
+	## ϵ is a (1/N) threshold to model bottlenecks in transfers/finite population sizes in experiments
 
 	## pcn and tet_conc needs to be passed in as parameters.
 	pcn, tet_conc = p
@@ -862,25 +784,8 @@ function quasispecies_odefunc(du, u, p, t)
 	## Enforce positivity constraint
     u .= max.(u, 0.0)
 
-	## Normalize the vector to ensure it sums to one
-	normalize_vector!(u)
-	
-	## subtract the mean population growth during this dt interval.
-	Au = A*u ## sugar to avoid recomputation
-	du .= Au - sum(Au) * u
-end
-
-# ╔═╡ 0b43cfda-35f1-4c90-a270-3b852711f459
-function diffusion_quasispecies_odefunc(du, u, p, t)
-
-	## pcn and tet_conc needs to be passed in as parameters.
-	pcn, tet_conc = p
-	
-	## Define the ODE system with the tridiagonal matrix (diffusion).
-	A = MutSelMatrix3(pcn, tet_conc) 
-
-	## Enforce positivity constraint
-    u .= max.(u, 0.0)
+	## set subpopulations with population size < ϵ to zero.
+	u[u .< ϵ] .= 0
 
 	## Normalize the vector to ensure it sums to one
 	normalize_vector!(u)
@@ -888,28 +793,6 @@ function diffusion_quasispecies_odefunc(du, u, p, t)
 	## subtract the mean population growth during this dt interval.
 	Au = A*u ## sugar to avoid recomputation
 	du .= Au - sum(Au) * u
-end
-
-# ╔═╡ 8de1300b-2c6c-4b1b-aa8d-da8b7494c475
-function logistic_odefunc(du, u, p, t)
-	## quick hack to look at logistic equation behavior.
-	
-	## pcn and tet_conc needs to be passed in as parameters.
-	pcn, tet_conc = p
-	
-	## Define the ODE system
-	A = MutSelMatrix(pcn, tet_conc)
-
-	## Enforce positivity constraint
-    u .= max.(u, 0.0)
-
-	## for logistic equation we don't normalize the vector.
-	
-	## subtract the mean population growth during this dt interval.
-	Au = A*u ## sugar to avoid recomputation
-	xtotal = sum(u)
-	N_MAX = 10 ## quick hack to look at dynamics
-    du .= Au*(1-xtotal/N_MAX) - sum(Au) * u
 end
 
 # ╔═╡ cf345279-9f9c-481d-bdf9-5a15f6349ddb
@@ -1082,7 +965,6 @@ begin
 	
 	## Create an ODEProblem
 	prob = ODEProblem(quasispecies_odefunc, initial_pop_vec, tspan, (PCN, TET_CONC))
-	##prob = ODEProblem(logistic_odefunc, initial_pop_vec, tspan, (PCN, TET_CONC))
 	
 	## Solve the ODE system
 	sol1 = solve(prob, Tsit5())
@@ -1138,26 +1020,13 @@ let
 end
 
 # ╔═╡ 65b1dc88-7938-44f7-a077-0d0571f53dc5
-md""" ##### get the final distribution in the constant [Tet] population."""
+md""" ##### get the final stationary distribution in the constant [Tet] population."""
 
 # ╔═╡ b9b75185-d33d-4715-a977-1409af903b5b
 final_const_Tet_population = result_matrix[end]
 
-# ╔═╡ 1d2339bc-9d05-49bb-9d08-111f61a36c2f
-md""" ## WORKING HERE:
-
-### TESTING the function calc\_Δₘp\_vec(switching\_matrix, pop\_vec, Tet\_conc)
-
-"""
-
-# ╔═╡ fdf3db4d-3018-4d7f-ad9a-bc08ccb4d0a6
-begin
-	my_switching_matrix = SwitchingBinomialMatrix(PCN)
-	calc_Δₘp_vec(my_switching_matrix, initial_pop_vec, TET_CONC)
-end
-
 # ╔═╡ a25df7df-eb57-48a2-a538-44f7b7432387
-md""" ##### check whether the final distribution matches the eigenvector corresponding to the dominant eigenvalue."""
+md""" ##### check whether the final stationary distribution matches the eigenvector corresponding to the dominant eigenvalue."""
 
 # ╔═╡ af8a47bd-e823-41ae-9813-0b484f040e4f
 begin
@@ -1168,29 +1037,38 @@ begin
 	Amatrix_top_eigenvector = [real(x) for x in eigen(Amatrix).vectors[:,PCN+1]]
 	# Transform eigenvector back to the original basis
 	original_basis_vector = Amatrix_inv * Amatrix_top_eigenvector
+
+	## normalize the populations.
+	normalized_Amatrix_top_eigenvector = Amatrix_top_eigenvector/sum(Amatrix_top_eigenvector)
+
+	normalized_original_basis_vector = original_basis_vector/sum(original_basis_vector)
 	
 end
 
 # ╔═╡ d03e6d49-2c29-4101-9918-b8917fb037d8
-plot(xvec, final_const_Tet_population)
+let
+	plot(xvec, final_const_Tet_population)
+end
 
-# ╔═╡ bb44a022-d396-4a71-8ffe-73c84579eb07
-plot(xvec, Amatrix_top_eigenvector)
+# ╔═╡ bc4a7835-dd9f-42e4-b61e-118a33c7ff96
+let
+	plot(xvec, normalized_Amatrix_top_eigenvector)
+end
 
 # ╔═╡ 9028f452-a9cd-42ad-94ff-f86e54462a7c
-plot(xvec, original_basis_vector)
+plot(xvec, normalized_original_basis_vector)
 
-# ╔═╡ c1c6da50-2ad9-4d93-bb1b-411ee4e0cc61
-plot(xvec, 0.5*original_basis_vector)
-
-# ╔═╡ ac17b6d8-0d20-4eec-a746-d6fbf1c88fbf
-md""" ##### RESULT: the eigenvector corresponding to the dominant eigenvalue has the same distribution, but differs from the final distribution by a factor of 1/2. Why? maybe a bug from ChatGPT answer?"""
-
-# ╔═╡ af9d6359-11fd-44c4-85a6-8ae90973337c
-0.5*original_basis_vector
-
-# ╔═╡ c5992050-273c-4698-8f2d-5323b7767bf1
+# ╔═╡ 3e7e6cc9-0cb9-4513-abb4-e3115ca5ef26
 final_const_Tet_population
+
+# ╔═╡ 9aacb16e-c36c-4efa-bb98-d66e3fabb5c2
+normalized_Amatrix_top_eigenvector
+
+# ╔═╡ 634f0f21-08ea-400c-833c-d256282f88f9
+normalized_original_basis_vector
+
+# ╔═╡ 067fd0fe-8991-44e4-95b9-4c4c450b9c81
+sqrt(sum((final_const_Tet_population - normalized_Amatrix_top_eigenvector).^2))
 
 # ╔═╡ e4e8c61d-5503-490f-993d-bb1464def4c9
 md""" ##### calculate mean copy number in the constant [Tet] population."""
@@ -1236,6 +1114,59 @@ let
 	plot(final_t1, copy_num_covariance_vec1, label="tetA copy number fitness covariance")
 	plot!(final_t1, d_mean_copy_num_vec1, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative and covariance")
 end
+
+# ╔═╡ 2ae74e43-9f1c-4ceb-8346-ff7252e897ab
+md""" ##### DEBUGGING: calculate the ratio of these terms. """ 
+
+# ╔═╡ 27d1924d-2899-4178-a0d9-f38b42bbeeb8
+(d_mean_copy_num_vec1 ./ copy_num_covariance_vec1)
+
+# ╔═╡ 4ff84d1f-10ff-4e34-8b08-93b640d39938
+d_mean_copy_num_vec1 - copy_num_covariance_vec1
+
+# ╔═╡ 91d1760c-bbaf-466b-8eb7-623cb0dcd686
+md""" ##### calculate LHS of quasispecies continuous-time Price equation in the constant [Tet] population. """ 
+
+# ╔═╡ 834454ab-3fc4-4b49-a3a1-f10fd699d441
+begin
+	## TODO: wrap up my_switching_matrix into a sensible object with the results.
+	my_switching_matrix = SwitchingBinomialMatrix(PCN)
+	constant_tet_pop_Price_equation_LHS_vec = []
+	for i in 1:length(final_x1)
+		cur_pop_vec = result_matrix[i]
+		cur_Price_LHS = calc_delta_expected_trait_change(my_switching_matrix, cur_pop_vec, TET_CONC)
+		
+		append!(constant_tet_pop_Price_equation_LHS_vec, cur_Price_LHS)
+	end
+end
+
+# ╔═╡ 9b92d86b-9f19-4fed-be2b-691d58ffaab6
+let
+	plot(final_t1, constant_tet_pop_Price_equation_LHS_vec, label="Price equation LHS from Page and Nowak 2002")
+	plot!(final_t1, d_mean_copy_num_vec1, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative and covariance")
+end
+
+# ╔═╡ 1cff27ae-4465-4c38-8b26-5cace8a833d7
+constant_tet_pop_Price_equation_LHS_vec - copy_num_covariance_vec1
+
+# ╔═╡ bcb6e8c7-0816-4668-ae9f-46d7e55cff7f
+md""" ## DEBUGGING TODO 1:
+
+check the key assertion that:
+$r_i(t) = \frac{1}{z_i(t)} \frac{dz_i(t)}{dt} = \frac{d}{dt}ln(z_i(t))$
+
+"""
+
+# ╔═╡ 0b128c07-3260-48ed-afae-4c34cd7bdf68
+
+
+# ╔═╡ f229d787-b9c9-47de-b5cc-790a0eafe637
+md""" ## DEBUGGING TODO 2:
+
+check the key assertion that:
+$\mathbb{E}({\frac{dz(t)}{dt}}) = 0$
+
+"""
 
 # ╔═╡ 4bddf691-83a7-4101-bb00-0fe463e5de77
 md""" ## Vary PCN (5, 15, 25, 50), keep [Tet] == 15, and compare rate of changes of mean tetA copy number"""
@@ -1399,9 +1330,6 @@ let
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
 
-# ╔═╡ d7dadddb-c7f2-43ce-8d32-9fe20bd250fd
-pulse_result_matrix[87]
-
 # ╔═╡ 4acf6a58-6ca5-43e2-8169-75f169cae851
 md""" ### plot the antibiotic pulse regime over time."""
 
@@ -1522,13 +1450,13 @@ end
 
 # ╔═╡ b1697098-07e0-4577-b144-9ecc3879422b
 let
-	scatter() # Initialize an empty plot
+	scatter(aspect_ratio=1) # Initialize an empty plot
 	scatter!(test_copy_num_velocity, test_copy_num_covariance, xlabel="tetA copy number velocity ", ylabel="tetA copy number-fitness covariance")
 end
 
 # ╔═╡ d530e10c-63ff-49bb-a7b1-ea4b363738d0
 begin
-	my_big_scatterplot = scatter()  # Initialize an empty plot
+	my_big_scatterplot = scatter(aspect_ratio=1)  # Initialize an empty plot
 	
 	for my_result_tuple in sampled_solution_covariance_velocity_tuples
 		
@@ -4638,11 +4566,10 @@ version = "1.4.1+1"
 # ╔═╡ Cell order:
 # ╠═44e8209c-8d79-11ef-24db-ff1ea28d01b3
 # ╟─d4d1f72f-7aa7-46e7-9be0-f38fe991bc0c
-# ╟─9f9b084c-4426-48b5-9c9d-96e772dd0720
-# ╟─c3d81737-fc16-44a0-b3de-bab5e0f7aab2
+# ╠═c3d81737-fc16-44a0-b3de-bab5e0f7aab2
 # ╟─3931b5c1-51df-42f5-86e9-09ddba2d2f11
-# ╟─663c10a0-267b-4729-99d8-be325091e525
-# ╟─f8be1737-038a-41c0-9f61-e1980b005ed2
+# ╠═644f1128-fa1e-442a-9fec-d805284240e9
+# ╠═f8be1737-038a-41c0-9f61-e1980b005ed2
 # ╠═6bbb3d25-1f93-488c-9017-630c54285911
 # ╟─b1f80124-822d-46e2-9386-54a0117f833d
 # ╟─749b2bd1-4ccc-48e0-9ab4-bc701500c728
@@ -4651,7 +4578,7 @@ version = "1.4.1+1"
 # ╟─53bcbf1c-a2e2-4931-a4f8-88b7c0ea01f4
 # ╟─4f840ddf-058f-48cc-90ea-609d6cf09ccb
 # ╟─b8e8c64d-841d-4591-9fce-f2648d5d4f53
-# ╟─74892533-c56c-4fbe-82d0-3de7127702f0
+# ╠═74892533-c56c-4fbe-82d0-3de7127702f0
 # ╟─b9277783-9e31-44e5-82a3-a13af62c62e4
 # ╟─2dd8b9bd-057b-45a7-8b72-da50925f6a3b
 # ╟─b753c51f-6682-47e5-a015-c183e221aa32
@@ -4673,37 +4600,30 @@ version = "1.4.1+1"
 # ╠═934ef964-bdc4-4d5d-bd97-e4e32b4d0380
 # ╠═ca34b121-8fa5-45ab-af2d-ba8e162d99c2
 # ╠═b78463f4-1deb-45bd-b091-7ae15a23471b
-# ╠═c341747c-5af5-436f-9ebb-c5dc6fcf1f42
-# ╠═53c2fdc4-9893-460e-817f-2bdd7874149f
 # ╠═412c944d-168d-4146-8bc8-7219db9c291a
 # ╠═de13afba-dec7-4a7a-a26b-85e26d36a84f
 # ╠═260df35d-6d1c-42be-8270-01fb62627938
-# ╠═6819b3bc-465f-4fe4-bcb1-f678470d1c66
 # ╠═45362f0d-76ac-44e8-b6cd-0d1824b3a3b4
-# ╠═2bcc66f2-aa0a-440c-8304-bd0b61f3ab85
 # ╠═49e1dd14-e839-45cf-8e0a-f0badd573d67
-# ╠═72dc61fb-cca0-47b9-8525-abce0f3cf63b
-# ╠═fa668251-e78f-44ef-93c8-c7825bc862e8
 # ╠═1ab2e8f1-753a-4374-8b5b-1ad3de48a710
 # ╠═b2abea77-c124-446d-b341-e0334bf5e687
-# ╠═3e958e94-e54c-43da-8725-d6b1391876bf
 # ╠═1955042b-e29d-4c54-84c3-8d32bed550a3
 # ╠═2cb2dae4-33af-4118-87c8-f41c8aba8225
+# ╠═7ea2ecf4-29d4-41c5-9efe-e86e370f7f7c
+# ╠═c99d3673-9f9a-4508-b257-360cc6d0733d
 # ╠═25b88824-0bca-4f2c-a838-e7a5a1cb3676
 # ╠═6bd86018-8a50-4b8d-a2bd-40bfbe45829b
 # ╠═243ee5e3-1489-4c65-ae18-c14516962c68
 # ╠═fbc4a55b-c50e-482e-8fe3-ed554a1d2a02
 # ╠═a506ff86-41c6-44ac-adf5-c3fdb368cb02
 # ╠═c37a8b81-8fae-449d-a3f8-2b86081c0ed5
+# ╠═eb9ea298-95f2-4df7-966a-069ca8965c67
 # ╠═c40e9cfa-f58f-459c-a994-34bab25c20ad
 # ╠═6fbce7a0-af24-4501-92e4-fbd6b5d27b65
 # ╠═4fd0feac-346b-42bc-b0de-1bf0a4718928
 # ╠═958b0cbc-c6b8-4158-b138-1390cbf208bc
 # ╠═12de0334-09dd-4565-91cf-a5c4f50f83e9
-# ╠═7812782c-bf4c-49fc-9b6e-580574e9fdff
 # ╠═af2632c1-393b-43b1-a60b-9093cace4775
-# ╠═0b43cfda-35f1-4c90-a270-3b852711f459
-# ╠═8de1300b-2c6c-4b1b-aa8d-da8b7494c475
 # ╠═cf345279-9f9c-481d-bdf9-5a15f6349ddb
 # ╠═df040d65-6bee-408a-92a9-5bca931f7dfb
 # ╠═1a92a7ae-d057-4ca0-942b-135b05075f2c
@@ -4725,17 +4645,15 @@ version = "1.4.1+1"
 # ╠═6e3e1eec-03c2-4bb3-bb5a-9c27182753c7
 # ╠═65b1dc88-7938-44f7-a077-0d0571f53dc5
 # ╠═b9b75185-d33d-4715-a977-1409af903b5b
-# ╠═1d2339bc-9d05-49bb-9d08-111f61a36c2f
-# ╠═fdf3db4d-3018-4d7f-ad9a-bc08ccb4d0a6
 # ╠═a25df7df-eb57-48a2-a538-44f7b7432387
 # ╠═af8a47bd-e823-41ae-9813-0b484f040e4f
 # ╠═d03e6d49-2c29-4101-9918-b8917fb037d8
-# ╠═bb44a022-d396-4a71-8ffe-73c84579eb07
+# ╠═bc4a7835-dd9f-42e4-b61e-118a33c7ff96
 # ╠═9028f452-a9cd-42ad-94ff-f86e54462a7c
-# ╠═c1c6da50-2ad9-4d93-bb1b-411ee4e0cc61
-# ╠═ac17b6d8-0d20-4eec-a746-d6fbf1c88fbf
-# ╠═af9d6359-11fd-44c4-85a6-8ae90973337c
-# ╠═c5992050-273c-4698-8f2d-5323b7767bf1
+# ╠═3e7e6cc9-0cb9-4513-abb4-e3115ca5ef26
+# ╠═9aacb16e-c36c-4efa-bb98-d66e3fabb5c2
+# ╠═634f0f21-08ea-400c-833c-d256282f88f9
+# ╠═067fd0fe-8991-44e4-95b9-4c4c450b9c81
 # ╠═e4e8c61d-5503-490f-993d-bb1464def4c9
 # ╠═a928cea9-4b65-413f-ba57-bb9fddc57856
 # ╠═d0c028ae-b991-4558-87e6-41b4f5bfe274
@@ -4744,6 +4662,16 @@ version = "1.4.1+1"
 # ╠═7bfbb45d-57fc-4c9e-b929-ac44f7f88fef
 # ╠═ed618c65-a9aa-4629-9e69-99ca9a72dfa9
 # ╠═15d15ea0-2b38-4fd3-8e73-c0c527eedea1
+# ╠═2ae74e43-9f1c-4ceb-8346-ff7252e897ab
+# ╠═27d1924d-2899-4178-a0d9-f38b42bbeeb8
+# ╠═4ff84d1f-10ff-4e34-8b08-93b640d39938
+# ╠═91d1760c-bbaf-466b-8eb7-623cb0dcd686
+# ╠═834454ab-3fc4-4b49-a3a1-f10fd699d441
+# ╠═9b92d86b-9f19-4fed-be2b-691d58ffaab6
+# ╠═1cff27ae-4465-4c38-8b26-5cace8a833d7
+# ╠═bcb6e8c7-0816-4668-ae9f-46d7e55cff7f
+# ╠═0b128c07-3260-48ed-afae-4c34cd7bdf68
+# ╠═f229d787-b9c9-47de-b5cc-790a0eafe637
 # ╠═4bddf691-83a7-4101-bb00-0fe463e5de77
 # ╠═f96766c2-bd3b-4782-a884-a2d72667d0e4
 # ╠═d153fde0-3435-49f2-b493-2c2fc8fec41f
@@ -4759,7 +4687,6 @@ version = "1.4.1+1"
 # ╠═f1c589d0-670c-41a4-87fd-c7d7afa62746
 # ╠═c83fbfaa-1f5f-40b9-a6c1-68d480c4dfe7
 # ╠═348fabc0-3caa-4585-975e-688a26b7fa8a
-# ╠═d7dadddb-c7f2-43ce-8d32-9fe20bd250fd
 # ╠═4acf6a58-6ca5-43e2-8169-75f169cae851
 # ╠═c78148c7-be3e-4911-8269-ba95bf8ba9b2
 # ╠═e22f600c-4468-47ff-93f5-ad004ff5ea23
