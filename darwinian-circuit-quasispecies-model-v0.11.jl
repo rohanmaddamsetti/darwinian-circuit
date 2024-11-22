@@ -91,16 +91,17 @@ md"""
 
 We examine Claim (2) by randomly sampling 10,000 random initial conditions with random plasmid copy numbers (PCN) and [Tet] concentrations.
 
-##### BUG: This is _almost_ correct in the model! Can I find and fix the remaining error? Maybe this is due to numerical error, or something else?
-
 """
 
 # ╔═╡ f8be1737-038a-41c0-9f61-e1980b005ed2
 md"""
 ## DEBUGGING TODO: 
-1) PRICE EQUATION DOES NOT HOLD??, tetA-fitness covariance does not exactly equal rate of change of mean tetA copy number. 
-
+1) refactor code in order to add plots to compare velocities with the LHS of the Price equation.
 2) refactor code to package up things that depend on each other (switching matrices, models, etc.) into classes / structures to avoid inadvertent inconsistencies.
+3) check the key assertion that:
+$\mathbb{E}({\frac{dz(t)}{dt}}) = \sum_{i} x_i \frac{dz(t)}{dt}= 0$
+
+##### BUG: The Price equation prediction is _almost_ correct in the model! Can I find and fix the remaining error? Maybe this is due to numerical error, or something else?
 
 """
 
@@ -389,11 +390,13 @@ In addition, note that the Kussell and Leibler (2005) Science paper also does an
 load("../data/Nowak-textbook-page-35.png")
 
 # ╔═╡ 039ffb9c-2c1b-423c-a809-93f9e62bc688
-md""" default parameter settings: \
-SIGMA = 10.0 \
-R_MAX = 1.0 \
-TIMESPAN = 400.0 \
-η₀ = 0.001
+md"""
+## Module imports
+"""
+
+# ╔═╡ cfd4050d-31a8-49ed-9994-076e55c02ceb
+md"""
+## Function definitions
 """
 
 # ╔═╡ 78f8dbee-146d-4c48-8c5b-2e319fa931ed
@@ -572,6 +575,19 @@ function Entropy(probability_vec)
 	my_entropy = sum(map(p -> ifelse(p == 0, 0, -p*log(p)), probability_vec))
 	return my_entropy
 end
+
+# ╔═╡ 8dfdd593-117b-430e-b988-2eaa70484b4c
+md"""
+### Let's start modeling!
+"""
+
+# ╔═╡ 9bd490b7-3f11-487e-b454-785c7d87391b
+md""" default parameter settings: \
+SIGMA = 10.0 \
+R_MAX = 1.0 \
+TIMESPAN = 400.0 \
+η₀ = 0.001
+"""
 
 # ╔═╡ 28bd0eee-f54e-4ab5-aecc-275fe3e8319a
 begin
@@ -1163,19 +1179,14 @@ end
 
 # ╔═╡ 49830d58-03a3-4379-aeea-767c9a3eeb26
 let
-	plot(final_t1, (d_mean_copy_num_vec1_dt_vec - constant_tet_pop_Price_equation_LHS_vec), label="error check")
+	plot(final_t1, (constant_tet_pop_Price_equation_LHS_vec - d_mean_copy_num_vec1_dt_vec), label="error check")
 end
 
 # ╔═╡ 1cff27ae-4465-4c38-8b26-5cace8a833d7
 constant_tet_pop_Price_equation_LHS_vec - copy_num_covariance_vec1
 
 # ╔═╡ f229d787-b9c9-47de-b5cc-790a0eafe637
-md""" ## DEBUGGING TODO:
 
-check the key assertion that:
-$\mathbb{E}({\frac{dz(t)}{dt}}) = 0$
-
-"""
 
 # ╔═╡ 4bddf691-83a7-4101-bb00-0fe463e5de77
 md""" ## Vary PCN (5, 15, 25, 50), keep [Tet] == 15, and compare rate of changes of mean tetA copy number"""
@@ -4547,7 +4558,7 @@ version = "1.4.1+1"
 # ╟─d4d1f72f-7aa7-46e7-9be0-f38fe991bc0c
 # ╟─c3d81737-fc16-44a0-b3de-bab5e0f7aab2
 # ╟─3931b5c1-51df-42f5-86e9-09ddba2d2f11
-# ╟─644f1128-fa1e-442a-9fec-d805284240e9
+# ╠═644f1128-fa1e-442a-9fec-d805284240e9
 # ╟─f8be1737-038a-41c0-9f61-e1980b005ed2
 # ╟─b1f80124-822d-46e2-9386-54a0117f833d
 # ╟─749b2bd1-4ccc-48e0-9ab4-bc701500c728
@@ -4567,6 +4578,7 @@ version = "1.4.1+1"
 # ╟─248e7e49-749a-4110-a3df-12d9b873b949
 # ╟─039ffb9c-2c1b-423c-a809-93f9e62bc688
 # ╠═8c80a36a-372a-4fad-92bc-bb4426277f55
+# ╟─cfd4050d-31a8-49ed-9994-076e55c02ceb
 # ╠═78f8dbee-146d-4c48-8c5b-2e319fa931ed
 # ╠═9e9cc2c2-55be-456e-95f0-224b08fbeae3
 # ╠═ef893778-f28f-4ade-ab70-978ded8cfcd5
@@ -4601,6 +4613,8 @@ version = "1.4.1+1"
 # ╠═192ab415-b73a-49d3-ba74-99b5d91ad482
 # ╠═ea419d1b-1246-4999-a8a4-706c73e14ed8
 # ╠═b47a2305-9595-4514-9816-a0819fcd5fec
+# ╟─8dfdd593-117b-430e-b988-2eaa70484b4c
+# ╟─9bd490b7-3f11-487e-b454-785c7d87391b
 # ╠═28bd0eee-f54e-4ab5-aecc-275fe3e8319a
 # ╟─25b88824-0bca-4f2c-a838-e7a5a1cb3676
 # ╠═6bd86018-8a50-4b8d-a2bd-40bfbe45829b
