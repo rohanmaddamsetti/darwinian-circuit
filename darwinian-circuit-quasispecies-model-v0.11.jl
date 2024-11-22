@@ -14,7 +14,7 @@ macro bind(def, element)
     end
 end
 
-# ╔═╡ 6bbb3d25-1f93-488c-9017-630c54285911
+# ╔═╡ 8c80a36a-372a-4fad-92bc-bb4426277f55
 begin
 	using Plots
 	using PlutoUI
@@ -37,7 +37,7 @@ Julia version 1.11.1.
 
 ##### Abstract
 
-Despite considerable interest, the emergence and evolution of collective computation in systems composed of simple equivalent components (e.g. cells, neurons) remains poorly understood. Here, we show the _de novo_ evolution of clonal bacterial populations that fluoresce in response to pulses of antibiotic. Genetic diversity is maintained within single cells by balancing selection on intracellular populations of plasmids containing a toxic TetA-GFP transposon. Theory and experiments reveal that when plasmid copy numbers are sufficiently high, diverse plasmids can be maintained within single cells, triggering the emergence of tunable dynamics in clonal populations. Theory shows that the rate at which gene expression changes in response to antibiotic depends on how gene expression covaries with fitness. This work demonstrates how mobile genetic elements allow host populations to rapidly evolve the ability to compute pulses in environmental stressors such as antibiotics, and describes a fundamental evolutionary principle for engineering population-level gene expression with intracellular populations of mobile genetic elements.
+Despite considerable interest, the emergence and evolution of collective computation in systems composed of simple equivalent components (e.g. cells, neurons) remains poorly understood. Here, we show the _de novo_ evolution of bacterial clones that modulate population-level gene expression in response to pulses of antibiotic. Genetic diversity is maintained within single cells by balancing selection on intracellular populations of plasmids containing a toxic TetA-GFP transposon. Theory and experiments reveal that when plasmid copy numbers are sufficiently high, diverse plasmids can be maintained within single cells, triggering the emergence of tunable dynamics in clonal populations. Theory shows that the rate at which gene expression changes in response to antibiotic depends on how gene expression covaries with fitness. This work demonstrates how mobile genetic elements allow host populations to rapidly evolve the ability to compute pulses in environmental stressors such as antibiotics, and describes a fundamental evolutionary principle for engineering population-level gene expression with intracellular populations of mobile genetic elements.
 
 """
 
@@ -91,7 +91,7 @@ md"""
 
 We examine Claim (2) by randomly sampling 10,000 random initial conditions with random plasmid copy numbers (PCN) and [Tet] concentrations.
 
-##### CRITICAL BUG: this is not true in the model right now. qualitatively the trend is there, but the magnitude of the effect is off, and not by a constant factor.
+##### BUG: This is _almost_ correct in the model! Can I find and fix the remaining error? Maybe this is due to numerical error, or something else?
 
 """
 
@@ -119,9 +119,9 @@ We use the quasispecies model (see "Unifying Evolutionary Dynamics" by Karen Pag
 
 The population is modeled as a distribution over tetA copy numbers, ranging from 1 (found on the chromosome) to $n+1$, where $n$ is the maximum plasmid copy number. We therefore represent the population as a vector 
 
-$\mathbf{z}(t) = \begin{pmatrix} z_1 \\ z_2 \\ z_3 \\ ... \\ z_{n+1} \end{pmatrix}$  
+$\mathbf{x}(t) = \begin{pmatrix} x_1 \\ x_2 \\ x_3 \\ ... \\ x_{n+1} \end{pmatrix}$  
 
-The sum of the $n+1$ entries of $\mathbf{z}(t)$ gives the total population size $N(t) = \sum_{i=1}^{n+1} \mathbf{z}_i(t)$.  
+The sum of the $n+1$ entries of $\mathbf{x}(t)$ gives the total population size $N(t) = \sum_{i=1}^{n+1} \mathbf{x}_i(t)$.  
 
 """
 
@@ -129,7 +129,7 @@ The sum of the $n+1$ entries of $\mathbf{z}(t)$ gives the total population size 
 md"""
 *Growth dynamics*  
 
-For a given tetracycline concentration, each tetA copy number class has a growth rate, or *fitness* $r_i$.  Let $g_i$ be be the log-fitness of tetA copy number class $i$, such that $g_i = log(r_i)$. We assume that there is some optimal tetA copy number given some tetracycline concentration. We assume that $r_i$ is non-negative, with a single peak at the optimum tetA copy number for a given $[Tet]$ concentration, so a natural choice is to define the following quadratic log-fitness function:  
+For a given tetracycline concentration, each subpopulation (tetA copy number class) has a growth rate, or * malthusian fitness* $r_i$.  Let $g_i$ be be the log-fitness of tetA copy number class $i$, such that $g_i = log(r_i)$. We assume that there is some optimal tetA copy number given some tetracycline concentration. We assume that $r_i$ is non-negative, with a single peak at the optimum tetA copy number for a given $[Tet]$ concentration, so a natural choice is to define the following quadratic log-fitness function:  
 
 $g_i = g_{max} - \frac{(i - \alpha*[Tet])^2}{2\sigma^2}$  
 
@@ -141,12 +141,12 @@ We assume fitness is non-negative, so we pass this $g_i$ through an exponential 
 
 $r_i = e^{g_i}$ 
 
-Then, the growth rates (fitnesses) for each subpopulation is a vector:
+Then, the growth rates (malthusian fitnesses) for each subpopulation is a vector:
 
 $\mathbf{r} = \begin{pmatrix} r_1 \\ r_2 \\ r_3 \\ ... \\ r_{n+1} \end{pmatrix}$  
 
 
-We then define the diagonal matrix $\mathbf{G} = \begin{bmatrix}
+We then define the diagonal matrix $\mathbf{R} = \begin{bmatrix}
 r_1 & 0 & 0 & ... & 0 \\
 0 & r_2 & 0 & ... & 0 \\
 0 & 0 & r_3 & ... & 0 \\
@@ -154,9 +154,9 @@ r_1 & 0 & 0 & ... & 0 \\
 0 & 0 & 0 & ... & r_{n+1} \\
 \end{bmatrix}$.  
 
-This represents how each subpopulation of $\mathbf{z}$ grows based on $\mathbf{r}$.
+This represents how each subpopulation of $\mathbf{x}$ grows based on $\mathbf{r}$.
 
-And the average population growth rate (mean population fitness) of the whole population is $\overline{r}(t) = \mathbf{r} \cdot \mathbf{z}(t)$.
+And the average population growth rate (mean population fitness) of the whole population is $\overline{r}(t) = \mathbf{r} \cdot \mathbf{x}(t)$.
 
 """
 
@@ -216,15 +216,15 @@ $\mathbf{S} = \begin{bmatrix}
 md"""
 *Dilution dynamics*
 
-We assume that cells are diluted out at a rate equal to the bulk population growth rate, which is the average population growth rate (mean population fitness) of the whole population $\overline{r}(t) = \mathbf{r} \cdot \mathbf{z}(t)$.
+We assume that cells are diluted out at a rate equal to the bulk population growth rate, which is the average population growth rate (mean population fitness) of the whole population $\overline{r}(t) = \mathbf{r} \cdot \mathbf{x}(t)$.
 
 *Full dynamics*  
 
-The growth and stochastic switching dynamics are combined into a matrix $\mathbf{A} = \mathbf{S}\mathbf{G}$, where $\mathbf{S}$ is a stochastic matrix.
+The growth and stochastic switching dynamics are combined into a matrix $\mathbf{A} = \mathbf{S}\mathbf{R}$, where $\mathbf{S}$ is a stochastic matrix.
 
 Including dilution, the full dynamics are modeled by the following matrix system of ODEs:  
 
-$\frac{d\mathbf{z}}{dt} = \mathbf{A}\mathbf{z}(t) - \overline{r}(t) \mathbf{z}(t)$
+$\frac{d\mathbf{x}}{dt} = \mathbf{A}\mathbf{x}(t) - \overline{r}(t) \mathbf{x}(t)$
 Note that $\overline{r}(t)$ is a scalar and not a vector.
 
 
@@ -262,20 +262,20 @@ md"""
 
 ### Notes on continuous-time Price equation.
 \
-the following comes from the 2023 arxiv paper "The virial theorem and the Price equation" by Steinunn Liorsdottir and Lior Pachter.
+the following comes from the 2023 arxiv paper "The virial theorem and the Price equation" by Steinunn Liorsdottir and Lior Pachter. (we use '$x$' instead of '$p$' to denote subpopulations)
 
 Consider a numerical trait in $n$ subpopulations at time $t$ denoted $\mathbf{z}(t) = (z_1(t), ..., z_n(t))$.
 \
 \
 The subpopulations have
-sizes $p_1(t),...,p_n(t)$,
+sizes $x_1(t),...,x_n(t)$,
 \
 \
-and have Wrightian fitness $\mathbf{w}(t) = (w_1(t),...,w_n(t))$ defined by $w_i(t) = \frac{p_i(t+∆t)}{p_i(t)}$
+and have Wrightian fitness $\mathbf{w}(t) = (w_1(t),...,w_n(t))$ defined by $w_i(t) = \frac{x_i(t+∆t)}{x_i(t)}$
 where $∆t$ denotes the time interval of one generation.
 \
 \
-Let $q_i(t) = \frac{p_i(t)}{\sum_{j=1}^{n} p_j(t)}$ be the relative size
+Let $q_i(t) = \frac{x_i(t)}{\sum_{j=1}^{n} x_j(t)}$ be the relative size
 of the $i$th population.
 \
 \
@@ -314,7 +314,7 @@ See Liorsdottir and Pachter (2023) for a proof of this fact.
 # ╔═╡ b9277783-9e31-44e5-82a3-a13af62c62e4
 md""" 
 ### Continuous-time Price equation.
-The discrete time Price equation has a continuous time analog. It is formulated using the Malthusian fitness $r(t) = r_1,...,r_n$ given by $r_i(t) = \frac{1}{p_i(t)} \frac{dp_i(t)}{dt} = \frac{d}{dt}ln(p_i(t))$ instead of the Wrightian fitness $w(t)$.
+The discrete time Price equation has a continuous time analog. It is formulated using the Malthusian fitness $r(t) = r_1,...,r_n$ given by $r_i(t) = \frac{1}{x_i(t)} \frac{dx_i(t)}{dt} = \frac{d}{dt}ln(x_i(t))$  instead of the Wrightian fitness $w(t)$. Note that this implies that $\frac{dx_i(t)}{dt} = r_i(t)x_i(t)$.
 \
 \
 $\frac{d}{dt}\mathbb{E}(\mathbf{z}(t)) = cov(\mathbf{r}(t), \mathbf{z}(t)) + \mathbb{E}(\frac{d\mathbf{z}(t)}{dt})$.
@@ -396,7 +396,184 @@ TIMESPAN = 400.0 \
 η₀ = 0.001
 """
 
-# ╔═╡ 021831cb-f7a2-4d45-b78f-e4c9ecac909d
+# ╔═╡ 78f8dbee-146d-4c48-8c5b-2e319fa931ed
+function right_pad_vector(vector::Vector{T}, len::Int) where T
+    if length(vector) >= len
+        return vector
+    else
+        return vcat(vector, zeros(T, len - length(vector)))
+    end
+end
+
+# ╔═╡ 934ef964-bdc4-4d5d-bd97-e4e32b4d0380
+function calc_mean_tetA_copy_number(pop_vec)
+	## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
+	## with a minimum of 1 copy (on the chromosome).
+	tetA_classes = collect(1:length(pop_vec))
+	## calculate mean tetA copy number in the population,
+	## by weighting each tetA copy number class by the frequency of each class.
+	frequency_vec = pop_vec/sum(pop_vec)
+	mean_tetA_copy_number = sum(tetA_classes .* frequency_vec)
+	return mean_tetA_copy_number
+end
+
+# ╔═╡ 892bb0dd-da94-493f-bf72-cdc53a8b0181
+function calc_tetA_copy_number_variance(pop_vec)
+	## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
+	## with a minimum of 1 copy (on the chromosome).
+	tetA_classes = collect(1:length(pop_vec))
+	
+	## calculate mean copy number in the population,
+	## by weighting each tetA copy number class by the frequency of each class.
+	frequency_vec = pop_vec/sum(pop_vec)
+
+	mean_copy_number = sum(frequency_vec .* tetA_classes)
+	copy_num_squared_deviation_vec = [(x - mean_copy_number)^2 for x in tetA_classes]
+
+	copy_num_variance = sum(copy_num_squared_deviation_vec .* frequency_vec)	
+	return copy_num_variance
+end
+
+# ╔═╡ 412c944d-168d-4146-8bc8-7219db9c291a
+function ZeroBasedBinomialSwitchingEntry(a, b, plasmid_copy_num)
+	""" Input parameters:
+	    a: number of tetA transposons in offspring.
+	    b: number of tetA transposons in parent.
+	    plasmid_copy_num: total plasmid copy number. """
+	p = b/plasmid_copy_num ## probability of sampling a plasmid with the tetA transposon.
+	## 'a' is the number of times that the tetA-transposon plasmid picked from parent into offspring.
+	return pdf(Binomial(plasmid_copy_num, p), a)
+end
+
+# ╔═╡ de13afba-dec7-4a7a-a26b-85e26d36a84f
+function OneBasedBinomialSwitchingEntry(i, j, plasmid_copy_num)
+	""" Input parameters:
+	    i: row-index of binomial switching matrix: 1 + number of tetA transposons in offspring.
+	    j: column-index of binomial switching matrix: 1 + number of tetA transposons in parent.
+	    plasmid_copy_num: plasmid copy number. 
+
+	Use ZeroBasedBinomialSwitchingEntry() with this change-of-variables:
+	i = a + 1 ## a is number of tetA transposons in offspring.
+	j = b + 1 ## b is number of tetA transposons in parent.
+	
+	"""
+	return ZeroBasedBinomialSwitchingEntry(i-1,j-1,plasmid_copy_num)
+end
+
+# ╔═╡ 1ab2e8f1-753a-4374-8b5b-1ad3de48a710
+function check_stochastic_matrix(my_matrix)
+	## this function is for debugging the stochastic switching matrix.
+	num_columns = size(my_matrix, 2)
+	for col in 1:num_columns
+        column_sum = sum(my_matrix[:, col])
+        println(column_sum)
+        if isapprox(column_sum, 1.0)
+            println("Sum of column $col is 1.0")
+        else
+            println("Sum of column $col is not equal to 1.0")
+        end
+    end
+end
+
+# ╔═╡ 1955042b-e29d-4c54-84c3-8d32bed550a3
+function calc_Δₘp_vec(switching_matrix, pop_vec, Tet_conc)
+	""" calculate the expected change in trait value due to mutation (in this case, plasmid segregation)"""
+	nrow, ncol = size(switching_matrix)
+	@assert nrow == ncol == length(pop_vec) ## self-consistency check
+
+	Δₘp_vec = zeros(ncol)
+	
+	for j in 1:ncol
+		for i in 1:nrow
+			## IMPORTANT: i,j indices in this code are swapped compared to
+			## notation in the Page and Nowak (2002) paper.
+			## In Page and Nowak, i->j represents ancestor -> mutant.
+			## This implement follows standard matrix multiplication notation,
+			## such that j->i represents ancestor to mutant.
+			
+			## So, the appropriate formula to implement is:
+			## Δₘpⱼ = ∑ᵢ qᵢⱼ(pᵢ - pⱼ)
+			## where qᵢⱼ is switching_matrix[i,j]
+			## and pᵢ is the trait value--
+			## the number of TetA transposons, or i in this case,
+			## since there is always a minimum of one copy on the chromosome.
+			Δₘp_vec[j] += switching_matrix[i,j]*(i - j)
+		end
+	end
+
+	return Δₘp_vec
+end
+
+# ╔═╡ 348e1723-08b6-4968-896c-8459afc8bb08
+function normalize_vector!(u)
+    total = sum(big.(u))
+    if total != 0
+        u .= u / total
+    end
+end
+
+# ╔═╡ f1b278a5-1ce4-47b3-b93e-969e1f9ec6bf
+function sample_unit_vector(n)
+    ## Generate n random numbers
+    x = rand(n)
+	
+    ## Normalize the vector to make the sum equal to one
+    x /= sum(x)
+	
+    return x
+end
+
+# ╔═╡ 96ae7861-63dc-466f-a956-9a743e93dd33
+function MakeResultMatrix(sol)
+	""" make a matrix saving the population dynamics from a solved ODEProblem """
+	result_matrix = [] ## Initialize an empty matrix
+	for i in 1:length(sol.u)
+		total_N = sum(sol.u[i])
+		cur_frequency_vec = sol.u[i]/total_N
+		##concatenate the state vector horizontally into the result_matrix
+		result_matrix = push!(result_matrix, cur_frequency_vec)
+	end
+	return result_matrix
+end
+
+# ╔═╡ 66ee7dae-f87d-4b12-91e0-fffdbc420478
+function CalcTetACopyNumberVelocity(sol)
+
+	result_matrix = MakeResultMatrix(sol)
+	
+	mean_tetA_copy_num_vec = [] 
+	for i in 1:length(result_matrix)
+		cur_pop_vec = result_matrix[i]
+
+		cur_mean_tetA_copy_num = calc_mean_tetA_copy_number(cur_pop_vec)
+		append!(mean_tetA_copy_num_vec, cur_mean_tetA_copy_num)
+	end
+
+	## append a zero to the front of the difference vector.
+	d_mean_tetA_copy_num_vec = [0; diff(mean_tetA_copy_num_vec)]
+	## calculate the dt vec; append a one to the front to avoid division by zero.
+	dt_vec = [1; diff(sol.t)]
+	## now calculate the derivative vector.
+	d_mean_tetA_copy_num_dt_vec = d_mean_tetA_copy_num_vec ./ dt_vec
+	return d_mean_tetA_copy_num_dt_vec
+end
+
+# ╔═╡ 0e4afc90-7273-49a6-a56a-8e3a450c38fa
+function ExtractSubpopulationTimecourse(sol, i)
+	## get the i-th subpopulation timecourse.
+	my_time_course = [u[i] for u in sol.u]
+	return my_time_course
+end
+
+# ╔═╡ 192ab415-b73a-49d3-ba74-99b5d91ad482
+function Entropy(probability_vec)
+	vec_sum = sum(probability_vec)
+	@assert vec_sum ≈ 1.0 "Error: $probability_vec should sum to one but sums to $vec_sum"
+	my_entropy = sum(map(p -> ifelse(p == 0, 0, -p*log(p)), probability_vec))
+	return my_entropy
+end
+
+# ╔═╡ 28bd0eee-f54e-4ab5-aecc-275fe3e8319a
 begin
 	## Define global constants.
 	SIGMA = 10.0 ## set the width of the fitness function
@@ -407,15 +584,6 @@ begin
 	tspan = (0.0, TIMESPAN)
 	
 	η₀ = 0.001 ## set the transposition rate η₀.
-end
-
-# ╔═╡ 78f8dbee-146d-4c48-8c5b-2e319fa931ed
-function right_pad_vector(vector::Vector{T}, len::Int) where T
-    if length(vector) >= len
-        return vector
-    else
-        return vcat(vector, zeros(T, len - length(vector)))
-    end
 end
 
 # ╔═╡ 9e9cc2c2-55be-456e-95f0-224b08fbeae3
@@ -465,31 +633,53 @@ function calc_mean_fitness(pop_vec, Tet_conc)
 	## with a minimum of 1 copy (on the chromosome).
 	tetA_classes = collect(1:length(pop_vec))
 	## get the fitness for each fitness class (defined by tetA copy number).
-	raw_fitness_vec = fitness_function.(tetA_classes, Tet_conc)
+	fitness_vec = fitness_function.(tetA_classes, Tet_conc)
 	## calculate mean fitness in the population,
 	## by weighting fitness for each class by the frequency of each class.
 	frequency_vec = pop_vec/sum(pop_vec)
-	mean_fitness = sum(raw_fitness_vec .* frequency_vec)
+	mean_fitness = sum(fitness_vec .* frequency_vec)
 	return mean_fitness
+end
+
+# ╔═╡ bed5464d-47c8-46c4-9037-e73130a5b0e6
+function CalcFitnessVelocity(sol, tet_conc)
+
+	result_matrix = MakeResultMatrix(sol)
+	
+	mean_fitness_vec = [] 
+	for i in 1:length(result_matrix)
+		cur_pop_vec = result_matrix[i]
+		cur_mean_fitness = calc_mean_fitness(cur_pop_vec, tet_conc)
+		append!(mean_fitness_vec, cur_mean_fitness)
+	end
+
+	## append a zero to the front of the difference vector.
+	d_mean_fitness_vec = [0; diff(mean_fitness_vec)]
+	## calculate the dt vec; append a one to the front to avoid division by zero.
+	dt_vec = [1; diff(sol.t)]
+	## now calculate the derivative vector.
+	d_mean_fitness_dt_vec = d_mean_fitness_vec ./ dt_vec
+	
+	return d_mean_fitness_dt_vec
 end
 
 # ╔═╡ 32fe4cba-f191-4d50-b843-2833a94f42c1
 function calc_relative_fitness(pop_vec, Tet_conc)
 	## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
 	## with a minimum of 1 copy (on the chromosome).
-	fitness_classes = collect(1:length(pop_vec))
+	tetA_classes = collect(1:length(pop_vec))
 	## get the fitness for each fitness class (defined by tetA copy number).
-	raw_fitness_vec = fitness_function.(fitness_classes, Tet_conc)
+	fitness_vec = fitness_function.(tetA_classes, Tet_conc)
 	## calculate mean fitness in the population,
 	## by weighting fitness for each class by the frequency of each class.
 	frequency_vec = pop_vec/sum(pop_vec)
-	mean_fitness = sum(raw_fitness_vec .* frequency_vec)
+	mean_fitness = sum(fitness_vec .* frequency_vec)
 	## now calculate relative fitness, based on mean fitness.
-	relative_fitness_vec = raw_fitness_vec/mean_fitness
+	relative_fitness_vec = fitness_vec/mean_fitness
 	return relative_fitness_vec
 end
 
-# ╔═╡ 2592492d-ea73-4b4c-ba5b-b9529cc0ba62
+# ╔═╡ bbb2c832-201f-409e-b262-ec7c74b6c490
 function calc_fitness_variance(pop_vec, Tet_conc)
 	## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
 	## with a minimum of 1 copy (on the chromosome).
@@ -505,127 +695,38 @@ function calc_fitness_variance(pop_vec, Tet_conc)
 	return fitness_variance
 end
 
-# ╔═╡ 934ef964-bdc4-4d5d-bd97-e4e32b4d0380
-function calc_mean_tetA_copy_number(pop_vec)
-	## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
-	## with a minimum of 1 copy (on the chromosome).
-	tetA_classes = collect(1:length(pop_vec))
-	## calculate mean tetA copy number in the population,
-	## by weighting each tetA copy number class by the frequency of each class.
-	frequency_vec = pop_vec/sum(pop_vec)
-	mean_tetA_copy_number = sum(tetA_classes .* frequency_vec)
-	return mean_tetA_copy_number
-end
-
-# ╔═╡ ca34b121-8fa5-45ab-af2d-ba8e162d99c2
-function calc_tetA_copy_number_variance(pop_vec)
-	## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
-	## with a minimum of 1 copy (on the chromosome).
-	tetA_classes = collect(1:length(pop_vec))
-	
-	## calculate mean copy number in the population,
-	## by weighting each tetA copy number class by the frequency of each class.
-	frequency_vec = pop_vec/sum(pop_vec)
-
-	mean_copy_number = sum(frequency_vec .* tetA_classes)
-	copy_num_squared_deviation_vec = [(x - mean_copy_number)^2 for x in tetA_classes]
-
-	copy_num_variance = sum(copy_num_squared_deviation_vec .* frequency_vec)	
-	return copy_num_variance
-end
-
 # ╔═╡ b78463f4-1deb-45bd-b091-7ae15a23471b
 function calc_tetA_copy_number_fitness_covariance(pop_vec, Tet_conc)
 	## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
 	## with a minimum of 1 copy (on the chromosome).
 	tetA_classes = collect(1:length(pop_vec))
 	## get the fitness for each fitness class (defined by tetA copy number).
-	raw_fitness_vec = fitness_function.(tetA_classes, Tet_conc)
+	fitness_vec = fitness_function.(tetA_classes, Tet_conc)
 	## calculate mean fitness in the population,
 	## by weighting fitness for each class by the frequency of each class.
 	frequency_vec = pop_vec/sum(pop_vec)
-	mean_fitness = sum(raw_fitness_vec .* frequency_vec)
+	mean_fitness = sum(fitness_vec .* frequency_vec)
 	
 	## calculate covariance by multiplying fitness deviations
 	## with tetA copy number deviations.
 	mean_tetA_copy_number = sum(tetA_classes .* frequency_vec)
 	tetA_deviation_vec = [(x - mean_tetA_copy_number) for x in tetA_classes]
-	raw_fitness_deviation_vec = [(x - mean_fitness) for x in raw_fitness_vec]
-	tetA_fitness_covariance = sum(tetA_deviation_vec .* raw_fitness_deviation_vec .* frequency_vec)
+	fitness_deviation_vec = [(x - mean_fitness) for x in fitness_vec]
+	tetA_fitness_covariance = sum(tetA_deviation_vec .* fitness_deviation_vec .* frequency_vec)
 	return tetA_fitness_covariance
 end
 
-# ╔═╡ 412c944d-168d-4146-8bc8-7219db9c291a
-function ZeroBasedBinomialSwitchingEntry(a, b, plasmid_copy_num)
-	""" Input parameters:
-	    a: number of tetA transposons in offspring.
-	    b: number of tetA transposons in parent.
-	    plasmid_copy_num: total plasmid copy number. """
-	p = b/plasmid_copy_num ## probability of sampling a plasmid with the tetA transposon.
-	## 'a' is the number of times that the tetA-transposon plasmid picked from parent into offspring.
-	return pdf(Binomial(plasmid_copy_num, p), a)
-end
-
-# ╔═╡ de13afba-dec7-4a7a-a26b-85e26d36a84f
-function OneBasedBinomialSwitchingEntry(i, j, plasmid_copy_num)
-	""" Input parameters:
-	    i: row-index of binomial switching matrix: 1 + number of tetA transposons in offspring.
-	    j: column-index of binomial switching matrix: 1 + number of tetA transposons in parent.
-	    plasmid_copy_num: plasmid copy number. 
-
-	Use ZeroBasedBinomialSwitchingEntry() with this change-of-variables:
-	i = a + 1 ## a is number of tetA transposons in offspring.
-	j = b + 1 ## b is number of tetA transposons in parent.
-	
-	"""
-	return ZeroBasedBinomialSwitchingEntry(i-1,j-1,plasmid_copy_num)
-end
-
-# ╔═╡ 1ab2e8f1-753a-4374-8b5b-1ad3de48a710
-function check_stochastic_matrix(my_matrix)
-	## this function is for debugging the stochastic switching matrix.
-	num_columns = size(my_matrix, 2)
-	for col in 1:num_columns
-        column_sum = sum(my_matrix[:, col])
-        println(column_sum)
-        if isapprox(column_sum, 1.0)
-            println("Sum of column $col is 1.0")
-        else
-            println("Sum of column $col is not equal to 1.0")
-        end
-    end
-end
-
-# ╔═╡ b2abea77-c124-446d-b341-e0334bf5e687
-md""" #### calculate the expected change in trait value due to mutation (in this case, plasmid segregation)"""
-
-# ╔═╡ 1955042b-e29d-4c54-84c3-8d32bed550a3
-function calc_Δₘp_vec(switching_matrix, pop_vec, Tet_conc)
-	## WORKING HERE
-	nrow, ncol = size(switching_matrix)
-	@assert nrow == ncol == length(pop_vec) ## self-consistency check
-
-	Δₘp_vec = zeros(ncol)
-	
-	for j in 1:ncol
-		for i in 1:nrow
-			## IMPORTANT: i,j indices in this code are swapped compared to
-			## notation in the Page and Nowak (2002) paper.
-			## In Page and Nowak, i->j represents ancestor -> mutant.
-			## This implement follows standard matrix multiplication notation,
-			## such that j->i represents ancestor to mutant.
-			
-			## So, the appropriate formula to implement is:
-			## Δₘpⱼ = ∑ᵢ qᵢⱼ(pᵢ - pⱼ)
-			## where qᵢⱼ is switching_matrix[i,j]
-			## and pᵢ is the trait value--
-			## the number of TetA transposons, or i in this case,
-			## since there is always a minimum of one copy on the chromosome.
-			Δₘp_vec[j] += switching_matrix[i,j]*(i - j)
-		end
+# ╔═╡ 82b1580e-e92b-43a9-8255-4b124f3658e1
+function CalcTetACopyNumberFitnessCovarianceFromSol(sol, tet_conc)
+	result_matrix = MakeResultMatrix(sol)
+	copy_num_covariance_vec = []
+	for i in 1:length(sol.u)
+		cur_pop_vec = result_matrix[i]
+		cur_copy_num_covariance = calc_tetA_copy_number_fitness_covariance(cur_pop_vec, tet_conc)
+		
+		append!(copy_num_covariance_vec, cur_copy_num_covariance)
 	end
-
-	return Δₘp_vec
+	return copy_num_covariance_vec
 end
 
 # ╔═╡ 2cb2dae4-33af-4118-87c8-f41c8aba8225
@@ -648,12 +749,9 @@ function calc_expected_trait_change_by_mutation(switching_matrix, pop_vec, Tet_c
 	return expected_trait_change_by_mutation
 end
 
-# ╔═╡ 7ea2ecf4-29d4-41c5-9efe-e86e370f7f7c
-md""" #### calculate the time derivative of the expected change in trait value (Equation 5 in Page and Nowak 2002)."""
-
 # ╔═╡ c99d3673-9f9a-4508-b257-360cc6d0733d
 function calc_delta_expected_trait_change(switching_matrix, pop_vec, Tet_conc)
-
+	""" calculate the time derivative of the expected change in trait value (Equation 5 in Page and Nowak 2002)."""
 	covariance_term = calc_tetA_copy_number_fitness_covariance(pop_vec, Tet_conc)
 
 	## IMPORTANT: let's assume that the expected change in the trait value == 0.
@@ -664,11 +762,29 @@ function calc_delta_expected_trait_change(switching_matrix, pop_vec, Tet_conc)
 
 end
 
+# ╔═╡ 55b6438b-6768-43d8-ba61-fb9786335115
+function SolveConstantTetODESystem(my_pcn, my_tet_conc, my_initial_pop_vec, my_odefunc; my_tspan=tspan)
+	""" 
+	run the simulation for constant [Tet] concentration.
+	in this function, my_initial_pop_vec and my_odefunc must be supplied.
+	"""
+	
+	## max transposon copy number is tied to plasmid_copy_number
+	@assert length(my_initial_pop_vec) == my_pcn + 1
+	
+	## Create an ODEProblem
+	prob = ODEProblem(my_odefunc, my_initial_pop_vec, my_tspan, (my_pcn, my_tet_conc))
+	## Solve the ODE system
+	sol = solve(prob, Tsit5(), abstol=1e-8, reltol=1e-8)
+	
+	return sol
+end
+
 # ╔═╡ 25b88824-0bca-4f2c-a838-e7a5a1cb3676
 md""" ##### sometimes the PCN and TET\_CONC variables do not update properly when the slider is changed-- we have to double check the actual values of the PCN and TET_CONC variables before each slider..."""
 
 # ╔═╡ 6bd86018-8a50-4b8d-a2bd-40bfbe45829b
-PCNSlider = @bind PCN Slider(1:100, default=5, show_value=true)
+PCNSlider = @bind PCN Slider(1:100, default=50, show_value=true)
 
 # ╔═╡ 260df35d-6d1c-42be-8270-01fb62627938
 function SwitchingBinomialMatrix(plasmid_copy_num=PCN, η=η₀)
@@ -704,7 +820,7 @@ PCN
 MAX_TCN = PCN + 1 ## max transposon copy number is tied to plasmid_copy_number
 
 # ╔═╡ a506ff86-41c6-44ac-adf5-c3fdb368cb02
-TetConcSlider = @bind TET_CONC Slider(0:50, default=6, show_value=true)
+TetConcSlider = @bind TET_CONC Slider(0:50, default=30, show_value=true)
 
 # ╔═╡ 45362f0d-76ac-44e8-b6cd-0d1824b3a3b4
 function SelectionDiagonalMatrix(plasmid_copy_num=PCN, Tet_conc=TET_CONC)
@@ -729,6 +845,105 @@ function MutSelMatrix(plasmid_copy_num=PCN, Tet_conc=TET_CONC)
 	return(mutsel_matrix)
 end
 
+# ╔═╡ ea1bdd07-3d5a-49ef-a626-95d9b264d297
+function quasispecies_odefunc(du, u, p, t; ϵ=1e-7)
+	## ϵ is a (1/N) threshold to model bottlenecks in transfers/finite population sizes in experiments
+
+	## pcn and tet_conc needs to be passed in as parameters.
+	pcn, tet_conc = p
+	
+	## Define the ODE system
+	A = MutSelMatrix(pcn, tet_conc)
+
+	## Enforce positivity constraint
+    u .= max.(u, 0.0)
+
+	## set subpopulations with population size < ϵ to zero, to model extinction.
+	u[u .< ϵ] .= 0
+
+	## Normalize the vector to ensure it sums to one
+	normalize_vector!(u)
+	
+	## subtract the mean population growth during this dt interval.
+	Au = A*u ## sugar to avoid recomputation
+	du .= Au - sum(Au) * u
+end
+
+# ╔═╡ 162efa78-e3a7-4ebb-ad7a-395a567071b1
+function SolveConstantTetQuasispeciesSystem(my_pcn, my_tet_conc; 						use_random_initial_vec=false,
+	my_quasispecies_odefunc=quasispecies_odefunc,
+	my_tspan=tspan)
+	""" 
+	run the simulation for constant [Tet] concentration.
+	if use_random_initial_vec is true, then use a random initial population.
+	otherwise, start from one tetA transposon copy in the chromosome.
+	"""
+
+	## max transposon copy number is tied to plasmid_copy_number
+	max_tcn = my_pcn + 1
+
+	if use_random_initial_vec
+		## then sample a random initial condition (sums to one).
+		my_initial_pop_vec = big.(sample_unit_vector(my_max_TCN))
+	else
+		my_initial_pop_vec = zeros(BigFloat, max_tcn)	
+		## initialize the population with one cell with 1 tetA copy.
+		my_initial_pop_vec[1] = big"1.0"
+	end
+	
+	## Create an ODEProblem
+	prob = ODEProblem(my_quasispecies_odefunc, my_initial_pop_vec, my_tspan, (my_pcn, my_tet_conc))
+	## Solve the ODE system
+	sol = solve(prob, Tsit5(), abstol=1e-9, reltol=1e-9)
+	return sol
+end
+
+# ╔═╡ 621be509-5e7e-415a-bcc6-daa7b1903834
+function CalcNormalizedTopEigenvector(pcn, tet_conc)
+
+	## max transposon copy number is tied to plasmid_copy_number
+	max_tcn = pcn + 1
+	
+	A = MutSelMatrix(pcn, tet_conc)
+
+	my_top_eigenvector = [real(x) for x in eigen(A).vectors[:,max_tcn]]
+	## normalize eigenvector to sum to unity
+	normalize_vector!(my_top_eigenvector)
+	return my_top_eigenvector
+	
+end
+
+# ╔═╡ b47a2305-9595-4514-9816-a0819fcd5fec
+function pulse_quasispecies_odefunc(du, u, p, t; ϵ=1e-7)
+	## Define the ODE system.
+	## p is a TetPulseFunction of time that is passed in as a parameter.
+	cur_tet_conc = p(t)
+	
+	## Define the ODE system
+	A = MutSelMatrix(PCN, cur_tet_conc)
+	
+	## Enforce positivity constraint
+    u .= max.(u, 0.0)
+
+	## set subpopulations with population size < ϵ to zero, to model extinction.
+	u[u .< ϵ] .= 0
+
+	## Normalize the vector to ensure it sums to one
+	normalize_vector!(u)
+	
+	## This is more stable-- the numerical error in the fitness calculation
+	## is large enough to cause errors.
+	Au = A*u ## sugar to avoid recomputation
+    du .= Au - sum(Au) * u
+end
+
+# ╔═╡ ea419d1b-1246-4999-a8a4-706c73e14ed8
+function TetPulseFunction(t)
+	## We model [Tet] pulses over time by dividing the current time by 200, and
+	## setting "[Tet] ON" if in the first half.
+	mod(t,200) < 100 ? TET_CONC : 0
+end
+
 # ╔═╡ c37a8b81-8fae-449d-a3f8-2b86081c0ed5
 TET_CONC
 
@@ -751,209 +966,16 @@ md""" #### Set the initial population state. """
 begin
 	## parameters used across time course simulations.
 	initial_pop_vec = zeros(BigFloat, MAX_TCN)
+
+	## initialize the population as a uniform distribution. 
+	##initial_pop_vec .= big(1/MAX_TCN)
 	
-	## initialize the population with one cell with INITIAL_CLONE_TCN tetA copies.
+	## initialize the population as 100% INITIAL_CLONE_TCN tetA copies.
 	initial_pop_vec[INITIAL_CLONE_TCN] = big"1.0"
 	
 	## to show how increasing PCN increases the stability of the optimal state,
 	## initialize the population at the highest fitness state (TCN == TET_CONC). 
 	##initial_pop_vec[TET_CONC] = big"1.0"	
-end
-
-# ╔═╡ 958b0cbc-c6b8-4158-b138-1390cbf208bc
-md""" #### Let's define the quasispecies equation here. """
-
-# ╔═╡ 12de0334-09dd-4565-91cf-a5c4f50f83e9
-function normalize_vector!(u)
-    total = sum(big.(u))
-    if total != 0
-        u .= u / total
-    end
-end
-
-# ╔═╡ af2632c1-393b-43b1-a60b-9093cace4775
-function quasispecies_odefunc(du, u, p, t; ϵ=1e-12)
-	## ϵ is a (1/N) threshold to model bottlenecks in transfers/finite population sizes in experiments
-
-	## pcn and tet_conc needs to be passed in as parameters.
-	pcn, tet_conc = p
-	
-	## Define the ODE system
-	A = MutSelMatrix(pcn, tet_conc)
-
-	## Enforce positivity constraint
-    u .= max.(u, 0.0)
-
-	## set subpopulations with population size < ϵ to zero.
-	u[u .< ϵ] .= 0
-
-	## Normalize the vector to ensure it sums to one
-	normalize_vector!(u)
-	
-	## subtract the mean population growth during this dt interval.
-	Au = A*u ## sugar to avoid recomputation
-	du .= Au - sum(Au) * u
-end
-
-# ╔═╡ cf345279-9f9c-481d-bdf9-5a15f6349ddb
-function sample_unit_vector(n)
-    ## Generate n random numbers
-    x = rand(n)
-	
-    ## Normalize the vector to make the sum equal to one
-    x /= sum(x)
-	
-    return x
-end
-
-# ╔═╡ df040d65-6bee-408a-92a9-5bca931f7dfb
-function SolveConstantTetQuasispeciesSystem(my_pcn, my_tet_conc; 						use_random_initial_vec=false,
-	my_quasispecies_odefunc=quasispecies_odefunc,
-	my_tspan=tspan)
-	""" 
-	run the simulation for constant [Tet] concentration.
-
-	if use_random_initial_vec is true, then use a random initial population.
-
-	otherwise, start from one tetA transposon copy in the chromosome.
-	"""
-
-	## max transposon copy number is tied to plasmid_copy_number
-	max_tcn = my_pcn + 1
-
-	if use_random_initial_vec
-		## then sample a random initial condition (sums to one).
-		my_initial_pop_vec = big.(sample_unit_vector(my_max_TCN))
-	else
-		my_initial_pop_vec = zeros(BigFloat, max_tcn)	
-		## initialize the population with one cell with 1 tetA copy.
-		my_initial_pop_vec[1] = big"1.0"
-	end
-	
-	## Create an ODEProblem
-	prob = ODEProblem(my_quasispecies_odefunc, my_initial_pop_vec, my_tspan, (my_pcn, my_tet_conc))
-	## Solve the ODE system
-	sol = solve(prob, Tsit5())
-	return sol
-end
-
-# ╔═╡ 1a92a7ae-d057-4ca0-942b-135b05075f2c
-function SolveConstantTetODESystem(my_pcn, my_tet_conc, my_initial_pop_vec, my_odefunc; my_tspan=tspan)
-	""" 
-	run the simulation for constant [Tet] concentration.
-
-	in this function, my_initial_pop_vec and my_odefunc must be supplied.
-	"""
-
-	## max transposon copy number is tied to plasmid_copy_number
-	@assert length(my_initial_pop_vec) == my_pcn + 1
-	
-	## Create an ODEProblem
-	prob = ODEProblem(my_odefunc, my_initial_pop_vec, my_tspan, (my_pcn, my_tet_conc))
-	## Solve the ODE system
-	sol = solve(prob, Tsit5())
-	return sol
-end
-
-# ╔═╡ 31590cd1-5a7a-4426-aadb-1a2ec9a2888b
-function MakeResultMatrix(sol)
-	""" make a matrix saving the population dynamics from a solved ODEProblem """
-	result_matrix = [] ## Initialize an empty matrix
-	for i in 1:length(sol.u)
-		total_N = sum(sol.u[i])
-		cur_frequency_vec = sol.u[i]/total_N
-		##concatenate the state vector horizontally into the result_matrix
-		result_matrix = push!(result_matrix, cur_frequency_vec)
-	end
-	return result_matrix
-end
-
-# ╔═╡ 11703f6a-bd4a-440a-b989-a0e162d4009a
-function CalcTetACopyNumberVarianceFromSol(sol)
-	result_matrix = MakeResultMatrix(sol)
-	copy_num_variance_vec = []
-	for i in 1:length(sol.u)
-		cur_pop_vec = result_matrix[i]
-		cur_copy_num_variance = calc_tetA_copy_number_variance(cur_pop_vec)
-		
-		append!(copy_num_variance_vec, cur_copy_num_variance)
-	end
-	return copy_num_variance_vec
-end
-
-# ╔═╡ 08b756e7-30ca-4969-9e71-ebafc473b97a
-function CalcTetACopyNumberFitnessCovarianceFromSol(sol, tet_conc)
-	result_matrix = MakeResultMatrix(sol)
-	copy_num_covariance_vec = []
-	for i in 1:length(sol.u)
-		cur_pop_vec = result_matrix[i]
-		cur_copy_num_covariance = calc_tetA_copy_number_fitness_covariance(cur_pop_vec, tet_conc)
-		
-		append!(copy_num_covariance_vec, cur_copy_num_covariance)
-	end
-	return copy_num_covariance_vec
-end
-
-# ╔═╡ ace25fbf-101a-4540-a1a4-3037e59f8da3
-function CalcTetACopyNumberVelocity(sol)
-
-	result_matrix = MakeResultMatrix(sol)
-	
-	mean_tetA_copy_num_vec = [] 
-	for i in 1:length(result_matrix)
-		cur_pop_vec = result_matrix[i]
-
-		cur_mean_tetA_copy_num = calc_mean_tetA_copy_number(cur_pop_vec)
-		append!(mean_tetA_copy_num_vec, cur_mean_tetA_copy_num)
-	end
-
-	## append a zero to the front of the difference vector.
-	d_mean_tetA_copy_num_vec = [0; diff(mean_tetA_copy_num_vec)]
-	return d_mean_tetA_copy_num_vec
-end
-
-# ╔═╡ 7a82f409-4ae9-4d6a-a707-5cf3995b6371
-function CalcFitnessVelocity(sol, tet_conc)
-
-	result_matrix = MakeResultMatrix(sol)
-	
-	mean_fitness_vec = [] 
-	for i in 1:length(result_matrix)
-		cur_pop_vec = result_matrix[i]
-		cur_mean_fitness = calc_mean_fitness(cur_pop_vec, tet_conc)
-		append!(mean_fitness_vec, cur_mean_fitness)
-	end
-
-	## append a zero to the front of the difference vector.
-	d_mean_fitness_vec = [0; diff(mean_fitness_vec)]
-	return d_mean_fitness_vec
-end
-
-# ╔═╡ ecbccc7c-e331-4b88-a3fd-d28b34c0f2f8
-function CalcNormalizedTopEigenvector(pcn, tet_conc)
-
-	A = MutSelMatrix(pcn, tet_conc)
-
-	my_top_eigenvector = [real(x) for x in eigen(A).vectors[:,pcn+1]]
-	## normalize eigenvector to sum to unity
-	normalize_vector!(my_top_eigenvector)
-	return my_top_eigenvector
-	
-end
-
-# ╔═╡ 9511e3a3-f1f6-49c5-b346-8e14cb72e245
-function ExtractSubpopulationTimecourse(sol, i)
-	## get the i-th subpopulation timecourse.
-	my_time_course = [u[i] for u in sol.u]
-	return my_time_course
-end
-
-# ╔═╡ d808a191-13da-4cd3-96d3-6e9aca17388f
-function Entropy(probability_vec)
-	vec_sum = sum(probability_vec)
-	@assert vec_sum ≈ 1.0 "Error: $probability_vec should sum to one but sums to $vec_sum"
-	my_entropy = sum(map(p -> ifelse(p == 0, 0, -p*log(p)), probability_vec))
-	return my_entropy
 end
 
 # ╔═╡ 96241706-df79-4c86-838d-398302160e3d
@@ -967,7 +989,8 @@ begin
 	prob = ODEProblem(quasispecies_odefunc, initial_pop_vec, tspan, (PCN, TET_CONC))
 	
 	## Solve the ODE system
-	sol1 = solve(prob, Tsit5())
+	# Solve with a smaller tolerance to increase density
+	sol1 = solve(prob, Tsit5(), abstol=1e-8, reltol=1e-8)
 	
 	## Extract the solution
 	final_t1 = sol1.t
@@ -1014,7 +1037,7 @@ time_step_slider = @bind cur_timestep Slider(1:length(final_x1), default=1, show
 # ╔═╡ 6e3e1eec-03c2-4bb3-bb5a-9c27182753c7
 let
 	xvec = collect(1:length(final_x1[1]))
-	plot(xvec, result_matrix[cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution")#, ylims=[0,1])
+	bar(xvec, result_matrix[cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution")#, ylims=[0,1])
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
@@ -1031,10 +1054,10 @@ md""" ##### check whether the final stationary distribution matches the eigenvec
 # ╔═╡ af8a47bd-e823-41ae-9813-0b484f040e4f
 begin
 	Amatrix = MutSelMatrix(PCN, TET_CONC)
-	# Invert the  Amatrix
+	# Invert the Amatrix
 	Amatrix_inv = inv(Amatrix)
 
-	Amatrix_top_eigenvector = [real(x) for x in eigen(Amatrix).vectors[:,PCN+1]]
+	Amatrix_top_eigenvector = [real(x) for x in eigen(Amatrix).vectors[:,MAX_TCN]]
 	# Transform eigenvector back to the original basis
 	original_basis_vector = Amatrix_inv * Amatrix_top_eigenvector
 
@@ -1047,16 +1070,24 @@ end
 
 # ╔═╡ d03e6d49-2c29-4101-9918-b8917fb037d8
 let
-	plot(xvec, final_const_Tet_population)
+	bar(xvec, final_const_Tet_population)
+	# Add a vertical dashed line at x = TET_CONC
+	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
 
 # ╔═╡ bc4a7835-dd9f-42e4-b61e-118a33c7ff96
 let
-	plot(xvec, normalized_Amatrix_top_eigenvector)
+	bar(xvec, normalized_Amatrix_top_eigenvector)
+	# Add a vertical dashed line at x = TET_CONC
+	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
 
 # ╔═╡ 9028f452-a9cd-42ad-94ff-f86e54462a7c
-plot(xvec, normalized_original_basis_vector)
+let
+	bar(xvec, normalized_original_basis_vector)
+	# Add a vertical dashed line at x = TET_CONC
+	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
+end
 
 # ╔═╡ 3e7e6cc9-0cb9-4513-abb4-e3115ca5ef26
 final_const_Tet_population
@@ -1091,9 +1122,8 @@ end
 # ╔═╡ 7b64d16c-f912-4b9a-a3d6-92abfecb6679
 md""" ##### calculate rate of copy number change in the constant [Tet] population."""
 
-# ╔═╡ 94fe5e6f-0c30-4c33-b1ae-a7368c3fc5b2
-## append a zero to the front of the difference vector.
-d_mean_copy_num_vec1 = [0; diff(mean_copy_num_vec1)]
+# ╔═╡ a166af6d-f83b-44a0-a903-32fed22079b8
+d_mean_copy_num_vec1_dt_vec = CalcTetACopyNumberVelocity(sol1)
 
 # ╔═╡ 7bfbb45d-57fc-4c9e-b929-ac44f7f88fef
 md""" ##### calculate tetA copy number--fitness covariance in the constant [Tet] population. """ 
@@ -1108,21 +1138,6 @@ begin
 		append!(copy_num_covariance_vec1, cur_copy_num_covariance)
 	end
 end
-
-# ╔═╡ 15d15ea0-2b38-4fd3-8e73-c0c527eedea1
-let
-	plot(final_t1, copy_num_covariance_vec1, label="tetA copy number fitness covariance")
-	plot!(final_t1, d_mean_copy_num_vec1, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative and covariance")
-end
-
-# ╔═╡ 2ae74e43-9f1c-4ceb-8346-ff7252e897ab
-md""" ##### DEBUGGING: calculate the ratio of these terms. """ 
-
-# ╔═╡ 27d1924d-2899-4178-a0d9-f38b42bbeeb8
-(d_mean_copy_num_vec1 ./ copy_num_covariance_vec1)
-
-# ╔═╡ 4ff84d1f-10ff-4e34-8b08-93b640d39938
-d_mean_copy_num_vec1 - copy_num_covariance_vec1
 
 # ╔═╡ 91d1760c-bbaf-466b-8eb7-623cb0dcd686
 md""" ##### calculate LHS of quasispecies continuous-time Price equation in the constant [Tet] population. """ 
@@ -1143,25 +1158,19 @@ end
 # ╔═╡ 9b92d86b-9f19-4fed-be2b-691d58ffaab6
 let
 	plot(final_t1, constant_tet_pop_Price_equation_LHS_vec, label="Price equation LHS from Page and Nowak 2002")
-	plot!(final_t1, d_mean_copy_num_vec1, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative and covariance")
+	plot!(final_t1, d_mean_copy_num_vec1_dt_vec, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative and covariance")
+end
+
+# ╔═╡ 49830d58-03a3-4379-aeea-767c9a3eeb26
+let
+	plot(final_t1, (d_mean_copy_num_vec1_dt_vec - constant_tet_pop_Price_equation_LHS_vec), label="error check")
 end
 
 # ╔═╡ 1cff27ae-4465-4c38-8b26-5cace8a833d7
 constant_tet_pop_Price_equation_LHS_vec - copy_num_covariance_vec1
 
-# ╔═╡ bcb6e8c7-0816-4668-ae9f-46d7e55cff7f
-md""" ## DEBUGGING TODO 1:
-
-check the key assertion that:
-$r_i(t) = \frac{1}{z_i(t)} \frac{dz_i(t)}{dt} = \frac{d}{dt}ln(z_i(t))$
-
-"""
-
-# ╔═╡ 0b128c07-3260-48ed-afae-4c34cd7bdf68
-
-
 # ╔═╡ f229d787-b9c9-47de-b5cc-790a0eafe637
-md""" ## DEBUGGING TODO 2:
+md""" ## DEBUGGING TODO:
 
 check the key assertion that:
 $\mathbb{E}({\frac{dz(t)}{dt}}) = 0$
@@ -1261,36 +1270,6 @@ end
 # ╔═╡ a2603db4-3fd8-4cc7-a943-8fa142961a61
 md""" ## model the [Tet] pulse conditions of the Darwin experiment."""
 
-# ╔═╡ 7d48400c-10a8-4ecd-a5a0-38773adf23c2
-## We model [Tet] pulses over time by dividing the current time by 200, and
-## setting "[Tet] ON" if in the first half.
-TetPulseFunction = t -> mod(t,200) < 100 ? TET_CONC : 0
-
-# ╔═╡ 81612033-c919-41f2-b3c4-48b48b58e8c6
-function pulse_quasispecies_odefunc(du, u, p, t)
-	## Define the ODE system.
-	## p is a TetPulseFunction of time that is passed in as a parameter.
-	cur_tet_conc = p(t)
-	A = MutSelMatrix(PCN, cur_tet_conc)
-
-	## set subpopulations smaller than ϵ to zero, to model extinction.
-	##ϵ = 1e-7
-	## use a one-line lambda function.
-	##set_values_less_than_ϵ_to_zero = x -> ifelse(x < ϵ, 0.0, x)
-	##u .= set_values_less_than_ϵ_to_zero.(u)
-	
-	## Enforce positivity constraint
-    u .= max.(u, 0.0)
-
-	## Normalize the vector to ensure it sums to one
-	normalize_vector!(u)
-	
-	## This is more stable-- the numerical error in the fitness calculation
-	## is large enough to cause errors.
-	Au = A*u ## sugar to avoid recomputation
-    du .= Au - sum(Au) * u
-end
-
 # ╔═╡ 55f2289b-9268-4bca-9f0f-7f27e29697f8
 begin
 	## run the simulation for pulses of [Tet] concentration.
@@ -1299,24 +1278,14 @@ begin
 	pulse_prob = ODEProblem(pulse_quasispecies_odefunc, initial_pop_vec, tspan, TetPulseFunction)
 
 	## Solve the ODE system
-	pulse_sol = solve(pulse_prob, Tsit5())
+	pulse_sol = solve(pulse_prob, Tsit5(), abstol=1e-8, reltol=1e-8)
 
 	## Extract the solution
 	pulse_final_t = pulse_sol.t
 	pulse_final_x = pulse_sol.u
-end
 
-# ╔═╡ f1c589d0-670c-41a4-87fd-c7d7afa62746
-begin ## let's make a matrix saving the population dynamics.
-
-	pulse_result_matrix = [] ## Initialize an empty matrix
-
-	for i in 1:length(pulse_final_x)
-		total_N = sum(pulse_final_x[i])
-		cur_frequency_vec = pulse_final_x[i]/total_N
-		##concatenate the state vector horizontally into the pulse_result_matrix
-		pulse_result_matrix = push!(pulse_result_matrix, cur_frequency_vec)
-	end
+	## let's make a matrix saving the population dynamics.
+	pulse_result_matrix = MakeResultMatrix(pulse_sol)
 end
 
 # ╔═╡ c83fbfaa-1f5f-40b9-a6c1-68d480c4dfe7
@@ -1325,7 +1294,7 @@ pulse_time_step_slider = @bind pulse_cur_timestep Slider(1:length(pulse_final_x)
 # ╔═╡ 348fabc0-3caa-4585-975e-688a26b7fa8a
 let
 	pulse_xvec = collect(1:length(pulse_final_x[1]))
-	plot(pulse_xvec, pulse_result_matrix[pulse_cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution") ##, ylims=[0,1])
+	bar(pulse_xvec, pulse_result_matrix[pulse_cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution") ##, ylims=[0,1])
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
@@ -1359,15 +1328,11 @@ let
 	plot(pulse_final_t, pulse_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
 end
 
-# ╔═╡ cb227843-8994-4523-8385-1415b701624c
-md""" ##### calculate rate of mean fitness increase in the population."""
-
 # ╔═╡ b74fe640-d568-4e01-9d59-1d1e1cb38c37
 md""" ##### calculate rate of copy number change in the population."""
 
 # ╔═╡ 0c89ebb6-6aee-461a-8f2c-035701f9c9d6
-## append a zero to the front of the difference vector.
-d_pulse_mean_copy_num_vec = [0; diff(pulse_mean_copy_num_vec)]
+d_pulse_mean_copy_num_vec = CalcTetACopyNumberVelocity(pulse_sol)
 
 # ╔═╡ c96f8de0-d619-49c3-b242-b2a07f47a8b4
 md""" ##### calculate tetA copy number--fitness covariance. """ 
@@ -1388,8 +1353,22 @@ end
 
 # ╔═╡ 5f571b12-244c-4e7e-8774-883f0427ff06
 let
-	plot(pulse_final_t, copy_num_covariance_vec, label="tetA copy number fitness covariance")
-	plot!(pulse_final_t, d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right)
+	plot(pulse_final_t, copy_num_covariance_vec, label="tetA copy number fitness covariance",alpha=0.5)
+	plot!(pulse_final_t, d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right,alpha=0.5)
+end
+
+# ╔═╡ ab3d5352-abfa-4de3-8421-eb86472b91ea
+let
+	plot(pulse_final_t, (d_pulse_mean_copy_num_vec - copy_num_covariance_vec), label="error check")
+end
+
+# ╔═╡ e9d58996-30f0-43b2-b13b-9cf7edfcd9eb
+test_matrix = hcat(d_pulse_mean_copy_num_vec, copy_num_covariance_vec)
+
+# ╔═╡ 026d3047-cca8-462f-8df3-b73bdeb4af31
+for row in eachrow(test_matrix)
+    println(join(row, " "))
+	println()
 end
 
 # ╔═╡ e15bbef0-42f1-47d5-af03-ce95468cba93
@@ -1405,7 +1384,7 @@ begin
 	sampled_solution_covariance_velocity_tuples = []
 
 	## sample N times.
-	N = 2
+	N = 5
 	## N = 1000
 	for i in 1:N
 
@@ -1451,7 +1430,7 @@ end
 # ╔═╡ b1697098-07e0-4577-b144-9ecc3879422b
 let
 	scatter(aspect_ratio=1) # Initialize an empty plot
-	scatter!(test_copy_num_velocity, test_copy_num_covariance, xlabel="tetA copy number velocity ", ylabel="tetA copy number-fitness covariance")
+	scatter!(test_copy_num_velocity, test_copy_num_covariance, xlabel="tetA copy number velocity ", ylabel="tetA copy number-fitness covariance",aspect_ratio=1)
 end
 
 # ╔═╡ d530e10c-63ff-49bb-a7b1-ea4b363738d0
@@ -1462,7 +1441,7 @@ begin
 		
 		my_sol, my_copy_num_covariance, my_copy_num_velocity = my_result_tuple
 			
-		scatter!(my_copy_num_velocity, my_copy_num_covariance, xlabel="tetA copy number velocity", ylabel="tetA copy number-fitness covariance", legend=false)		
+		scatter!(my_copy_num_velocity, my_copy_num_covariance, xlabel="tetA copy number velocity", ylabel="tetA copy number-fitness covariance", legend=false)
 	end
 	
 end
@@ -1483,7 +1462,7 @@ The stationary distribution is a function of two parameters, PCN, [Tet]. To draw
 # ╔═╡ 1fe4e134-5347-4b18-8926-db04bcd104b3
 begin ## make eigenspecies_stationary_distribution_matrix.
 	PCN_range_max = 30 #100  ## for PCN max = 100 and [Tet] max = 50,
-	Tet_conc_range_max = 50 ## this cell takes 1h run time.
+	Tet_conc_range_max = 30 ## this cell takes 1h run time.
 
 	## Initialize the matrix. 
 	## Each row is a plasmid copy number, each column is a [Tet] concentration.
@@ -1503,7 +1482,7 @@ end
 final_fitness_variance_eigenspecies_matrix = [calc_fitness_variance(eigenspecies_stationary_distribution_matrix[pcn, tet], tet) for pcn in 1:PCN_range_max, tet in 1:Tet_conc_range_max]
 
 # ╔═╡ e3ab744f-2068-4b86-b87d-85a347137409
-stationary_distribution_fitness_variance_map = heatmap(final_fitness_variance_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="fitness variance of stationary distribution")
+stationary_distribution_fitness_variance_map = heatmap(final_fitness_variance_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="fitness variance of stationary distribution",aspect_ratio=1)
 
 # ╔═╡ c03f7dfb-c38a-4519-86ac-13836c7e2eb1
 stationary_distribution_fitness_variance_map
@@ -1516,7 +1495,7 @@ savefig(stationary_distribution_fitness_variance_map, "../results/modeling-resul
 final_tetA_copy_variance_eigenspecies_matrix = [calc_tetA_copy_number_variance(eigenspecies_stationary_distribution_matrix[pcn, tet]) for pcn in 1:PCN_range_max, tet in 1:Tet_conc_range_max]
 
 # ╔═╡ d1cdb20e-df8f-45be-a9a9-3c445189877d
-stationary_distribution_tetA_variance_map = heatmap(final_tetA_copy_variance_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="tetA copy number variance of stationary distribution")
+stationary_distribution_tetA_variance_map = heatmap(final_tetA_copy_variance_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="tetA copy number variance of stationary distribution",aspect_ratio=1)
 
 # ╔═╡ 8e6cbb29-64ff-4c96-a47c-7c328e8ebd8d
 stationary_distribution_tetA_variance_map
@@ -1532,7 +1511,7 @@ eigenspecies_stationary_distribution_matrix[5,5]
 final_entropy_eigenspecies_matrix = map(Entropy, eigenspecies_stationary_distribution_matrix)
 
 # ╔═╡ 0d52cfa4-142c-4780-a2b0-03a7f2b4e43d
-stationary_distribution_entropy_map = heatmap(final_entropy_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="Shannon entropy of stationary distribution")
+stationary_distribution_entropy_map = heatmap(final_entropy_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="Shannon entropy of stationary distribution",aspect_ratio=1)
 
 # ╔═╡ 02bf9340-d740-4950-9146-579cb1734965
 stationary_distribution_entropy_map
@@ -4564,13 +4543,12 @@ version = "1.4.1+1"
 """
 
 # ╔═╡ Cell order:
-# ╠═44e8209c-8d79-11ef-24db-ff1ea28d01b3
+# ╟─44e8209c-8d79-11ef-24db-ff1ea28d01b3
 # ╟─d4d1f72f-7aa7-46e7-9be0-f38fe991bc0c
-# ╠═c3d81737-fc16-44a0-b3de-bab5e0f7aab2
+# ╟─c3d81737-fc16-44a0-b3de-bab5e0f7aab2
 # ╟─3931b5c1-51df-42f5-86e9-09ddba2d2f11
-# ╠═644f1128-fa1e-442a-9fec-d805284240e9
-# ╠═f8be1737-038a-41c0-9f61-e1980b005ed2
-# ╠═6bbb3d25-1f93-488c-9017-630c54285911
+# ╟─644f1128-fa1e-442a-9fec-d805284240e9
+# ╟─f8be1737-038a-41c0-9f61-e1980b005ed2
 # ╟─b1f80124-822d-46e2-9386-54a0117f833d
 # ╟─749b2bd1-4ccc-48e0-9ab4-bc701500c728
 # ╟─137b0ae4-4718-49bc-8e91-60b0e9f90934
@@ -4578,7 +4556,7 @@ version = "1.4.1+1"
 # ╟─53bcbf1c-a2e2-4931-a4f8-88b7c0ea01f4
 # ╟─4f840ddf-058f-48cc-90ea-609d6cf09ccb
 # ╟─b8e8c64d-841d-4591-9fce-f2648d5d4f53
-# ╠═74892533-c56c-4fbe-82d0-3de7127702f0
+# ╟─74892533-c56c-4fbe-82d0-3de7127702f0
 # ╟─b9277783-9e31-44e5-82a3-a13af62c62e4
 # ╟─2dd8b9bd-057b-45a7-8b72-da50925f6a3b
 # ╟─b753c51f-6682-47e5-a015-c183e221aa32
@@ -4588,7 +4566,7 @@ version = "1.4.1+1"
 # ╟─35adaf46-3b45-4208-aa74-e89a54c4a6d5
 # ╟─248e7e49-749a-4110-a3df-12d9b873b949
 # ╟─039ffb9c-2c1b-423c-a809-93f9e62bc688
-# ╠═021831cb-f7a2-4d45-b78f-e4c9ecac909d
+# ╠═8c80a36a-372a-4fad-92bc-bb4426277f55
 # ╠═78f8dbee-146d-4c48-8c5b-2e319fa931ed
 # ╠═9e9cc2c2-55be-456e-95f0-224b08fbeae3
 # ╠═ef893778-f28f-4ade-ab70-978ded8cfcd5
@@ -4596,9 +4574,9 @@ version = "1.4.1+1"
 # ╠═38fa13dc-2eca-4ac9-87fd-5d82e2e0ce41
 # ╠═0a576694-2971-464e-9c91-35e7e3f29fd0
 # ╠═32fe4cba-f191-4d50-b843-2833a94f42c1
-# ╠═2592492d-ea73-4b4c-ba5b-b9529cc0ba62
+# ╠═bbb2c832-201f-409e-b262-ec7c74b6c490
 # ╠═934ef964-bdc4-4d5d-bd97-e4e32b4d0380
-# ╠═ca34b121-8fa5-45ab-af2d-ba8e162d99c2
+# ╠═892bb0dd-da94-493f-bf72-cdc53a8b0181
 # ╠═b78463f4-1deb-45bd-b091-7ae15a23471b
 # ╠═412c944d-168d-4146-8bc8-7219db9c291a
 # ╠═de13afba-dec7-4a7a-a26b-85e26d36a84f
@@ -4606,12 +4584,25 @@ version = "1.4.1+1"
 # ╠═45362f0d-76ac-44e8-b6cd-0d1824b3a3b4
 # ╠═49e1dd14-e839-45cf-8e0a-f0badd573d67
 # ╠═1ab2e8f1-753a-4374-8b5b-1ad3de48a710
-# ╠═b2abea77-c124-446d-b341-e0334bf5e687
 # ╠═1955042b-e29d-4c54-84c3-8d32bed550a3
 # ╠═2cb2dae4-33af-4118-87c8-f41c8aba8225
-# ╠═7ea2ecf4-29d4-41c5-9efe-e86e370f7f7c
 # ╠═c99d3673-9f9a-4508-b257-360cc6d0733d
-# ╠═25b88824-0bca-4f2c-a838-e7a5a1cb3676
+# ╠═348e1723-08b6-4968-896c-8459afc8bb08
+# ╠═ea1bdd07-3d5a-49ef-a626-95d9b264d297
+# ╠═f1b278a5-1ce4-47b3-b93e-969e1f9ec6bf
+# ╠═162efa78-e3a7-4ebb-ad7a-395a567071b1
+# ╠═55b6438b-6768-43d8-ba61-fb9786335115
+# ╠═96ae7861-63dc-466f-a956-9a743e93dd33
+# ╠═82b1580e-e92b-43a9-8255-4b124f3658e1
+# ╠═66ee7dae-f87d-4b12-91e0-fffdbc420478
+# ╠═bed5464d-47c8-46c4-9037-e73130a5b0e6
+# ╠═621be509-5e7e-415a-bcc6-daa7b1903834
+# ╠═0e4afc90-7273-49a6-a56a-8e3a450c38fa
+# ╠═192ab415-b73a-49d3-ba74-99b5d91ad482
+# ╠═ea419d1b-1246-4999-a8a4-706c73e14ed8
+# ╠═b47a2305-9595-4514-9816-a0819fcd5fec
+# ╠═28bd0eee-f54e-4ab5-aecc-275fe3e8319a
+# ╟─25b88824-0bca-4f2c-a838-e7a5a1cb3676
 # ╠═6bd86018-8a50-4b8d-a2bd-40bfbe45829b
 # ╠═243ee5e3-1489-4c65-ae18-c14516962c68
 # ╠═fbc4a55b-c50e-482e-8fe3-ed554a1d2a02
@@ -4621,20 +4612,6 @@ version = "1.4.1+1"
 # ╠═c40e9cfa-f58f-459c-a994-34bab25c20ad
 # ╠═6fbce7a0-af24-4501-92e4-fbd6b5d27b65
 # ╠═4fd0feac-346b-42bc-b0de-1bf0a4718928
-# ╠═958b0cbc-c6b8-4158-b138-1390cbf208bc
-# ╠═12de0334-09dd-4565-91cf-a5c4f50f83e9
-# ╠═af2632c1-393b-43b1-a60b-9093cace4775
-# ╠═cf345279-9f9c-481d-bdf9-5a15f6349ddb
-# ╠═df040d65-6bee-408a-92a9-5bca931f7dfb
-# ╠═1a92a7ae-d057-4ca0-942b-135b05075f2c
-# ╠═31590cd1-5a7a-4426-aadb-1a2ec9a2888b
-# ╠═11703f6a-bd4a-440a-b989-a0e162d4009a
-# ╠═08b756e7-30ca-4969-9e71-ebafc473b97a
-# ╠═ace25fbf-101a-4540-a1a4-3037e59f8da3
-# ╠═7a82f409-4ae9-4d6a-a707-5cf3995b6371
-# ╠═ecbccc7c-e331-4b88-a3fd-d28b34c0f2f8
-# ╠═9511e3a3-f1f6-49c5-b346-8e14cb72e245
-# ╠═d808a191-13da-4cd3-96d3-6e9aca17388f
 # ╠═96241706-df79-4c86-838d-398302160e3d
 # ╠═1d8f69c1-e2b2-492b-86a5-a9947fe9ac8a
 # ╠═93cf09b0-cc55-43b8-a018-033ca8e5ef82
@@ -4658,19 +4635,14 @@ version = "1.4.1+1"
 # ╠═a928cea9-4b65-413f-ba57-bb9fddc57856
 # ╠═d0c028ae-b991-4558-87e6-41b4f5bfe274
 # ╠═7b64d16c-f912-4b9a-a3d6-92abfecb6679
-# ╠═94fe5e6f-0c30-4c33-b1ae-a7368c3fc5b2
+# ╠═a166af6d-f83b-44a0-a903-32fed22079b8
 # ╠═7bfbb45d-57fc-4c9e-b929-ac44f7f88fef
 # ╠═ed618c65-a9aa-4629-9e69-99ca9a72dfa9
-# ╠═15d15ea0-2b38-4fd3-8e73-c0c527eedea1
-# ╠═2ae74e43-9f1c-4ceb-8346-ff7252e897ab
-# ╠═27d1924d-2899-4178-a0d9-f38b42bbeeb8
-# ╠═4ff84d1f-10ff-4e34-8b08-93b640d39938
 # ╠═91d1760c-bbaf-466b-8eb7-623cb0dcd686
 # ╠═834454ab-3fc4-4b49-a3a1-f10fd699d441
 # ╠═9b92d86b-9f19-4fed-be2b-691d58ffaab6
+# ╠═49830d58-03a3-4379-aeea-767c9a3eeb26
 # ╠═1cff27ae-4465-4c38-8b26-5cace8a833d7
-# ╠═bcb6e8c7-0816-4668-ae9f-46d7e55cff7f
-# ╠═0b128c07-3260-48ed-afae-4c34cd7bdf68
 # ╠═f229d787-b9c9-47de-b5cc-790a0eafe637
 # ╠═4bddf691-83a7-4101-bb00-0fe463e5de77
 # ╠═f96766c2-bd3b-4782-a884-a2d72667d0e4
@@ -4681,10 +4653,7 @@ version = "1.4.1+1"
 # ╠═86e16ddc-a9e0-4e2c-822c-abc9f19d0ccf
 # ╠═933c9aef-3f09-42aa-b7c5-8f7e5c63d1c9
 # ╠═a2603db4-3fd8-4cc7-a943-8fa142961a61
-# ╠═7d48400c-10a8-4ecd-a5a0-38773adf23c2
-# ╠═81612033-c919-41f2-b3c4-48b48b58e8c6
 # ╠═55f2289b-9268-4bca-9f0f-7f27e29697f8
-# ╠═f1c589d0-670c-41a4-87fd-c7d7afa62746
 # ╠═c83fbfaa-1f5f-40b9-a6c1-68d480c4dfe7
 # ╠═348fabc0-3caa-4585-975e-688a26b7fa8a
 # ╠═4acf6a58-6ca5-43e2-8169-75f169cae851
@@ -4693,12 +4662,14 @@ version = "1.4.1+1"
 # ╠═d20f047d-68d3-44eb-a258-3642d1197a88
 # ╠═98b9a0e2-04ba-43b3-9e96-0c0075c9adfa
 # ╠═362c0eff-b354-481d-bc5f-673613e8b0a6
-# ╠═cb227843-8994-4523-8385-1415b701624c
 # ╠═b74fe640-d568-4e01-9d59-1d1e1cb38c37
 # ╠═0c89ebb6-6aee-461a-8f2c-035701f9c9d6
 # ╠═c96f8de0-d619-49c3-b242-b2a07f47a8b4
 # ╠═b0783a87-c365-4e7a-a621-998b6ef0862f
 # ╠═5f571b12-244c-4e7e-8774-883f0427ff06
+# ╠═ab3d5352-abfa-4de3-8421-eb86472b91ea
+# ╠═e9d58996-30f0-43b2-b13b-9cf7edfcd9eb
+# ╠═026d3047-cca8-462f-8df3-b73bdeb4af31
 # ╠═e15bbef0-42f1-47d5-af03-ce95468cba93
 # ╠═38cd0bb1-137f-401b-8279-cc3a28ead6f3
 # ╠═ab7f4870-6967-4910-b272-ed75fb8fbb54
