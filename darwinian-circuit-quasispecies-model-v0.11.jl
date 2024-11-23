@@ -547,7 +547,6 @@ function CalcTetACopyNumberVelocity(sol)
 	mean_tetA_copy_num_vec = [] 
 	for i in 1:length(result_matrix)
 		cur_pop_vec = result_matrix[i]
-
 		cur_mean_tetA_copy_num = calc_mean_tetA_copy_number(cur_pop_vec)
 		append!(mean_tetA_copy_num_vec, cur_mean_tetA_copy_num)
 	end
@@ -609,7 +608,7 @@ function raw_quadratic_fitness_function(tetA_copy_number, Tet_conc, σ=SIGMA, r_
 	for simplicity, define a quadratic function whose peak is shifted
 	left or right based on Tet_conc.
 	"""
-	fitness = r_max - ((Tet_conc - tetA_copy_number)/2σ)^2
+	fitness = r_max - ((tetA_copy_number - Tet_conc)/2σ)^2
 	return fitness
 end
 
@@ -624,22 +623,12 @@ function gaussian_fitness_function(tetA_copy_number, Tet_conc, σ=SIGMA, r_max=R
 	return fitness
 end
 
-# ╔═╡ b916a565-5aa0-4019-8032-b62def284774
-function dirac_delta_fitness_function(tetA_copy_number, Tet_conc, σ=SIGMA, r_max=R_MAX)
-	fitness = 0
-	if tetA_copy_number == Tet_conc
-		fitness = 1
-	end
-	return fitness
-end
-
 # ╔═╡ 38fa13dc-2eca-4ac9-87fd-5d82e2e0ce41
 function fitness_function(tetA_copy_number, Tet_conc, σ=SIGMA, r_max=R_MAX)
 	"""
 	syntactic sugar: many downstream functions depend on this function,
 	so simpler to change the *definition* of this function than to update the *name* of this function across many different blocks of code.
 	"""
-	##return dirac_delta_fitness_function(tetA_copy_number, Tet_conc, σ, r_max)
 	return gaussian_fitness_function(tetA_copy_number, Tet_conc, σ, r_max)
 end
 
@@ -677,22 +666,6 @@ function CalcFitnessVelocity(sol, tet_conc)
 	d_mean_fitness_dt_vec = d_mean_fitness_vec ./ dt_vec
 	
 	return d_mean_fitness_dt_vec
-end
-
-# ╔═╡ 32fe4cba-f191-4d50-b843-2833a94f42c1
-function calc_relative_fitness(pop_vec, Tet_conc)
-	## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
-	## with a minimum of 1 copy (on the chromosome).
-	tetA_classes = collect(1:length(pop_vec))
-	## get the fitness for each fitness class (defined by tetA copy number).
-	fitness_vec = fitness_function.(tetA_classes, Tet_conc)
-	## calculate mean fitness in the population,
-	## by weighting fitness for each class by the frequency of each class.
-	frequency_vec = pop_vec/sum(pop_vec)
-	mean_fitness = sum(fitness_vec .* frequency_vec)
-	## now calculate relative fitness, based on mean fitness.
-	relative_fitness_vec = fitness_vec/mean_fitness
-	return relative_fitness_vec
 end
 
 # ╔═╡ bbb2c832-201f-409e-b262-ec7c74b6c490
@@ -738,8 +711,7 @@ function CalcTetACopyNumberFitnessCovarianceFromSol(sol, tet_conc)
 	copy_num_covariance_vec = []
 	for i in 1:length(sol.u)
 		cur_pop_vec = result_matrix[i]
-		cur_copy_num_covariance = calc_tetA_copy_number_fitness_covariance(cur_pop_vec, tet_conc)
-		
+		cur_copy_num_covariance = calc_tetA_copy_number_fitness_covariance(cur_pop_vec, tet_conc)	
 		append!(copy_num_covariance_vec, cur_copy_num_covariance)
 	end
 	return copy_num_covariance_vec
@@ -987,11 +959,11 @@ begin
 	##initial_pop_vec .= big(1/MAX_TCN)
 	
 	## initialize the population as 100% INITIAL_CLONE_TCN tetA copies.
-	initial_pop_vec[INITIAL_CLONE_TCN] = big"1.0"
+	#initial_pop_vec[INITIAL_CLONE_TCN] = big"1.0"
 	
 	## to show how increasing PCN increases the stability of the optimal state,
 	## initialize the population at the highest fitness state (TCN == TET_CONC). 
-	##initial_pop_vec[TET_CONC] = big"1.0"	
+	initial_pop_vec[TET_CONC] = big"1.0"	
 end
 
 # ╔═╡ 96241706-df79-4c86-838d-398302160e3d
@@ -1373,6 +1345,11 @@ let
 	plot(pulse_final_t, (d_pulse_mean_copy_num_vec - copy_num_covariance_vec), label="error check")
 end
 
+# ╔═╡ c9c7c6e9-75b3-4900-b146-010dd37f4123
+let
+	scatter(copy_num_covariance_vec, d_pulse_mean_copy_num_vec, xlabel="tetA copy number covariance with fitness", ylabel="tetA copy number velocity",label="")
+end
+
 # ╔═╡ e9d58996-30f0-43b2-b13b-9cf7edfcd9eb
 test_matrix = hcat(d_pulse_mean_copy_num_vec, copy_num_covariance_vec)
 
@@ -1386,7 +1363,7 @@ end
 md""" ### Let's test claim 2:
 The speed at which selection tunes population-level gene expression in response to environmental change is determined by the covariance between gene expression and fitness in the population (Price's theorem).
 
-We examine this last claim by randomly sampling 10,000 random initial conditions with random plasmid copy numbers (PCN) and [Tet] concentrations.
+We examine this last claim by randomly sampling 1,000 random initial conditions with random plasmid copy numbers (PCN) and [Tet] concentrations.
 """
 
 # ╔═╡ 38cd0bb1-137f-401b-8279-cc3a28ead6f3
@@ -1495,9 +1472,6 @@ final_fitness_variance_eigenspecies_matrix = [calc_fitness_variance(eigenspecies
 # ╔═╡ e3ab744f-2068-4b86-b87d-85a347137409
 stationary_distribution_fitness_variance_map = heatmap(final_fitness_variance_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="fitness variance of stationary distribution",aspect_ratio=1)
 
-# ╔═╡ c03f7dfb-c38a-4519-86ac-13836c7e2eb1
-stationary_distribution_fitness_variance_map
-
 # ╔═╡ c0bbcd2b-09c7-4422-91e6-d78b7550cc43
 savefig(stationary_distribution_fitness_variance_map, "../results/modeling-results/stationary_distribution_fitness_variance.pdf")
 
@@ -1508,14 +1482,8 @@ final_tetA_copy_variance_eigenspecies_matrix = [calc_tetA_copy_number_variance(e
 # ╔═╡ d1cdb20e-df8f-45be-a9a9-3c445189877d
 stationary_distribution_tetA_variance_map = heatmap(final_tetA_copy_variance_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="tetA copy number variance of stationary distribution",aspect_ratio=1)
 
-# ╔═╡ 8e6cbb29-64ff-4c96-a47c-7c328e8ebd8d
-stationary_distribution_tetA_variance_map
-
 # ╔═╡ 648fa994-88ed-470c-9f85-c5a9713a49b0
 savefig(stationary_distribution_tetA_variance_map, "../results/modeling-results/stationary_distribution_tetA_variance.pdf")
-
-# ╔═╡ 73747cea-cac3-454e-ba69-72ecae098bd8
-eigenspecies_stationary_distribution_matrix[5,5]
 
 # ╔═╡ 27bc3701-8120-4be6-9dac-22f68687dbe5
 ## calculate the entropy of each stationary distribution in the matrix.
@@ -1523,9 +1491,6 @@ final_entropy_eigenspecies_matrix = map(Entropy, eigenspecies_stationary_distrib
 
 # ╔═╡ 0d52cfa4-142c-4780-a2b0-03a7f2b4e43d
 stationary_distribution_entropy_map = heatmap(final_entropy_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="Shannon entropy of stationary distribution",aspect_ratio=1)
-
-# ╔═╡ 02bf9340-d740-4950-9146-579cb1734965
-stationary_distribution_entropy_map
 
 # ╔═╡ d5c3f4e7-e57b-47df-acb5-af76ed7f6748
 savefig(stationary_distribution_entropy_map, "../results/modeling-results/stationary_distribution_entropy.pdf")
@@ -4582,10 +4547,8 @@ version = "1.4.1+1"
 # ╠═78f8dbee-146d-4c48-8c5b-2e319fa931ed
 # ╠═9e9cc2c2-55be-456e-95f0-224b08fbeae3
 # ╠═ef893778-f28f-4ade-ab70-978ded8cfcd5
-# ╠═b916a565-5aa0-4019-8032-b62def284774
 # ╠═38fa13dc-2eca-4ac9-87fd-5d82e2e0ce41
 # ╠═0a576694-2971-464e-9c91-35e7e3f29fd0
-# ╠═32fe4cba-f191-4d50-b843-2833a94f42c1
 # ╠═bbb2c832-201f-409e-b262-ec7c74b6c490
 # ╠═934ef964-bdc4-4d5d-bd97-e4e32b4d0380
 # ╠═892bb0dd-da94-493f-bf72-cdc53a8b0181
@@ -4666,7 +4629,7 @@ version = "1.4.1+1"
 # ╠═cb0d4f61-2a7d-4fe2-b2a7-8b2aafae22bd
 # ╠═86e16ddc-a9e0-4e2c-822c-abc9f19d0ccf
 # ╠═933c9aef-3f09-42aa-b7c5-8f7e5c63d1c9
-# ╠═a2603db4-3fd8-4cc7-a943-8fa142961a61
+# ╟─a2603db4-3fd8-4cc7-a943-8fa142961a61
 # ╠═55f2289b-9268-4bca-9f0f-7f27e29697f8
 # ╠═c83fbfaa-1f5f-40b9-a6c1-68d480c4dfe7
 # ╠═348fabc0-3caa-4585-975e-688a26b7fa8a
@@ -4682,6 +4645,7 @@ version = "1.4.1+1"
 # ╠═b0783a87-c365-4e7a-a621-998b6ef0862f
 # ╠═5f571b12-244c-4e7e-8774-883f0427ff06
 # ╠═ab3d5352-abfa-4de3-8421-eb86472b91ea
+# ╠═c9c7c6e9-75b3-4900-b146-010dd37f4123
 # ╠═e9d58996-30f0-43b2-b13b-9cf7edfcd9eb
 # ╠═026d3047-cca8-462f-8df3-b73bdeb4af31
 # ╠═e15bbef0-42f1-47d5-af03-ce95468cba93
@@ -4693,20 +4657,16 @@ version = "1.4.1+1"
 # ╠═d530e10c-63ff-49bb-a7b1-ea4b363738d0
 # ╠═1f030b53-5503-490e-abf0-20101555d3b1
 # ╠═798394c1-79a3-4886-b42d-c6f20c73c572
-# ╠═83f4511d-ffe2-4677-9940-3cbed562845f
+# ╟─83f4511d-ffe2-4677-9940-3cbed562845f
 # ╠═1fe4e134-5347-4b18-8926-db04bcd104b3
 # ╠═e3f29f0d-2197-4f72-b84b-098e4372f424
 # ╠═e3ab744f-2068-4b86-b87d-85a347137409
-# ╠═c03f7dfb-c38a-4519-86ac-13836c7e2eb1
 # ╠═c0bbcd2b-09c7-4422-91e6-d78b7550cc43
 # ╠═6982529f-7aab-4f1d-bffe-50b0642e0112
 # ╠═d1cdb20e-df8f-45be-a9a9-3c445189877d
-# ╠═8e6cbb29-64ff-4c96-a47c-7c328e8ebd8d
 # ╠═648fa994-88ed-470c-9f85-c5a9713a49b0
-# ╠═73747cea-cac3-454e-ba69-72ecae098bd8
 # ╠═27bc3701-8120-4be6-9dac-22f68687dbe5
 # ╠═0d52cfa4-142c-4780-a2b0-03a7f2b4e43d
-# ╠═02bf9340-d740-4950-9146-579cb1734965
 # ╠═d5c3f4e7-e57b-47df-acb5-af76ed7f6748
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
