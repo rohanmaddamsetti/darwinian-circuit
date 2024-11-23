@@ -535,19 +535,22 @@ function CalcTetACopyNumberVelocity(sol)
 	return d_mean_tetA_copy_num_dt_vec
 end
 
-# ╔═╡ 0e4afc90-7273-49a6-a56a-8e3a450c38fa
-function ExtractSubpopulationTimecourse(sol, i)
-	## get the i-th subpopulation timecourse.
-	my_time_course = [u[i] for u in sol.u]
-	return my_time_course
-end
-
 # ╔═╡ 192ab415-b73a-49d3-ba74-99b5d91ad482
 function Entropy(probability_vec)
 	vec_sum = sum(probability_vec)
 	@assert vec_sum ≈ 1.0 "Error: $probability_vec should sum to one but sums to $vec_sum"
 	my_entropy = sum(map(p -> ifelse(p == 0, 0, -p*log(p)), probability_vec))
 	return my_entropy
+end
+
+# ╔═╡ 0d55f4ed-f01c-43c6-8a58-6edf9b77e9d9
+function chromosomal_tetA_initial_pop_vec(my_pcn)
+	my_max_tcn = my_pcn + 1
+	initial_pop_vec = zeros(BigFloat, my_max_tcn)
+	## initialize the population as 100% 1 chromosomal tetA copy.
+	initial_pop_vec[1] = big"1.0"
+	
+	return initial_pop_vec
 end
 
 # ╔═╡ 8dfdd593-117b-430e-b988-2eaa70484b4c
@@ -721,24 +724,6 @@ function calc_delta_expected_trait_change(switching_matrix, pop_vec, Tet_conc)
 
 end
 
-# ╔═╡ 55b6438b-6768-43d8-ba61-fb9786335115
-function SolveConstantTetODESystem(my_pcn, my_tet_conc, my_initial_pop_vec, my_odefunc; my_tspan=tspan)
-	""" 
-	run the simulation for constant [Tet] concentration.
-	in this function, my_initial_pop_vec and my_odefunc must be supplied.
-	"""
-	
-	## max transposon copy number is tied to plasmid_copy_number
-	@assert length(my_initial_pop_vec) == my_pcn + 1
-	
-	## Create an ODEProblem
-	prob = ODEProblem(my_odefunc, my_initial_pop_vec, my_tspan, (my_pcn, my_tet_conc))
-	## Solve the ODE system
-	sol = solve(prob, Tsit5(), abstol=1e-8, reltol=1e-8)
-	
-	return sol
-end
-
 # ╔═╡ 25b88824-0bca-4f2c-a838-e7a5a1cb3676
 md""" ##### sometimes the PCN and TET\_CONC variables do not update properly when the slider is changed-- we have to double check the actual values of the PCN and TET_CONC variables before each slider..."""
 
@@ -832,7 +817,7 @@ function quasispecies_odefunc(du, u, p, t; ϵ=1e-7)
 end
 
 # ╔═╡ 162efa78-e3a7-4ebb-ad7a-395a567071b1
-function SolveConstantTetQuasispeciesSystem(my_pcn, my_tet_conc; 						use_random_initial_vec=false,
+function SolveConstantTetQuasispeciesSystem(my_initial_pop_vec, my_pcn, my_tet_conc;
 	my_quasispecies_odefunc=quasispecies_odefunc,
 	my_tspan=tspan)
 	""" 
@@ -840,19 +825,9 @@ function SolveConstantTetQuasispeciesSystem(my_pcn, my_tet_conc; 						use_rando
 	if use_random_initial_vec is true, then use a random initial population.
 	otherwise, start from one tetA transposon copy in the chromosome.
 	"""
-
 	## max transposon copy number is tied to plasmid_copy_number
 	max_tcn = my_pcn + 1
 
-	if use_random_initial_vec
-		## then sample a random initial condition (sums to one).
-		my_initial_pop_vec = big.(sample_unit_vector(my_max_TCN))
-	else
-		my_initial_pop_vec = zeros(BigFloat, max_tcn)	
-		## initialize the population with one cell with 1 tetA copy.
-		my_initial_pop_vec[1] = big"1.0"
-	end
-	
 	## Create an ODEProblem
 	prob = ODEProblem(my_quasispecies_odefunc, my_initial_pop_vec, my_tspan, (my_pcn, my_tet_conc))
 	## Solve the ODE system
@@ -932,11 +907,11 @@ begin
 	##initial_pop_vec .= big(1/MAX_TCN)
 	
 	## initialize the population as 100% INITIAL_CLONE_TCN tetA copies.
-	#initial_pop_vec[INITIAL_CLONE_TCN] = big"1.0"
+	initial_pop_vec[INITIAL_CLONE_TCN] = big"1.0"
 	
 	## to show how increasing PCN increases the stability of the optimal state,
 	## initialize the population at the highest fitness state (TCN == TET_CONC). 
-	initial_pop_vec[TET_CONC] = big"1.0"	
+	#initial_pop_vec[TET_CONC] = big"1.0"	
 end
 
 # ╔═╡ 96241706-df79-4c86-838d-398302160e3d
@@ -945,13 +920,7 @@ md""" ## model population dynamics under constant [Tet]."""
 # ╔═╡ 1d8f69c1-e2b2-492b-86a5-a9947fe9ac8a
 begin
 	## run the simulation for constant [Tet] concentration.
-
-	## Create an ODEProblem
-	prob = ODEProblem(quasispecies_odefunc, initial_pop_vec, tspan, (PCN, TET_CONC))
-	
-	## Solve the ODE system
-	# Solve with a smaller tolerance to increase density
-	sol = solve(prob, Tsit5(), abstol=1e-9, reltol=1e-9)
+	sol = SolveConstantTetQuasispeciesSystem(initial_pop_vec, PCN, TET_CONC)
 
 	## get the final stationary distribution in the constant [Tet] population.
 	final_const_Tet_population = sol.u[end]
@@ -1081,22 +1050,22 @@ md""" ## Vary PCN (5, 15, 25, 50), keep [Tet] == 15, and compare rate of changes
 
 # ╔═╡ f96766c2-bd3b-4782-a884-a2d72667d0e4
 begin
-	pcn5_tet15_sol = SolveConstantTetQuasispeciesSystem(5, 15)
+	pcn5_tet15_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(5), 5, 15)
 	pcn5_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn5_tet15_sol, 15)
 	pcn5_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn5_tet15_sol)
 
 	
-	pcn15_tet15_sol = SolveConstantTetQuasispeciesSystem(15, 15)
+	pcn15_tet15_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(15), 15, 15)
 	pcn15_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn15_tet15_sol, 15)
 	pcn15_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn15_tet15_sol)
 
 	
-	pcn25_tet15_sol = SolveConstantTetQuasispeciesSystem(25, 15)
+	pcn25_tet15_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(25), 25, 15)
 	pcn25_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn25_tet15_sol, 15)
 	pcn25_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn25_tet15_sol)
 
 	
-	pcn50_tet15_sol = SolveConstantTetQuasispeciesSystem(50, 15)
+	pcn50_tet15_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(50), 50, 15)
 	pcn50_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn50_tet15_sol, 15)
 	pcn50_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn50_tet15_sol)
 end
@@ -1124,25 +1093,25 @@ md""" ## Vary PCN (5, 15, 25, 40, 50), keep [Tet] == 40, and compare rate of cha
 
 # ╔═╡ cb0d4f61-2a7d-4fe2-b2a7-8b2aafae22bd
 begin
-	pcn5_tet40_sol = SolveConstantTetQuasispeciesSystem(5, 40)
+	pcn5_tet40_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(5), 5, 40)
 	pcn5_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn5_tet40_sol, 40)
 	pcn5_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn5_tet40_sol)
 
 	
-	pcn15_tet40_sol = SolveConstantTetQuasispeciesSystem(15, 40)
+	pcn15_tet40_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(15), 15, 40)
 	pcn15_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn15_tet40_sol, 40)
 	pcn15_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn15_tet40_sol)
 
 	
-	pcn25_tet40_sol = SolveConstantTetQuasispeciesSystem(25, 40)
+	pcn25_tet40_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(25), 25, 40)
 	pcn25_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn25_tet40_sol, 40)
 	pcn25_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn25_tet40_sol)
 
-	pcn40_tet40_sol = SolveConstantTetQuasispeciesSystem(40, 40)
+	pcn40_tet40_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(40), 40, 40)
 	pcn40_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn40_tet40_sol, 40)
 	pcn40_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn40_tet40_sol)
 	
-	pcn100_tet40_sol = SolveConstantTetQuasispeciesSystem(100, 40)
+	pcn100_tet40_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(100), 100, 40)
 	pcn100_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn100_tet40_sol, 40)
 	pcn100_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn100_tet40_sol)
 end
@@ -1177,7 +1146,7 @@ begin
 	pulse_prob = ODEProblem(pulse_quasispecies_odefunc, initial_pop_vec, tspan, TetPulseFunction)
 
 	## Solve the ODE system
-	pulse_sol = solve(pulse_prob, Tsit5(), abstol=1e-8, reltol=1e-8)
+	pulse_sol = solve(pulse_prob, Tsit5(), abstol=1e-9, reltol=1e-9)
 end
 
 # ╔═╡ c83fbfaa-1f5f-40b9-a6c1-68d480c4dfe7
@@ -1280,7 +1249,7 @@ begin
 	sampled_solution_covariance_velocity_tuples = []
 
 	## sample N times.
-	N = 5
+	N = 10
 	## N = 1000
 	for i in 1:N
 
@@ -1293,8 +1262,12 @@ begin
 		my_max_TCN = my_PCN + 1
 		println("PCN is $my_PCN and [Tet] is $my_Tet.")
 		
-		## the solution uses a random initial condition that sums to one.
-		my_sol = SolveConstantTetQuasispeciesSystem(my_PCN, my_Tet, use_random_initial_vec=false)
+		## using a random initial condition that sums to one.
+		my_random_initial_vec = big.(sample_unit_vector(my_max_TCN))
+		my_sol = SolveConstantTetQuasispeciesSystem(my_random_initial_vec, my_PCN, my_Tet)
+		
+		## using an initial condition of one tetA copy on the chromosome.
+		##my_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(my_PCN), my_PCN, my_Tet)
 		
 		my_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(my_sol, my_Tet)
 		
@@ -1318,26 +1291,37 @@ end
 
 # ╔═╡ 47445b3c-bf48-485a-b291-79437595b45a
 let
-	plot()
+	plot(label="")
 	plot!(test_sol.t, test_copy_num_covariance, xlabel="Time", ylabel="tetA copy number covariance")
 	plot!(test_sol.t, test_copy_num_velocity, xlabel="Time", ylabel="tetA copy number velocity")
 end
 
+# ╔═╡ adfa712e-80ca-405e-9854-1d0024c3d6f1
+md""" 
+## BUG FIX TODO: why is the first (velocity, covariance) point off, when starting from a random initial vector?
+""" 
+
+# ╔═╡ 5f9855dd-004f-4dc7-9673-ca5f81fb441b
+let
+	scatter(legend=false) # Initialize an empty plot
+	scatter!(test_copy_num_velocity[1:end], test_copy_num_covariance[1:end], xlabel="tetA copy number velocity ", ylabel="tetA copy number-fitness covariance", aspect_ratio=1)
+end
+
 # ╔═╡ b1697098-07e0-4577-b144-9ecc3879422b
 let
-	scatter(aspect_ratio=1) # Initialize an empty plot
-	scatter!(test_copy_num_velocity, test_copy_num_covariance, xlabel="tetA copy number velocity ", ylabel="tetA copy number-fitness covariance",aspect_ratio=1)
+	scatter(legend=false) # Initialize an empty plot
+	scatter!(test_copy_num_velocity[2:end], test_copy_num_covariance[2:end], xlabel="tetA copy number velocity ", ylabel="tetA copy number-fitness covariance", aspect_ratio=1)
 end
 
 # ╔═╡ d530e10c-63ff-49bb-a7b1-ea4b363738d0
 begin
-	my_big_scatterplot = scatter(aspect_ratio=1)  # Initialize an empty plot
+	my_big_scatterplot = scatter(legend=false)  # Initialize an empty plot
 	
 	for my_result_tuple in sampled_solution_covariance_velocity_tuples
 		
 		my_sol, my_copy_num_covariance, my_copy_num_velocity = my_result_tuple
 			
-		scatter!(my_copy_num_velocity, my_copy_num_covariance, xlabel="tetA copy number velocity", ylabel="tetA copy number-fitness covariance", legend=false)
+		scatter!(my_copy_num_velocity[2:end], my_copy_num_covariance[2:end], xlabel="tetA copy number velocity", ylabel="tetA copy number-fitness covariance", aspect_ratio=1)
 	end
 	
 end
@@ -4473,15 +4457,14 @@ version = "1.4.1+1"
 # ╠═ea1bdd07-3d5a-49ef-a626-95d9b264d297
 # ╠═f1b278a5-1ce4-47b3-b93e-969e1f9ec6bf
 # ╠═162efa78-e3a7-4ebb-ad7a-395a567071b1
-# ╠═55b6438b-6768-43d8-ba61-fb9786335115
 # ╠═82b1580e-e92b-43a9-8255-4b124f3658e1
 # ╠═66ee7dae-f87d-4b12-91e0-fffdbc420478
 # ╠═bed5464d-47c8-46c4-9037-e73130a5b0e6
 # ╠═621be509-5e7e-415a-bcc6-daa7b1903834
-# ╠═0e4afc90-7273-49a6-a56a-8e3a450c38fa
 # ╠═192ab415-b73a-49d3-ba74-99b5d91ad482
 # ╠═ea419d1b-1246-4999-a8a4-706c73e14ed8
 # ╠═b47a2305-9595-4514-9816-a0819fcd5fec
+# ╠═0d55f4ed-f01c-43c6-8a58-6edf9b77e9d9
 # ╟─8dfdd593-117b-430e-b988-2eaa70484b4c
 # ╟─9bd490b7-3f11-487e-b454-785c7d87391b
 # ╠═28bd0eee-f54e-4ab5-aecc-275fe3e8319a
@@ -4549,6 +4532,8 @@ version = "1.4.1+1"
 # ╠═ab7f4870-6967-4910-b272-ed75fb8fbb54
 # ╠═506fb600-7043-4562-8470-ffd2fd48d073
 # ╠═47445b3c-bf48-485a-b291-79437595b45a
+# ╠═adfa712e-80ca-405e-9854-1d0024c3d6f1
+# ╠═5f9855dd-004f-4dc7-9673-ca5f81fb441b
 # ╠═b1697098-07e0-4577-b144-9ecc3879422b
 # ╠═d530e10c-63ff-49bb-a7b1-ea4b363738d0
 # ╠═1f030b53-5503-490e-abf0-20101555d3b1
