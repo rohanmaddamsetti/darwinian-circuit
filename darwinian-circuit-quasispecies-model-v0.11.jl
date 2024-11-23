@@ -399,15 +399,6 @@ md"""
 ## Function definitions
 """
 
-# ╔═╡ 78f8dbee-146d-4c48-8c5b-2e319fa931ed
-function right_pad_vector(vector::Vector{T}, len::Int) where T
-    if length(vector) >= len
-        return vector
-    else
-        return vcat(vector, zeros(T, len - length(vector)))
-    end
-end
-
 # ╔═╡ 934ef964-bdc4-4d5d-bd97-e4e32b4d0380
 function calc_mean_tetA_copy_number(pop_vec)
 	## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
@@ -526,27 +517,11 @@ function sample_unit_vector(n)
     return x
 end
 
-# ╔═╡ 96ae7861-63dc-466f-a956-9a743e93dd33
-function MakeResultMatrix(sol)
-	""" make a matrix saving the population dynamics from a solved ODEProblem """
-	result_matrix = [] ## Initialize an empty matrix
-	for i in 1:length(sol.u)
-		total_N = sum(sol.u[i])
-		cur_frequency_vec = sol.u[i]/total_N
-		##concatenate the state vector horizontally into the result_matrix
-		result_matrix = push!(result_matrix, cur_frequency_vec)
-	end
-	return result_matrix
-end
-
 # ╔═╡ 66ee7dae-f87d-4b12-91e0-fffdbc420478
-function CalcTetACopyNumberVelocity(sol)
-
-	result_matrix = MakeResultMatrix(sol)
-	
+function CalcTetACopyNumberVelocity(sol)	
 	mean_tetA_copy_num_vec = [] 
-	for i in 1:length(result_matrix)
-		cur_pop_vec = result_matrix[i]
+	for i in 1:length(sol.u)
+		cur_pop_vec = sol.u[i]
 		cur_mean_tetA_copy_num = calc_mean_tetA_copy_number(cur_pop_vec)
 		append!(mean_tetA_copy_num_vec, cur_mean_tetA_copy_num)
 	end
@@ -647,13 +622,10 @@ function calc_mean_fitness(pop_vec, Tet_conc)
 end
 
 # ╔═╡ bed5464d-47c8-46c4-9037-e73130a5b0e6
-function CalcFitnessVelocity(sol, tet_conc)
-
-	result_matrix = MakeResultMatrix(sol)
-	
+function CalcFitnessVelocity(sol, tet_conc)	
 	mean_fitness_vec = [] 
-	for i in 1:length(result_matrix)
-		cur_pop_vec = result_matrix[i]
+	for i in 1:length(sol.u)
+		cur_pop_vec = sol.u[i]
 		cur_mean_fitness = calc_mean_fitness(cur_pop_vec, tet_conc)
 		append!(mean_fitness_vec, cur_mean_fitness)
 	end
@@ -707,10 +679,9 @@ end
 
 # ╔═╡ 82b1580e-e92b-43a9-8255-4b124f3658e1
 function CalcTetACopyNumberFitnessCovarianceFromSol(sol, tet_conc)
-	result_matrix = MakeResultMatrix(sol)
 	copy_num_covariance_vec = []
 	for i in 1:length(sol.u)
-		cur_pop_vec = result_matrix[i]
+		cur_pop_vec = sol.u[i]
 		cur_copy_num_covariance = calc_tetA_copy_number_fitness_covariance(cur_pop_vec, tet_conc)	
 		append!(copy_num_covariance_vec, cur_copy_num_covariance)
 	end
@@ -806,6 +777,9 @@ PCN
 
 # ╔═╡ fbc4a55b-c50e-482e-8fe3-ed554a1d2a02
 MAX_TCN = PCN + 1 ## max transposon copy number is tied to plasmid_copy_number
+
+# ╔═╡ 7e02b9c4-be87-4118-9843-64838fbb726a
+xvec = collect(1:MAX_TCN) ## tetA copy number classes for plot x-axes
 
 # ╔═╡ a506ff86-41c6-44ac-adf5-c3fdb368cb02
 TetConcSlider = @bind TET_CONC Slider(0:50, default=30, show_value=true)
@@ -939,8 +913,7 @@ TET_CONC
 InitialCloneSlider = @bind INITIAL_CLONE_TCN Slider(1:MAX_TCN, default=1, show_value=true)
 
 # ╔═╡ c40e9cfa-f58f-459c-a994-34bab25c20ad
-begin
-	xvec = collect(1:MAX_TCN)
+let
 	fitnesses = fitness_function.(xvec, TET_CONC)
 	plot(xvec, fitnesses, label="Fitness", xlabel="tetA copy number", ylabel="Fitness")
 	# Add a vertical dashed line at x = TET_CONC
@@ -980,11 +953,8 @@ begin
 	# Solve with a smaller tolerance to increase density
 	sol = solve(prob, Tsit5(), abstol=1e-9, reltol=1e-9)
 
-	## let's make a matrix saving the population dynamics.
-	result_matrix = MakeResultMatrix(sol)
-
 	## get the final stationary distribution in the constant [Tet] population.
-	final_const_Tet_population = result_matrix[end]
+	final_const_Tet_population = sol.u[end]
 end
 
 # ╔═╡ 2ce5fa35-27ae-4382-a41d-fa835052412d
@@ -992,8 +962,7 @@ time_step_slider = @bind cur_timestep Slider(1:length(sol.u), default=1, show_va
 
 # ╔═╡ 6e3e1eec-03c2-4bb3-bb5a-9c27182753c7
 let
-	xvec = collect(1:length(sol.u[1]))
-	bar(xvec, result_matrix[cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution")
+	bar(xvec, sol.u[cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution")
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
@@ -1046,7 +1015,7 @@ md""" ##### calculate mean copy number in the constant [Tet] population."""
 begin
 	mean_copy_num_vec = []
 	for i in 1:length(sol.u)
-		cur_pop_vec = result_matrix[i]
+		cur_pop_vec = sol.u[i]
 		cur_mean_copy_number = calc_mean_tetA_copy_number(cur_pop_vec)
 		append!(mean_copy_num_vec, cur_mean_copy_number)
 	end
@@ -1066,14 +1035,11 @@ d_mean_copy_num_vec_dt_vec = CalcTetACopyNumberVelocity(sol)
 # ╔═╡ 7bfbb45d-57fc-4c9e-b929-ac44f7f88fef
 md""" ##### calculate tetA copy number--fitness covariance in the constant [Tet] population. """ 
 
-# ╔═╡ 36a0d001-e735-4136-8f5d-a30dd7aeffe8
-sol.u
-
 # ╔═╡ ed618c65-a9aa-4629-9e69-99ca9a72dfa9
 begin
 	copy_num_covariance_vec = []
 	for i in 1:length(sol.u)
-		cur_pop_vec = result_matrix[i]
+		cur_pop_vec = sol.u[i]
 		cur_copy_num_covariance = calc_tetA_copy_number_fitness_covariance(cur_pop_vec, TET_CONC)
 		
 		append!(copy_num_covariance_vec, cur_copy_num_covariance)
@@ -1089,7 +1055,7 @@ begin
 	my_switching_matrix = SwitchingBinomialMatrix(PCN)
 	constant_tet_pop_Price_equation_LHS_vec = []
 	for i in 1:length(sol.u)
-		cur_pop_vec = result_matrix[i]
+		cur_pop_vec = sol.u[i]
 		cur_Price_LHS = calc_delta_expected_trait_change(my_switching_matrix, cur_pop_vec, TET_CONC)
 		
 		append!(constant_tet_pop_Price_equation_LHS_vec, cur_Price_LHS)
@@ -1212,22 +1178,14 @@ begin
 
 	## Solve the ODE system
 	pulse_sol = solve(pulse_prob, Tsit5(), abstol=1e-8, reltol=1e-8)
-
-	## Extract the solution
-	pulse_final_t = pulse_sol.t
-	pulse_final_x = pulse_sol.u
-
-	## let's make a matrix saving the population dynamics.
-	pulse_result_matrix = MakeResultMatrix(pulse_sol)
 end
 
 # ╔═╡ c83fbfaa-1f5f-40b9-a6c1-68d480c4dfe7
-pulse_time_step_slider = @bind pulse_cur_timestep Slider(1:length(pulse_final_x), default=1, show_value=true)
+pulse_time_step_slider = @bind pulse_cur_timestep Slider(1:length(pulse_sol.u), default=1, show_value=true)
 
 # ╔═╡ 348fabc0-3caa-4585-975e-688a26b7fa8a
 let
-	pulse_xvec = collect(1:length(pulse_final_x[1]))
-	bar(pulse_xvec, pulse_result_matrix[pulse_cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution") ##, ylims=[0,1])
+	bar(xvec, pulse_sol.u[pulse_cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution")
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
@@ -1237,11 +1195,11 @@ md""" ### plot the antibiotic pulse regime over time."""
 
 # ╔═╡ c78148c7-be3e-4911-8269-ba95bf8ba9b2
 begin
-	tet_pulse_vec = [TetPulseFunction(t) for t in pulse_final_t]
+	tet_pulse_vec = [TetPulseFunction(t) for t in pulse_sol.t]
 end
 
 # ╔═╡ e22f600c-4468-47ff-93f5-ad004ff5ea23
-plot(pulse_final_t, tet_pulse_vec,label="Tet pulse regime", xlabel="Time", ylabel="Tet concentration")
+plot(pulse_sol.t, tet_pulse_vec,label="Tet pulse regime", xlabel="Time", ylabel="Tet concentration")
 
 # ╔═╡ d20f047d-68d3-44eb-a258-3642d1197a88
 md""" ##### calculate mean copy number in the population."""
@@ -1249,8 +1207,8 @@ md""" ##### calculate mean copy number in the population."""
 # ╔═╡ 98b9a0e2-04ba-43b3-9e96-0c0075c9adfa
 begin
 	pulse_mean_copy_num_vec = []
-	for i in 1:length(pulse_final_x)
-		cur_pop_vec = pulse_result_matrix[i]
+	for i in 1:length(pulse_sol.u)
+		cur_pop_vec = pulse_sol.u[i]
 		cur_mean_copy_number = calc_mean_tetA_copy_number(cur_pop_vec)
 		append!(pulse_mean_copy_num_vec, cur_mean_copy_number)
 	end
@@ -1258,7 +1216,7 @@ end
 
 # ╔═╡ 362c0eff-b354-481d-bc5f-673613e8b0a6
 let
-	plot(pulse_final_t, pulse_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+	plot(pulse_sol.t, pulse_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
 end
 
 # ╔═╡ b74fe640-d568-4e01-9d59-1d1e1cb38c37
@@ -1273,8 +1231,8 @@ md""" ##### calculate tetA copy number--fitness covariance. """
 # ╔═╡ b0783a87-c365-4e7a-a621-998b6ef0862f
 begin
 	pulse_copy_num_covariance_vec = []
-	for i in 1:length(pulse_final_x)
-		cur_pop_vec = pulse_result_matrix[i]
+	for i in 1:length(pulse_sol.u)
+		cur_pop_vec = pulse_sol.u[i]
 		cur_Tet_conc = tet_pulse_vec[i]
 		## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
 		## with a minimum of 1 copy (on the chromosome).
@@ -1286,13 +1244,13 @@ end
 
 # ╔═╡ 5f571b12-244c-4e7e-8774-883f0427ff06
 let
-	plot(pulse_final_t, pulse_copy_num_covariance_vec, label="tetA copy number fitness covariance",alpha=0.5)
-	plot!(pulse_final_t, d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right,alpha=0.5)
+	plot(pulse_sol.t, pulse_copy_num_covariance_vec, label="tetA copy number fitness covariance",alpha=0.5)
+	plot!(pulse_sol.t, d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right,alpha=0.5)
 end
 
 # ╔═╡ ab3d5352-abfa-4de3-8421-eb86472b91ea
 let
-	plot(pulse_final_t, (d_pulse_mean_copy_num_vec - pulse_copy_num_covariance_vec), label="error check")
+	plot(pulse_sol.t, (d_pulse_mean_copy_num_vec - pulse_copy_num_covariance_vec), label="error check")
 end
 
 # ╔═╡ c9c7c6e9-75b3-4900-b146-010dd37f4123
@@ -4494,7 +4452,6 @@ version = "1.4.1+1"
 # ╟─039ffb9c-2c1b-423c-a809-93f9e62bc688
 # ╠═8c80a36a-372a-4fad-92bc-bb4426277f55
 # ╟─cfd4050d-31a8-49ed-9994-076e55c02ceb
-# ╠═78f8dbee-146d-4c48-8c5b-2e319fa931ed
 # ╠═9e9cc2c2-55be-456e-95f0-224b08fbeae3
 # ╠═ef893778-f28f-4ade-ab70-978ded8cfcd5
 # ╠═38fa13dc-2eca-4ac9-87fd-5d82e2e0ce41
@@ -4517,7 +4474,6 @@ version = "1.4.1+1"
 # ╠═f1b278a5-1ce4-47b3-b93e-969e1f9ec6bf
 # ╠═162efa78-e3a7-4ebb-ad7a-395a567071b1
 # ╠═55b6438b-6768-43d8-ba61-fb9786335115
-# ╠═96ae7861-63dc-466f-a956-9a743e93dd33
 # ╠═82b1580e-e92b-43a9-8255-4b124f3658e1
 # ╠═66ee7dae-f87d-4b12-91e0-fffdbc420478
 # ╠═bed5464d-47c8-46c4-9037-e73130a5b0e6
@@ -4533,6 +4489,7 @@ version = "1.4.1+1"
 # ╠═6bd86018-8a50-4b8d-a2bd-40bfbe45829b
 # ╠═243ee5e3-1489-4c65-ae18-c14516962c68
 # ╠═fbc4a55b-c50e-482e-8fe3-ed554a1d2a02
+# ╠═7e02b9c4-be87-4118-9843-64838fbb726a
 # ╠═a506ff86-41c6-44ac-adf5-c3fdb368cb02
 # ╠═c37a8b81-8fae-449d-a3f8-2b86081c0ed5
 # ╠═eb9ea298-95f2-4df7-966a-069ca8965c67
@@ -4554,7 +4511,6 @@ version = "1.4.1+1"
 # ╠═7b64d16c-f912-4b9a-a3d6-92abfecb6679
 # ╠═a166af6d-f83b-44a0-a903-32fed22079b8
 # ╠═7bfbb45d-57fc-4c9e-b929-ac44f7f88fef
-# ╠═36a0d001-e735-4136-8f5d-a30dd7aeffe8
 # ╠═ed618c65-a9aa-4629-9e69-99ca9a72dfa9
 # ╠═91d1760c-bbaf-466b-8eb7-623cb0dcd686
 # ╠═834454ab-3fc4-4b49-a3a1-f10fd699d441
