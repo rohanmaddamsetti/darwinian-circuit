@@ -348,7 +348,7 @@ Here, this final term $\mathbb{E}(\mathbf{r}(t) ⊙ Δ_m \mathbf{z}(t))$ describ
 
 # ╔═╡ 08535a54-414b-4a3e-a718-b356cb22cb23
 md"""
-### Consequences of Price's theorem for diversity-maintaining genetic elements (DGEs). TODO: cut or edit this text??
+### Consequences of Price's theorem for diversity-maintaining genetic elements (DGEs). TODO: edit this text.
 
 Suppose $\overline\delta = 0$. This means that offspring do not systematically deviate from their parents in fitness, which implies no transmission bias in the plasmids, and implies that the environment is not changing (e.g. the antibiotic concentration has not changed).
 
@@ -975,16 +975,15 @@ md""" ##### check whether the final stationary distribution matches the eigenvec
 # ╔═╡ af8a47bd-e823-41ae-9813-0b484f040e4f
 begin
 	Amatrix = MutSelMatrix(PCN, TET_CONC)
-	# Invert the Amatrix
-	Amatrix_inv = inv(Amatrix)
-
 	Amatrix_top_eigenvector = [real(x) for x in eigen(Amatrix).vectors[:,MAX_TCN]]
-	# Transform eigenvector back to the original basis
-	original_basis_vector = Amatrix_inv * Amatrix_top_eigenvector
-
-	## normalize the populations.
+	## normalize the stationary population distribution.
 	normalized_Amatrix_top_eigenvector = Amatrix_top_eigenvector/sum(Amatrix_top_eigenvector)
 
+	## Invert the Amatrix
+	Amatrix_inv = inv(Amatrix)
+	# and transform eigenvector back to the original basis
+	original_basis_vector = Amatrix_inv * Amatrix_top_eigenvector
+	## and normalize the stationary population distribution.
 	normalized_original_basis_vector = original_basis_vector/sum(original_basis_vector)
 end
 
@@ -1212,10 +1211,10 @@ let
 end
 
 # ╔═╡ e9d58996-30f0-43b2-b13b-9cf7edfcd9eb
-test_matrix = hcat(d_pulse_mean_copy_num_vec, pulse_tet_pop_Price_equation_LHS_vec)
+numerical_comparison_matrix = hcat(d_pulse_mean_copy_num_vec, pulse_tet_pop_Price_equation_LHS_vec)
 
 # ╔═╡ 026d3047-cca8-462f-8df3-b73bdeb4af31
-for row in eachrow(test_matrix)
+for row in eachrow(numerical_comparison_matrix)
     println(join(row, " "))
 	println()
 end
@@ -1285,7 +1284,7 @@ end
 
 # ╔═╡ adfa712e-80ca-405e-9854-1d0024c3d6f1
 md""" 
-## BUG FIX TODO: why is the first (velocity, covariance) point off, when starting from a random initial vector?
+##### NOTE: right now the first (velocity, covariance) point is off, when starting from a random initial vector, because the first value of the difference vector is always zero. Perhaps a better numerical estimate can fix this? Otherwise, OK to skip this value. 
 """ 
 
 # ╔═╡ 5f9855dd-004f-4dc7-9673-ca5f81fb441b
