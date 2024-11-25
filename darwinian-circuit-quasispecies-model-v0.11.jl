@@ -308,18 +308,7 @@ See Liorsdottir and Pachter (2023) for a proof of this fact.
 
 """
 
-# ╔═╡ b9277783-9e31-44e5-82a3-a13af62c62e4
-md""" 
-### Continuous-time Price equation.
-The discrete time Price equation has a continuous time analog. It is formulated using the Malthusian fitness $r(t) = r_1,...,r_n$ given by $r_i(t) = \frac{1}{x_i(t)} \frac{dx_i(t)}{dt} = \frac{d}{dt}ln(x_i(t))$  instead of the Wrightian fitness $w(t)$. Note that this implies that $\frac{dx_i(t)}{dt} = r_i(t)x_i(t)$.
-\
-\
-$\frac{d}{dt}\mathbb{E}(\mathbf{z}(t)) = cov(\mathbf{r}(t), \mathbf{z}(t)) + \mathbb{E}(\frac{d\mathbf{z}(t)}{dt})$.
-
-This is the continuum limit of the discrete-time Price equation; See Liorsdottir and Pachter (2023) for a proof of this fact.
-"""
-
-# ╔═╡ 2dd8b9bd-057b-45a7-8b72-da50925f6a3b
+# ╔═╡ 7cc3e6c5-f6f8-42da-8aec-38147950da8a
 md""" 
 **Remarks:**
 \
@@ -329,6 +318,17 @@ md"""
 The $\frac{1}{\mathbf{\overline{w}}}cov(\mathbf{w}(t),\mathbf{z}(t))$ term represents the change due to differential survival and reproduction, encompassing selection and genetic drift. \
 \
 The $\frac{1}{\mathbf{\overline{w}}(t)}\mathbb{E}(\mathbf{w}(t) ⊙ ∆\mathbf{z}(t))$ term represents the change due to processes involved in reproduction, such as recombination, regression toward the mean phenotype, or selection at a lower level of organization (i.e. plasmids or other genetic elements that bias their own transmission into daughter cells, potentially at the expense of other, competing genetic elements, as in meiotic drive or CRISPR drives).
+"""
+
+# ╔═╡ b9277783-9e31-44e5-82a3-a13af62c62e4
+md""" 
+### Continuous-time Price equation.
+The discrete time Price equation has a continuous time analog. It is formulated using the Malthusian fitness $r(t) = r_1,...,r_n$ given by $r_i(t) = \frac{1}{x_i(t)} \frac{dx_i(t)}{dt} = \frac{d}{dt}ln(x_i(t))$  instead of the Wrightian fitness $w(t)$. Note that this implies that $\frac{dx_i(t)}{dt} = r_i(t)x_i(t)$.
+\
+\
+$\frac{d}{dt}\mathbb{E}(\mathbf{z}(t)) = cov(\mathbf{r}(t), \mathbf{z}(t)) + \mathbb{E}(\frac{d\mathbf{z}(t)}{dt})$.
+
+This is the continuum limit of the discrete-time Price equation; See Liorsdottir and Pachter (2023) for a proof of this fact.
 """
 
 # ╔═╡ b753c51f-6682-47e5-a015-c183e221aa32
@@ -811,7 +811,7 @@ function CalcPriceEquationLHS_vec(sol, tet_conc_vec)
 end
 
 # ╔═╡ a506ff86-41c6-44ac-adf5-c3fdb368cb02
-TetConcSlider = @bind TET_CONC Slider(0:50, default=30, show_value=true)
+TetConcSlider = @bind TET_CONC Slider(0:50, default=25, show_value=true)
 
 # ╔═╡ 45362f0d-76ac-44e8-b6cd-0d1824b3a3b4
 function SelectionDiagonalMatrix(plasmid_copy_num=PCN, Tet_conc=TET_CONC)
@@ -4450,8 +4450,8 @@ version = "1.4.1+1"
 # ╟─4f840ddf-058f-48cc-90ea-609d6cf09ccb
 # ╟─b8e8c64d-841d-4591-9fce-f2648d5d4f53
 # ╟─74892533-c56c-4fbe-82d0-3de7127702f0
+# ╟─7cc3e6c5-f6f8-42da-8aec-38147950da8a
 # ╟─b9277783-9e31-44e5-82a3-a13af62c62e4
-# ╟─2dd8b9bd-057b-45a7-8b72-da50925f6a3b
 # ╟─b753c51f-6682-47e5-a015-c183e221aa32
 # ╟─0abeaf9e-5322-4b6d-ba8f-81efd831080b
 # ╟─08535a54-414b-4a3e-a718-b356cb22cb23
