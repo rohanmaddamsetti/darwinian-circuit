@@ -37,7 +37,7 @@ Julia version 1.11.1.
 
 ##### Abstract
 
-Despite considerable interest, the emergence and evolution of collective computation in systems composed of simple equivalent components (e.g. cells, neurons) remains poorly understood. Here, we show the _de novo_ evolution of bacterial clones that modulate population-level gene expression in response to pulses of antibiotic. Genetic diversity is maintained within single cells by balancing selection on intracellular populations of plasmids containing a toxic TetA-GFP transposon. Theory and experiments reveal that when plasmid copy numbers are sufficiently high, diverse plasmids can be maintained within single cells, triggering the emergence of tunable dynamics in clonal populations. Theory shows that the rate at which gene expression changes in response to antibiotic depends on how gene expression covaries with fitness. This work demonstrates how mobile genetic elements allow host populations to rapidly evolve the ability to compute pulses in environmental stressors such as antibiotics, and describes a fundamental evolutionary principle for engineering population-level gene expression with intracellular populations of mobile genetic elements.
+Despite considerable interest, the emergence and evolution of collective computation in systems composed of simple equivalent components (e.g. cells, neurons) remains poorly understood. Here, we show the _de novo_ evolution of bacterial clones that modulate population-level gene expression in response to pulses of antibiotic. Genetic diversity is maintained within single cells by balancing selection on intracellular populations of plasmids containing a toxic TetA-GFP transposon. Theory and experiments reveal that when plasmid copy numbers are sufficiently high, diverse plasmids can be maintained within single cells, triggering the emergence of tunable dynamics in clonal populations. Theory shows that the rate at which gene expression changes in response to antibiotic depends on how gene expression covaries with fitness. This work demonstrates how mobile genetic elements allow host populations to rapidly evolve the ability to compute pulses in environmental stressors such as antibiotics, and describes a fundamental principle for engineering population-level gene expression with intracellular populations of mobile genetic elements.
 
 """
 
@@ -96,12 +96,10 @@ We examine Claim (2) by randomly sampling 1,000 random initial conditions with r
 # ╔═╡ f8be1737-038a-41c0-9f61-e1980b005ed2
 md"""
 ## DEBUGGING TODO: 
-1) refactor code in order to add plots to compare velocities with the LHS of the Price equation.
-2) refactor code to package up things that depend on each other (switching matrices, models, etc.) into classes / structures to avoid inadvertent inconsistencies.
-3) check the key assertion that:
+1) check the key assertion that:
 $\mathbb{E}({\frac{dz(t)}{dt}}) = \sum_{i} x_i \frac{dz(t)}{dt}= 0$
 
-##### BUG: The Price equation prediction is _almost_ correct in the model! Can I find and fix the remaining error? Maybe this is due to numerical error, or something else?
+##### TODO: The Price equation prediction is _almost_ correct in the model--there is some apparent numerical error between the Price equation prediction and actual TetA copy number change when the derivatives are very large. Are there any numerical techniques to reduce the remaining numerical error?
 
 """
 
@@ -469,35 +467,6 @@ function check_stochastic_matrix(my_matrix)
     end
 end
 
-# ╔═╡ 1955042b-e29d-4c54-84c3-8d32bed550a3
-function calc_Δₘp_vec(switching_matrix, pop_vec, Tet_conc)
-	""" calculate the expected change in trait value due to mutation (in this case, plasmid segregation)"""
-	nrow, ncol = size(switching_matrix)
-	@assert nrow == ncol == length(pop_vec) ## self-consistency check
-
-	Δₘp_vec = zeros(ncol)
-	
-	for j in 1:ncol
-		for i in 1:nrow
-			## IMPORTANT: i,j indices in this code are swapped compared to
-			## notation in the Page and Nowak (2002) paper.
-			## In Page and Nowak, i->j represents ancestor -> mutant.
-			## This implement follows standard matrix multiplication notation,
-			## such that j->i represents ancestor to mutant.
-			
-			## So, the appropriate formula to implement is:
-			## Δₘpⱼ = ∑ᵢ qᵢⱼ(pᵢ - pⱼ)
-			## where qᵢⱼ is switching_matrix[i,j]
-			## and pᵢ is the trait value--
-			## the number of TetA transposons, or i in this case,
-			## since there is always a minimum of one copy on the chromosome.
-			Δₘp_vec[j] += switching_matrix[i,j]*(i - j)
-		end
-	end
-
-	return Δₘp_vec
-end
-
 # ╔═╡ 348e1723-08b6-4968-896c-8459afc8bb08
 function normalize_vector!(u)
     total = sum(big.(u))
@@ -510,21 +479,25 @@ end
 function sample_unit_vector(n)
     ## Generate n random numbers
     x = rand(n)
-	
     ## Normalize the vector to make the sum equal to one
     x /= sum(x)
-	
     return x
 end
 
-# ╔═╡ 66ee7dae-f87d-4b12-91e0-fffdbc420478
-function CalcTetACopyNumberVelocity(sol)	
-	mean_tetA_copy_num_vec = [] 
+# ╔═╡ c10d54d1-eb66-4008-8f83-a54342ea8128
+function CalcMeanTetACopyNumberVec(sol)
+	mean_tetA_copy_num_vec = []
 	for i in 1:length(sol.u)
 		cur_pop_vec = sol.u[i]
 		cur_mean_tetA_copy_num = calc_mean_tetA_copy_number(cur_pop_vec)
 		append!(mean_tetA_copy_num_vec, cur_mean_tetA_copy_num)
 	end
+	return mean_tetA_copy_num_vec
+end
+
+# ╔═╡ 66ee7dae-f87d-4b12-91e0-fffdbc420478
+function CalcTetACopyNumberVelocity(sol)	
+	mean_tetA_copy_num_vec = CalcMeanTetACopyNumberVec(sol)
 
 	## append a zero to the front of the difference vector.
 	d_mean_tetA_copy_num_vec = [0; diff(mean_tetA_copy_num_vec)]
@@ -680,52 +653,17 @@ function calc_tetA_copy_number_fitness_covariance(pop_vec, Tet_conc)
 	return tetA_fitness_covariance
 end
 
-# ╔═╡ 82b1580e-e92b-43a9-8255-4b124f3658e1
-function CalcTetACopyNumberFitnessCovarianceFromSol(sol, tet_conc)
+# ╔═╡ 0b129025-f83c-4560-8b3e-a56356966db4
+function CalcTetACopyNumberFitnessCovariance(sol, tet_conc_vec)
 	copy_num_covariance_vec = []
 	for i in 1:length(sol.u)
 		cur_pop_vec = sol.u[i]
-		cur_copy_num_covariance = calc_tetA_copy_number_fitness_covariance(cur_pop_vec, tet_conc)	
+		cur_Tet_conc = tet_conc_vec[i]
+		cur_copy_num_covariance = calc_tetA_copy_number_fitness_covariance(cur_pop_vec, cur_Tet_conc)	
 		append!(copy_num_covariance_vec, cur_copy_num_covariance)
 	end
 	return copy_num_covariance_vec
 end
-
-# ╔═╡ 2cb2dae4-33af-4118-87c8-f41c8aba8225
-function calc_expected_trait_change_by_mutation(switching_matrix, pop_vec, Tet_conc)
-	## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
-	## with a minimum of 1 copy (on the chromosome).
-	tetA_classes = collect(1:length(pop_vec))
-
-	## get the fitness for each fitness class (defined by tetA copy number).
-	## use BigFloats to get better numerical precision.
-	growth_rate_vec = big.(fitness_function.(tetA_classes, Tet_conc))
-
-	frequency_vec = pop_vec/sum(pop_vec)
-
-	Δₘp_vec = calc_Δₘp_vec(switching_matrix, pop_vec, Tet_conc)
-
-	## see the formula given in Page and Nowak (2002).
-	expected_trait_change_by_mutation = sum(frequency_vec .* growth_rate_vec .* Δₘp_vec)
-
-	return expected_trait_change_by_mutation
-end
-
-# ╔═╡ c99d3673-9f9a-4508-b257-360cc6d0733d
-function calc_delta_expected_trait_change(switching_matrix, pop_vec, Tet_conc)
-	""" calculate the time derivative of the expected change in trait value (Equation 5 in Page and Nowak 2002)."""
-	covariance_term = calc_tetA_copy_number_fitness_covariance(pop_vec, Tet_conc)
-
-	## IMPORTANT: let's assume that the expected change in the trait value == 0.
-	
-	mut_term = calc_expected_trait_change_by_mutation(switching_matrix, pop_vec, Tet_conc)
-
-	return (covariance_term + mut_term)
-
-end
-
-# ╔═╡ 25b88824-0bca-4f2c-a838-e7a5a1cb3676
-md""" ##### sometimes the PCN and TET\_CONC variables do not update properly when the slider is changed-- we have to double check the actual values of the PCN and TET_CONC variables before each slider..."""
 
 # ╔═╡ 6bd86018-8a50-4b8d-a2bd-40bfbe45829b
 PCNSlider = @bind PCN Slider(1:100, default=50, show_value=true)
@@ -757,14 +695,85 @@ function SwitchingBinomialMatrix(plasmid_copy_num=PCN, η=η₀)
 	return(switching_matrix)
 end
 
-# ╔═╡ 243ee5e3-1489-4c65-ae18-c14516962c68
-PCN
+# ╔═╡ 1955042b-e29d-4c54-84c3-8d32bed550a3
+function calc_Δₘp_vec(pop_vec, Tet_conc)
+	""" calculate the expected change in trait value due to mutation (in this case, plasmid segregation)"""
 
-# ╔═╡ fbc4a55b-c50e-482e-8fe3-ed554a1d2a02
-MAX_TCN = PCN + 1 ## max transposon copy number is tied to plasmid_copy_number
+	## length of pop_vec is max_TCN, which is pcn + 1.
+	my_pcn = length(pop_vec) - 1
+	## switching_matrix has dimensions (my_pcn+1) x (my_pcn+1)
+	## NOTE: this code is valid because this notebook assumes the use
+	## of the SwitchingBinomialMatrix throughout.
+	switching_matrix = SwitchingBinomialMatrix(my_pcn)
+	nrow, ncol = size(switching_matrix)
+	@assert nrow == ncol == length(pop_vec) ## self-consistency check
 
-# ╔═╡ 7e02b9c4-be87-4118-9843-64838fbb726a
-xvec = collect(1:MAX_TCN) ## tetA copy number classes for plot x-axes
+	Δₘp_vec = zeros(ncol)
+	
+	for j in 1:ncol
+		for i in 1:nrow
+			## IMPORTANT: i,j indices in this code are swapped compared to
+			## notation in the Page and Nowak (2002) paper.
+			## In Page and Nowak, i->j represents ancestor -> mutant.
+			## This code follows standard matrix multiplication notation,
+			## such that j->i represents ancestor to mutant.
+			
+			## So, the appropriate formula to implement is:
+			## Δₘpⱼ = ∑ᵢ qᵢⱼ(pᵢ - pⱼ)
+			## where qᵢⱼ is switching_matrix[i,j]
+			## and pᵢ is the trait value--
+			## the number of TetA transposons, or i in this case,
+			## since there is always a minimum of one copy on the chromosome.
+			Δₘp_vec[j] += switching_matrix[i,j]*(i - j)
+		end
+	end
+
+	return Δₘp_vec
+end
+
+# ╔═╡ 2cb2dae4-33af-4118-87c8-f41c8aba8225
+function calc_expected_trait_change_by_mutation(pop_vec, Tet_conc)
+	## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
+	## with a minimum of 1 copy (on the chromosome).
+	tetA_classes = collect(1:length(pop_vec))
+
+	## get the fitness for each fitness class (defined by tetA copy number).
+	## use BigFloats to get better numerical precision.
+	growth_rate_vec = big.(fitness_function.(tetA_classes, Tet_conc))
+
+	frequency_vec = pop_vec/sum(pop_vec)
+
+	Δₘp_vec = calc_Δₘp_vec(pop_vec, Tet_conc)
+
+	## see the formula given in Page and Nowak (2002).
+	expected_trait_change_by_mutation = sum(frequency_vec .* growth_rate_vec .* Δₘp_vec)
+
+	return expected_trait_change_by_mutation
+end
+
+# ╔═╡ c99d3673-9f9a-4508-b257-360cc6d0733d
+function calc_delta_expected_trait_change(pop_vec, Tet_conc)
+	""" calculate the time derivative of the expected change in trait value (Equation 5 in Page and Nowak 2002)."""
+	covariance_term = calc_tetA_copy_number_fitness_covariance(pop_vec, Tet_conc)
+
+	## IMPORTANT: let's assume that the expected change in the trait value == 0.
+	
+	mut_term = calc_expected_trait_change_by_mutation(pop_vec, Tet_conc)
+
+	return (covariance_term + mut_term)
+end
+
+# ╔═╡ 36bab24f-30a2-489f-94e0-fa5962a49b37
+function CalcPriceEquationLHS_vec(sol, tet_conc_vec)
+	Price_equation_LHS_vec = []
+	for i in 1:length(sol.u)
+		cur_pop_vec = sol.u[i]
+		cur_tet_conc = tet_conc_vec[i]
+		cur_Price_LHS = calc_delta_expected_trait_change(cur_pop_vec, cur_tet_conc)
+		append!(Price_equation_LHS_vec, cur_Price_LHS)
+	end
+	return Price_equation_LHS_vec
+end
 
 # ╔═╡ a506ff86-41c6-44ac-adf5-c3fdb368cb02
 TetConcSlider = @bind TET_CONC Slider(0:50, default=30, show_value=true)
@@ -837,7 +846,6 @@ end
 
 # ╔═╡ 621be509-5e7e-415a-bcc6-daa7b1903834
 function CalcNormalizedTopEigenvector(pcn, tet_conc)
-
 	## max transposon copy number is tied to plasmid_copy_number
 	max_tcn = pcn + 1
 	
@@ -846,8 +854,7 @@ function CalcNormalizedTopEigenvector(pcn, tet_conc)
 	my_top_eigenvector = [real(x) for x in eigen(A).vectors[:,max_tcn]]
 	## normalize eigenvector to sum to unity
 	normalize_vector!(my_top_eigenvector)
-	return my_top_eigenvector
-	
+	return my_top_eigenvector	
 end
 
 # ╔═╡ b47a2305-9595-4514-9816-a0819fcd5fec
@@ -881,11 +888,21 @@ function TetPulseFunction(t)
 	mod(t,200) < 100 ? TET_CONC : 0
 end
 
-# ╔═╡ c37a8b81-8fae-449d-a3f8-2b86081c0ed5
-TET_CONC
+# ╔═╡ 9241c94d-857c-4a31-93f1-cfed036cf2f2
+md""" ##### sometimes the PCN and TET\_CONC variables do not update properly when the slider is changed-- double check the actual values of the PCN and TET_CONC variables..."""
+
+# ╔═╡ 09c74702-0d19-4049-8f8e-6f91a0163dcc
+begin
+	MAX_TCN = PCN + 1 ## max transposon copy number is tied to plasmid_copy_number
+	xvec = collect(1:MAX_TCN) ## tetA copy number classes for plot x-axes
+	println("PCN is $PCN, [Tet] is $TET_CONC")
+end
 
 # ╔═╡ eb9ea298-95f2-4df7-966a-069ca8965c67
 InitialCloneSlider = @bind INITIAL_CLONE_TCN Slider(1:MAX_TCN, default=1, show_value=true)
+
+# ╔═╡ e1cd955e-a069-426b-b222-c60790c809b3
+INITIAL_CLONE_TCN
 
 # ╔═╡ c40e9cfa-f58f-459c-a994-34bab25c20ad
 let
@@ -924,6 +941,22 @@ begin
 
 	## get the final stationary distribution in the constant [Tet] population.
 	final_const_Tet_population = sol.u[end]
+
+	## make a vector of tet concentration over time in the model solution
+	## for calculating summary statistics.
+	const_tet_vec = [TET_CONC for t in sol.t]
+
+	## calculate mean copy number in the constant [Tet] population.
+	mean_copy_num_vec = CalcMeanTetACopyNumberVec(sol)
+
+	## calculate rate of copy number change in the constant [Tet] population.
+	d_mean_copy_num_vec_dt_vec = CalcTetACopyNumberVelocity(sol)
+
+	## calculate tetA copy number--fitness covariance in the constant [Tet] population.
+	copy_num_covariance_vec = CalcTetACopyNumberFitnessCovariance(sol, const_tet_vec)
+
+	## calculate Price equation LHS (covariance + mutation terms) for the constant [Tet] population.
+	constant_tet_pop_Price_equation_LHS_vec = CalcPriceEquationLHS_vec(sol, const_tet_vec)
 end
 
 # ╔═╡ 2ce5fa35-27ae-4382-a41d-fa835052412d
@@ -953,83 +986,48 @@ begin
 	normalized_Amatrix_top_eigenvector = Amatrix_top_eigenvector/sum(Amatrix_top_eigenvector)
 
 	normalized_original_basis_vector = original_basis_vector/sum(original_basis_vector)
-	
 end
 
 # ╔═╡ d03e6d49-2c29-4101-9918-b8917fb037d8
 let
-	bar(xvec, final_const_Tet_population)
+	bar(xvec, final_const_Tet_population, label="")
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
 
 # ╔═╡ bc4a7835-dd9f-42e4-b61e-118a33c7ff96
 let
-	bar(xvec, normalized_Amatrix_top_eigenvector)
+	bar(xvec, normalized_Amatrix_top_eigenvector, label="")
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
 
 # ╔═╡ 9028f452-a9cd-42ad-94ff-f86e54462a7c
 let
-	bar(xvec, normalized_original_basis_vector)
+	bar(xvec, normalized_original_basis_vector, label="")
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
 
 # ╔═╡ e4e8c61d-5503-490f-993d-bb1464def4c9
-md""" ##### calculate mean copy number in the constant [Tet] population."""
-
-# ╔═╡ a928cea9-4b65-413f-ba57-bb9fddc57856
-begin
-	mean_copy_num_vec = []
-	for i in 1:length(sol.u)
-		cur_pop_vec = sol.u[i]
-		cur_mean_copy_number = calc_mean_tetA_copy_number(cur_pop_vec)
-		append!(mean_copy_num_vec, cur_mean_copy_number)
-	end
-end
+md""" ##### plot mean copy number in the constant [Tet] population."""
 
 # ╔═╡ d0c028ae-b991-4558-87e6-41b4f5bfe274
 let
 	plot(sol.t, mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
 end
 
-# ╔═╡ 7b64d16c-f912-4b9a-a3d6-92abfecb6679
-md""" ##### calculate rate of copy number change in the constant [Tet] population."""
-
-# ╔═╡ a166af6d-f83b-44a0-a903-32fed22079b8
-d_mean_copy_num_vec_dt_vec = CalcTetACopyNumberVelocity(sol)
-
 # ╔═╡ 7bfbb45d-57fc-4c9e-b929-ac44f7f88fef
-md""" ##### calculate tetA copy number--fitness covariance in the constant [Tet] population. """ 
+md""" ##### plot tetA copy number--fitness covariance in the constant [Tet] population. """ 
 
-# ╔═╡ ed618c65-a9aa-4629-9e69-99ca9a72dfa9
-begin
-	copy_num_covariance_vec = []
-	for i in 1:length(sol.u)
-		cur_pop_vec = sol.u[i]
-		cur_copy_num_covariance = calc_tetA_copy_number_fitness_covariance(cur_pop_vec, TET_CONC)
-		
-		append!(copy_num_covariance_vec, cur_copy_num_covariance)
-	end
+# ╔═╡ 73873c97-daf6-4133-a657-90de30803517
+let
+	plot(sol.t, copy_num_covariance_vec, label="tetA-fitness covariance")
+	plot!(sol.t, d_mean_copy_num_vec_dt_vec, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative and covariance")
 end
 
 # ╔═╡ 91d1760c-bbaf-466b-8eb7-623cb0dcd686
-md""" ##### calculate LHS of quasispecies continuous-time Price equation in the constant [Tet] population. """ 
-
-# ╔═╡ 834454ab-3fc4-4b49-a3a1-f10fd699d441
-begin
-	## TODO: wrap up my_switching_matrix into a sensible object with the results.
-	my_switching_matrix = SwitchingBinomialMatrix(PCN)
-	constant_tet_pop_Price_equation_LHS_vec = []
-	for i in 1:length(sol.u)
-		cur_pop_vec = sol.u[i]
-		cur_Price_LHS = calc_delta_expected_trait_change(my_switching_matrix, cur_pop_vec, TET_CONC)
-		
-		append!(constant_tet_pop_Price_equation_LHS_vec, cur_Price_LHS)
-	end
-end
+md""" ##### plot LHS of quasispecies continuous-time Price equation in the constant [Tet] population. """ 
 
 # ╔═╡ 9b92d86b-9f19-4fed-be2b-691d58ffaab6
 let
@@ -1051,22 +1049,22 @@ md""" ## Vary PCN (5, 15, 25, 50), keep [Tet] == 15, and compare rate of changes
 # ╔═╡ f96766c2-bd3b-4782-a884-a2d72667d0e4
 begin
 	pcn5_tet15_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(5), 5, 15)
-	pcn5_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn5_tet15_sol, 15)
+	pcn5_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn5_tet15_sol, [15 for t in pcn5_tet15_sol.t])
 	pcn5_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn5_tet15_sol)
 
 	
 	pcn15_tet15_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(15), 15, 15)
-	pcn15_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn15_tet15_sol, 15)
+	pcn15_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn15_tet15_sol, [15 for t in pcn15_tet15_sol.t])
 	pcn15_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn15_tet15_sol)
 
 	
 	pcn25_tet15_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(25), 25, 15)
-	pcn25_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn25_tet15_sol, 15)
+	pcn25_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn25_tet15_sol, [15 for t in pcn25_tet15_sol.t])
 	pcn25_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn25_tet15_sol)
 
 	
 	pcn50_tet15_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(50), 50, 15)
-	pcn50_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn50_tet15_sol, 15)
+	pcn50_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn50_tet15_sol, [15 for t in pcn50_tet15_sol.t])
 	pcn50_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn50_tet15_sol)
 end
 
@@ -1094,25 +1092,25 @@ md""" ## Vary PCN (5, 15, 25, 40, 50), keep [Tet] == 40, and compare rate of cha
 # ╔═╡ cb0d4f61-2a7d-4fe2-b2a7-8b2aafae22bd
 begin
 	pcn5_tet40_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(5), 5, 40)
-	pcn5_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn5_tet40_sol, 40)
+	pcn5_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn5_tet40_sol, [40 for t in pcn5_tet40_sol.t])
 	pcn5_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn5_tet40_sol)
 
 	
 	pcn15_tet40_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(15), 15, 40)
-	pcn15_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn15_tet40_sol, 40)
+	pcn15_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn15_tet40_sol, [40 for t in pcn15_tet40_sol.t])
 	pcn15_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn15_tet40_sol)
 
 	
 	pcn25_tet40_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(25), 25, 40)
-	pcn25_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn25_tet40_sol, 40)
+	pcn25_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn25_tet40_sol, [40 for t in pcn25_tet40_sol.t])
 	pcn25_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn25_tet40_sol)
 
 	pcn40_tet40_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(40), 40, 40)
-	pcn40_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn40_tet40_sol, 40)
+	pcn40_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn40_tet40_sol, [40 for t in pcn40_tet40_sol.t])
 	pcn40_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn40_tet40_sol)
 	
 	pcn100_tet40_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(100), 100, 40)
-	pcn100_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(pcn100_tet40_sol, 40)
+	pcn100_tet40_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn100_tet40_sol, [40 for t in pcn100_tet40_sol.t])
 	pcn100_tet40_copy_num_velocity = CalcTetACopyNumberVelocity(pcn100_tet40_sol)
 end
 
@@ -1139,14 +1137,28 @@ end
 md""" ## model the [Tet] pulse conditions of the Darwin experiment."""
 
 # ╔═╡ 55f2289b-9268-4bca-9f0f-7f27e29697f8
-begin
-	## run the simulation for pulses of [Tet] concentration.
-	
+begin ## run the simulation for pulses of [Tet] concentration.
 	## Create an ODEProblem
 	pulse_prob = ODEProblem(pulse_quasispecies_odefunc, initial_pop_vec, tspan, TetPulseFunction)
 
 	## Solve the ODE system
 	pulse_sol = solve(pulse_prob, Tsit5(), abstol=1e-9, reltol=1e-9)
+
+	## calculate mean copy number.
+	pulse_mean_copy_num_vec = CalcMeanTetACopyNumberVec(pulse_sol)
+	
+	## make a vector of tet concentration over time in the model solution
+	## for calculating summary statistics.
+	tet_pulse_vec = [TetPulseFunction(t) for t in pulse_sol.t]
+
+	## calculate rate of copy number change.
+	d_pulse_mean_copy_num_vec = CalcTetACopyNumberVelocity(pulse_sol)
+
+	## calculate tetA copy number--fitness covariance. 
+	pulse_copy_num_covariance_vec = CalcTetACopyNumberFitnessCovariance(pulse_sol, tet_pulse_vec)
+
+	## calculate Price equation LHS (covariance + mutation terms).
+	pulse_tet_pop_Price_equation_LHS_vec = CalcPriceEquationLHS_vec(pulse_sol, tet_pulse_vec)
 end
 
 # ╔═╡ c83fbfaa-1f5f-40b9-a6c1-68d480c4dfe7
@@ -1162,53 +1174,15 @@ end
 # ╔═╡ 4acf6a58-6ca5-43e2-8169-75f169cae851
 md""" ### plot the antibiotic pulse regime over time."""
 
-# ╔═╡ c78148c7-be3e-4911-8269-ba95bf8ba9b2
-begin
-	tet_pulse_vec = [TetPulseFunction(t) for t in pulse_sol.t]
-end
-
 # ╔═╡ e22f600c-4468-47ff-93f5-ad004ff5ea23
 plot(pulse_sol.t, tet_pulse_vec,label="Tet pulse regime", xlabel="Time", ylabel="Tet concentration")
 
 # ╔═╡ d20f047d-68d3-44eb-a258-3642d1197a88
-md""" ##### calculate mean copy number in the population."""
-
-# ╔═╡ 98b9a0e2-04ba-43b3-9e96-0c0075c9adfa
-begin
-	pulse_mean_copy_num_vec = []
-	for i in 1:length(pulse_sol.u)
-		cur_pop_vec = pulse_sol.u[i]
-		cur_mean_copy_number = calc_mean_tetA_copy_number(cur_pop_vec)
-		append!(pulse_mean_copy_num_vec, cur_mean_copy_number)
-	end
-end
+md""" ##### plot mean copy number in the population."""
 
 # ╔═╡ 362c0eff-b354-481d-bc5f-673613e8b0a6
 let
 	plot(pulse_sol.t, pulse_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
-end
-
-# ╔═╡ b74fe640-d568-4e01-9d59-1d1e1cb38c37
-md""" ##### calculate rate of copy number change in the population."""
-
-# ╔═╡ 0c89ebb6-6aee-461a-8f2c-035701f9c9d6
-d_pulse_mean_copy_num_vec = CalcTetACopyNumberVelocity(pulse_sol)
-
-# ╔═╡ c96f8de0-d619-49c3-b242-b2a07f47a8b4
-md""" ##### calculate tetA copy number--fitness covariance. """ 
-
-# ╔═╡ b0783a87-c365-4e7a-a621-998b6ef0862f
-begin
-	pulse_copy_num_covariance_vec = []
-	for i in 1:length(pulse_sol.u)
-		cur_pop_vec = pulse_sol.u[i]
-		cur_Tet_conc = tet_pulse_vec[i]
-		## KEY MODELING ASSUMPTION: the index is the number of tetA copies,
-		## with a minimum of 1 copy (on the chromosome).
-		cur_copy_num_covariance = calc_tetA_copy_number_fitness_covariance(cur_pop_vec, cur_Tet_conc)
-		
-		append!(pulse_copy_num_covariance_vec, cur_copy_num_covariance)
-	end
 end
 
 # ╔═╡ 5f571b12-244c-4e7e-8774-883f0427ff06
@@ -1227,8 +1201,18 @@ let
 	scatter(pulse_copy_num_covariance_vec, d_pulse_mean_copy_num_vec, xlabel="tetA copy number covariance with fitness", ylabel="tetA copy number velocity",label="")
 end
 
+# ╔═╡ cef4643c-fd32-4a75-b9ab-0276341fc0bb
+let
+	scatter(pulse_tet_pop_Price_equation_LHS_vec, d_pulse_mean_copy_num_vec, xlabel="Price equation LHS", ylabel="tetA copy number velocity",label="")
+end
+
+# ╔═╡ 76311c6d-8e96-4265-8bcf-fbc80a6870f3
+let
+	scatter(pulse_copy_num_covariance_vec, pulse_tet_pop_Price_equation_LHS_vec, xlabel="tetA copy number covariance with fitness", ylabel="Price equation LHS",label="")
+end
+
 # ╔═╡ e9d58996-30f0-43b2-b13b-9cf7edfcd9eb
-test_matrix = hcat(d_pulse_mean_copy_num_vec, pulse_copy_num_covariance_vec)
+test_matrix = hcat(d_pulse_mean_copy_num_vec, pulse_tet_pop_Price_equation_LHS_vec)
 
 # ╔═╡ 026d3047-cca8-462f-8df3-b73bdeb4af31
 for row in eachrow(test_matrix)
@@ -1257,7 +1241,7 @@ begin
 		my_Tet = rand(0:50)
 		
 		## sample a random plasmid copy number between 0 and 100
-		my_PCN = rand(1:100)
+		my_PCN = rand(0:100)
 		## then the initial condition has my_PCN + 1 entries.
 		my_max_TCN = my_PCN + 1
 		println("PCN is $my_PCN and [Tet] is $my_Tet.")
@@ -1265,12 +1249,15 @@ begin
 		## using a random initial condition that sums to one.
 		my_random_initial_vec = big.(sample_unit_vector(my_max_TCN))
 		my_sol = SolveConstantTetQuasispeciesSystem(my_random_initial_vec, my_PCN, my_Tet)
-		
+
 		## using an initial condition of one tetA copy on the chromosome.
 		##my_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(my_PCN), my_PCN, my_Tet)
 		
-		my_copy_num_covariance = CalcTetACopyNumberFitnessCovarianceFromSol(my_sol, my_Tet)
+		## calculate a vector of constant [Tet] over time for covariance
+		## calculations
+		my_tet_vec = [my_Tet for t in my_sol.t]
 		
+		my_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(my_sol, my_tet_vec)
 		my_copy_num_velocity = CalcTetACopyNumberVelocity(my_sol)
 
 		## append the (sol, covariance, copy_num_velocity) result
@@ -1321,7 +1308,7 @@ begin
 		
 		my_sol, my_copy_num_covariance, my_copy_num_velocity = my_result_tuple
 			
-		scatter!(my_copy_num_velocity[2:end], my_copy_num_covariance[2:end], xlabel="tetA copy number velocity", ylabel="tetA copy number-fitness covariance", aspect_ratio=1)
+		scatter!(my_copy_num_velocity[2:end], my_copy_num_covariance[2:end], xlabel="tetA copy number velocity", ylabel="tetA copy number-fitness covariance", aspect_ratio=1,markersize=3)
 	end
 	
 end
@@ -1362,7 +1349,7 @@ end
 final_fitness_variance_eigenspecies_matrix = [calc_fitness_variance(eigenspecies_stationary_distribution_matrix[pcn, tet], tet) for pcn in 1:PCN_range_max, tet in 1:Tet_conc_range_max]
 
 # ╔═╡ e3ab744f-2068-4b86-b87d-85a347137409
-stationary_distribution_fitness_variance_map = heatmap(final_fitness_variance_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="fitness variance of stationary distribution",aspect_ratio=1)
+stationary_distribution_fitness_variance_map = heatmap(final_fitness_variance_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="fitness variance of stationary distribution")
 
 # ╔═╡ c0bbcd2b-09c7-4422-91e6-d78b7550cc43
 savefig(stationary_distribution_fitness_variance_map, "../results/modeling-results/stationary_distribution_fitness_variance.pdf")
@@ -1372,7 +1359,7 @@ savefig(stationary_distribution_fitness_variance_map, "../results/modeling-resul
 final_tetA_copy_variance_eigenspecies_matrix = [calc_tetA_copy_number_variance(eigenspecies_stationary_distribution_matrix[pcn, tet]) for pcn in 1:PCN_range_max, tet in 1:Tet_conc_range_max]
 
 # ╔═╡ d1cdb20e-df8f-45be-a9a9-3c445189877d
-stationary_distribution_tetA_variance_map = heatmap(final_tetA_copy_variance_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="tetA copy number variance of stationary distribution",aspect_ratio=1)
+stationary_distribution_tetA_variance_map = heatmap(final_tetA_copy_variance_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="tetA copy number variance of stationary distribution")
 
 # ╔═╡ 648fa994-88ed-470c-9f85-c5a9713a49b0
 savefig(stationary_distribution_tetA_variance_map, "../results/modeling-results/stationary_distribution_tetA_variance.pdf")
@@ -1382,7 +1369,7 @@ savefig(stationary_distribution_tetA_variance_map, "../results/modeling-results/
 final_entropy_eigenspecies_matrix = map(Entropy, eigenspecies_stationary_distribution_matrix)
 
 # ╔═╡ 0d52cfa4-142c-4780-a2b0-03a7f2b4e43d
-stationary_distribution_entropy_map = heatmap(final_entropy_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="Shannon entropy of stationary distribution",aspect_ratio=1)
+stationary_distribution_entropy_map = heatmap(final_entropy_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="Shannon entropy of stationary distribution")
 
 # ╔═╡ d5c3f4e7-e57b-47df-acb5-af76ed7f6748
 savefig(stationary_distribution_entropy_map, "../results/modeling-results/stationary_distribution_entropy.pdf")
@@ -4416,7 +4403,7 @@ version = "1.4.1+1"
 # ╟─c3d81737-fc16-44a0-b3de-bab5e0f7aab2
 # ╟─3931b5c1-51df-42f5-86e9-09ddba2d2f11
 # ╠═644f1128-fa1e-442a-9fec-d805284240e9
-# ╟─f8be1737-038a-41c0-9f61-e1980b005ed2
+# ╠═f8be1737-038a-41c0-9f61-e1980b005ed2
 # ╟─b1f80124-822d-46e2-9386-54a0117f833d
 # ╟─749b2bd1-4ccc-48e0-9ab4-bc701500c728
 # ╟─137b0ae4-4718-49bc-8e91-60b0e9f90934
@@ -4457,7 +4444,9 @@ version = "1.4.1+1"
 # ╠═ea1bdd07-3d5a-49ef-a626-95d9b264d297
 # ╠═f1b278a5-1ce4-47b3-b93e-969e1f9ec6bf
 # ╠═162efa78-e3a7-4ebb-ad7a-395a567071b1
-# ╠═82b1580e-e92b-43a9-8255-4b124f3658e1
+# ╠═c10d54d1-eb66-4008-8f83-a54342ea8128
+# ╠═0b129025-f83c-4560-8b3e-a56356966db4
+# ╠═36bab24f-30a2-489f-94e0-fa5962a49b37
 # ╠═66ee7dae-f87d-4b12-91e0-fffdbc420478
 # ╠═bed5464d-47c8-46c4-9037-e73130a5b0e6
 # ╠═621be509-5e7e-415a-bcc6-daa7b1903834
@@ -4468,18 +4457,16 @@ version = "1.4.1+1"
 # ╟─8dfdd593-117b-430e-b988-2eaa70484b4c
 # ╟─9bd490b7-3f11-487e-b454-785c7d87391b
 # ╠═28bd0eee-f54e-4ab5-aecc-275fe3e8319a
-# ╟─25b88824-0bca-4f2c-a838-e7a5a1cb3676
 # ╠═6bd86018-8a50-4b8d-a2bd-40bfbe45829b
-# ╠═243ee5e3-1489-4c65-ae18-c14516962c68
-# ╠═fbc4a55b-c50e-482e-8fe3-ed554a1d2a02
-# ╠═7e02b9c4-be87-4118-9843-64838fbb726a
 # ╠═a506ff86-41c6-44ac-adf5-c3fdb368cb02
-# ╠═c37a8b81-8fae-449d-a3f8-2b86081c0ed5
+# ╟─9241c94d-857c-4a31-93f1-cfed036cf2f2
+# ╠═09c74702-0d19-4049-8f8e-6f91a0163dcc
 # ╠═eb9ea298-95f2-4df7-966a-069ca8965c67
+# ╠═e1cd955e-a069-426b-b222-c60790c809b3
 # ╠═c40e9cfa-f58f-459c-a994-34bab25c20ad
-# ╠═6fbce7a0-af24-4501-92e4-fbd6b5d27b65
+# ╟─6fbce7a0-af24-4501-92e4-fbd6b5d27b65
 # ╠═4fd0feac-346b-42bc-b0de-1bf0a4718928
-# ╠═96241706-df79-4c86-838d-398302160e3d
+# ╟─96241706-df79-4c86-838d-398302160e3d
 # ╠═1d8f69c1-e2b2-492b-86a5-a9947fe9ac8a
 # ╠═2ce5fa35-27ae-4382-a41d-fa835052412d
 # ╠═6e3e1eec-03c2-4bb3-bb5a-9c27182753c7
@@ -4488,15 +4475,11 @@ version = "1.4.1+1"
 # ╠═d03e6d49-2c29-4101-9918-b8917fb037d8
 # ╠═bc4a7835-dd9f-42e4-b61e-118a33c7ff96
 # ╠═9028f452-a9cd-42ad-94ff-f86e54462a7c
-# ╠═e4e8c61d-5503-490f-993d-bb1464def4c9
-# ╠═a928cea9-4b65-413f-ba57-bb9fddc57856
+# ╟─e4e8c61d-5503-490f-993d-bb1464def4c9
 # ╠═d0c028ae-b991-4558-87e6-41b4f5bfe274
-# ╠═7b64d16c-f912-4b9a-a3d6-92abfecb6679
-# ╠═a166af6d-f83b-44a0-a903-32fed22079b8
-# ╠═7bfbb45d-57fc-4c9e-b929-ac44f7f88fef
-# ╠═ed618c65-a9aa-4629-9e69-99ca9a72dfa9
+# ╟─7bfbb45d-57fc-4c9e-b929-ac44f7f88fef
+# ╠═73873c97-daf6-4133-a657-90de30803517
 # ╠═91d1760c-bbaf-466b-8eb7-623cb0dcd686
-# ╠═834454ab-3fc4-4b49-a3a1-f10fd699d441
 # ╠═9b92d86b-9f19-4fed-be2b-691d58ffaab6
 # ╠═49830d58-03a3-4379-aeea-767c9a3eeb26
 # ╠═1cff27ae-4465-4c38-8b26-5cace8a833d7
@@ -4512,19 +4495,15 @@ version = "1.4.1+1"
 # ╠═55f2289b-9268-4bca-9f0f-7f27e29697f8
 # ╠═c83fbfaa-1f5f-40b9-a6c1-68d480c4dfe7
 # ╠═348fabc0-3caa-4585-975e-688a26b7fa8a
-# ╠═4acf6a58-6ca5-43e2-8169-75f169cae851
-# ╠═c78148c7-be3e-4911-8269-ba95bf8ba9b2
+# ╟─4acf6a58-6ca5-43e2-8169-75f169cae851
 # ╠═e22f600c-4468-47ff-93f5-ad004ff5ea23
-# ╠═d20f047d-68d3-44eb-a258-3642d1197a88
-# ╠═98b9a0e2-04ba-43b3-9e96-0c0075c9adfa
+# ╟─d20f047d-68d3-44eb-a258-3642d1197a88
 # ╠═362c0eff-b354-481d-bc5f-673613e8b0a6
-# ╠═b74fe640-d568-4e01-9d59-1d1e1cb38c37
-# ╠═0c89ebb6-6aee-461a-8f2c-035701f9c9d6
-# ╠═c96f8de0-d619-49c3-b242-b2a07f47a8b4
-# ╠═b0783a87-c365-4e7a-a621-998b6ef0862f
 # ╠═5f571b12-244c-4e7e-8774-883f0427ff06
 # ╠═ab3d5352-abfa-4de3-8421-eb86472b91ea
 # ╠═c9c7c6e9-75b3-4900-b146-010dd37f4123
+# ╠═cef4643c-fd32-4a75-b9ab-0276341fc0bb
+# ╠═76311c6d-8e96-4265-8bcf-fbc80a6870f3
 # ╠═e9d58996-30f0-43b2-b13b-9cf7edfcd9eb
 # ╠═026d3047-cca8-462f-8df3-b73bdeb4af31
 # ╠═e15bbef0-42f1-47d5-af03-ce95468cba93
