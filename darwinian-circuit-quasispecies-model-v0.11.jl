@@ -96,10 +96,8 @@ We examine Claim (2) by randomly sampling 1,000 random initial conditions with r
 # ╔═╡ f8be1737-038a-41c0-9f61-e1980b005ed2
 md"""
 ## DEBUGGING TODO: 
-1) check the key assertion that:
-$\mathbb{E}({\frac{dz(t)}{dt}}) = \sum_{i} x_i \frac{dz(t)}{dt}= 0$
 
-##### TODO: The Price equation prediction is _almost_ correct in the model--there is some apparent numerical error between the Price equation prediction and actual TetA copy number change when the derivatives are very large. Are there any numerical techniques to reduce the remaining numerical error?
+The Price equation prediction is _almost_ correct in the model--there is some apparent numerical error between the Price equation prediction and actual TetA copy number change when the derivatives are very large. Are there any numerical techniques to reduce the remaining numerical error?
 
 """
 
@@ -346,32 +344,52 @@ $\frac{d}{dt}\mathbb{E}(\mathbf{z}(t)) = cov(\mathbf{r}(t), \mathbf{z}(t)) + \ma
 Here, this final term $\mathbb{E}(\mathbf{r}(t) ⊙ Δ_m \mathbf{z}(t))$ describes mutation among types (in our model, due to plasmid segregation during cell division), with $Δ_m \mathbf{z}(t)$ = $\sum_{j} \mathbf{S}_{ji}(\mathbf{z}_j(t) - \mathbf{z}_i(t))$ denoting the expected change in trait value when mutating from type i.
 """
 
+# ╔═╡ 0abeaf9e-5322-4b6d-ba8f-81efd831080b
+md"""
+##### Key assumption in this model:
+$\mathbb{E}({\frac{dz(t)}{dt}}) = \sum_{i} x_i \frac{dz_i(t)}{dt}= 0$
+
+It is easy to see that this condition is always true, because for all times $t$ and trait values $z_i$, $\frac{dz_i(t)}{dt}= 0$, even as $x_i(t)$ changes over time.
+\
+\
+Here is a simple proof: consider arbitrary time $t$ and subpopulation $x_i$ with trait value $z_i$. At time $(t+ \Delta t)$, $z_i(t+ \Delta t) = z_i = i$ because each subpopulation is defined by the number of tetA copies it has, which is $z_i = i$.
+\
+\
+Therefore, $\frac{d}{dt}\mathbb{E}(\mathbf{z}(t)) = cov(\mathbf{r}(t), \mathbf{z}(t)) + \mathbb{E}(\mathbf{r}(t)⊙Δ_m \mathbf{z}(t))$.
+"""
+
 # ╔═╡ 08535a54-414b-4a3e-a718-b356cb22cb23
 md"""
-### Consequences of Price's theorem for diversity-maintaining genetic elements (DGEs). TODO: edit this text.
+### Consequences of Price's theorem for the tetA-transposon-plasmid system, and diversity-maintaining genetic elements (DGEs) more generally.
 
-Suppose $\overline\delta = 0$. This means that offspring do not systematically deviate from their parents in fitness, which implies no transmission bias in the plasmids, and implies that the environment is not changing (e.g. the antibiotic concentration has not changed).
 
-Then, $E(W\overline{\delta}) = 0$, so \
-\
+Suppose $Δ_m \mathbf{z}(t)) \approx 0$. This means that offspring do not systematically deviate from their parents in fitness, which implies no transmission bias in the plasmids. This condition holds in this model because the binomial transitions are symmetric, leading to an expected change of zero. The only asymmetric mutational pressure is the rate at which transposons jump from chromosomes to plasmid, which we assume to be very small.
 
-$\frac{d\overline{\phi}}{dt} = Cov(W, \phi)$, so \
-\
-$\frac{d\overline{\phi}}{dt} = \beta_{w,\phi} \cdot Var(\phi)$,
+Since $\mathbb{E}(\mathbf{r}(t)⊙Δ_m \mathbf{z}(t)) \approx 0$,
 \
 \
-as the regression coefficient $\beta_{w,\phi}$ is defined as $\frac{Cov(W, \phi)}{Var(\phi)}$
+$\frac{d}{dt}\mathbb{E}(\mathbf{z}(t)) = Cov(\mathbf{r}(t), \mathbf{z}(t))$,
+\
+\
+so $\frac{d}{dt}\mathbb{E}(\mathbf{z}(t)) = \beta_{\mathbf{r},\mathbf{z}} \cdot Var(\mathbf{z})$,
+\
+\
+as the regression coefficient $\beta_{\mathbf{r},\mathbf{z}}$ is defined as $\frac{Cov(\mathbf{r}(t), \mathbf{z}(t))}{Var(\mathbf{z}(t))}$
 
 """
 
 # ╔═╡ 83685c04-3a04-4d30-90e4-ab9ec7eee180
 md"""
-Let $\phi = TCN$, where $TCN$ is the transposon copy number. Then, \
+Let $\mathbf{z} = TCN$, where $TCN$ is the transposon copy number. Then, \
 \
-$\frac{d\overline{TCN}}{dt} =  \beta_{W,TCN} \cdot Var(TCN)$.
+$\frac{d}{dt}\mathbb{E}(TCN(t)) =  \beta_{\mathbf{r},TCN} \cdot Var(TCN)$.
 \
 
-This result gives the instantaneous change in TCN, and shows that it depends on the slope of the linear regression of fitness on TCN, and the variance of TCN in the population. This has a nice geometric interpretation (Figure 1).
+This result gives the instantaneous change in TCN, and shows that it depends on the slope of the linear regression of fitness on TCN, and the variance of TCN in the population. This has a nice geometric interpretation.
+"""
+
+# ╔═╡ 9aa63215-219d-465e-b441-f7296c4d395c
+md""" #### TODO: make a figure or figure panel to illustrate this interpretation.
 """
 
 # ╔═╡ 39b0ddde-3cb4-4630-a4ff-a3ab163c57d8
@@ -668,30 +686,36 @@ end
 # ╔═╡ 6bd86018-8a50-4b8d-a2bd-40bfbe45829b
 PCNSlider = @bind PCN Slider(1:100, default=50, show_value=true)
 
-# ╔═╡ 260df35d-6d1c-42be-8270-01fb62627938
-function SwitchingBinomialMatrix(plasmid_copy_num=PCN, η=η₀)
-	""" We set a final absorbing state in the Markov chain,
-	based on maximum plasmid copy number (like 3 for SC101, 2000 for pUC)."""
+# ╔═╡ 0cf84c01-0378-44be-b878-3c2119b468b9
+function BinomialTransitionMatrix(plasmid_copy_num=PCN)
+	""" Basic transition matrix modeling plasmid segregation without transposition."""
 	
 	## max transposon copy number is plasmid copy number + one chromosomal copy.
 	max_TCN = plasmid_copy_num + 1
 
 	## initialize as an m x m identity matrix with ones on the diagonal.
-	switching_matrix = Matrix{BigFloat}(I, max_TCN, max_TCN)
+	transition_matrix = Matrix{BigFloat}(I, max_TCN, max_TCN)
 
 	## update binomial entries (overwrite ones and zeros as needed).
 	for i in 1:max_TCN
 		for j in 1:max_TCN
 			if (i <= max_TCN) && (j <= max_TCN)
-				switching_matrix[i,j] = OneBasedBinomialSwitchingEntry(i,j,plasmid_copy_num)
+				transition_matrix[i,j] = OneBasedBinomialSwitchingEntry(i,j,plasmid_copy_num)
 			end
 		end
 	end
+	
+	return(transition_matrix)
+end
 
+# ╔═╡ 260df35d-6d1c-42be-8270-01fb62627938
+function TransposonSwitchingMatrix(plasmid_copy_num=PCN, η=η₀)
+	""" Take the binomial transition matrix, and add 
+	transposon jumping from chromosome to plasmid."""
+	switching_matrix = BinomialTransitionMatrix(plasmid_copy_num)
 	## now add in transpositions from chromosome to plasmid in the zero-plasmid state.
 	switching_matrix[1,1] = 1 - η
 	switching_matrix[2,1] = η
-	
 	return(switching_matrix)
 end
 
@@ -703,8 +727,8 @@ function calc_Δₘp_vec(pop_vec, Tet_conc)
 	my_pcn = length(pop_vec) - 1
 	## switching_matrix has dimensions (my_pcn+1) x (my_pcn+1)
 	## NOTE: this code is valid because this notebook assumes the use
-	## of the SwitchingBinomialMatrix throughout.
-	switching_matrix = SwitchingBinomialMatrix(my_pcn)
+	## of the TransposonSwitchingMatrix throughout.
+	switching_matrix = TransposonSwitchingMatrix(my_pcn)
 	nrow, ncol = size(switching_matrix)
 	@assert nrow == ncol == length(pop_vec) ## self-consistency check
 
@@ -712,18 +736,20 @@ function calc_Δₘp_vec(pop_vec, Tet_conc)
 	
 	for j in 1:ncol
 		for i in 1:nrow
-			## IMPORTANT: i,j indices in this code are swapped compared to
-			## notation in the Page and Nowak (2002) paper.
-			## In Page and Nowak, i->j represents ancestor -> mutant.
-			## This code follows standard matrix multiplication notation,
-			## such that j->i represents ancestor to mutant.
+			"""
+			IMPORTANT: i,j indices in this code are swapped compared to
+			notation in the Page and Nowak (2002) paper.
+			In Page and Nowak, i->j represents ancestor -> mutant.
+			This code follows standard matrix multiplication notation,
+			such that j->i represents ancestor to mutant.
 			
-			## So, the appropriate formula to implement is:
-			## Δₘpⱼ = ∑ᵢ qᵢⱼ(pᵢ - pⱼ)
-			## where qᵢⱼ is switching_matrix[i,j]
-			## and pᵢ is the trait value--
-			## the number of TetA transposons, or i in this case,
-			## since there is always a minimum of one copy on the chromosome.
+			So, the appropriate formula to implement is:
+			Δₘpⱼ = ∑ᵢ qᵢⱼ(pᵢ - pⱼ)
+			where qᵢⱼ is switching_matrix[i,j]
+			and pᵢ is the trait value--
+			the number of TetA transposons, or i in this case,
+			since there is always a minimum of one copy on the chromosome.
+			"""
 			Δₘp_vec[j] += switching_matrix[i,j]*(i - j)
 		end
 	end
@@ -756,7 +782,16 @@ function calc_delta_expected_trait_change(pop_vec, Tet_conc)
 	""" calculate the time derivative of the expected change in trait value (Equation 5 in Page and Nowak 2002)."""
 	covariance_term = calc_tetA_copy_number_fitness_covariance(pop_vec, Tet_conc)
 
-	## IMPORTANT: let's assume that the expected change in the trait value == 0.
+	""" IMPORTANT: we that the expected derivative of the trait value vector == 0,
+	 such that we can ignore this term in the RHS of the Price equation.
+	 It is easy to see that this is true in this model, because the number of
+	 tetA copies is fixed per subpopulation (any change is equivalent to a
+	 mutation transition to a different subpopulation).
+	 This condition may not necessarily hold for an arbitrary trait,
+	 say if the environment changes, causing the trait to change (plasticity)
+	 or if the trait is frequency-dependent 
+	(for instance, frequency-dependent fitness). See Page and Nowak (2002).
+	"""
 	
 	mut_term = calc_expected_trait_change_by_mutation(pop_vec, Tet_conc)
 
@@ -797,7 +832,7 @@ end
 
 # ╔═╡ 49e1dd14-e839-45cf-8e0a-f0badd573d67
 function MutSelMatrix(plasmid_copy_num=PCN, Tet_conc=TET_CONC)
-	mutsel_matrix = SwitchingBinomialMatrix(plasmid_copy_num) * SelectionDiagonalMatrix(plasmid_copy_num, Tet_conc)
+	mutsel_matrix = TransposonSwitchingMatrix(plasmid_copy_num) * SelectionDiagonalMatrix(plasmid_copy_num, Tet_conc)
 	return(mutsel_matrix)
 end
 
@@ -1210,8 +1245,12 @@ let
 	scatter(pulse_copy_num_covariance_vec, pulse_tet_pop_Price_equation_LHS_vec, xlabel="tetA copy number covariance with fitness", ylabel="Price equation LHS",label="")
 end
 
+# ╔═╡ bc0d22dc-b1d2-48d8-aa9d-b0210ab3f9a7
+pulse_tet_pop_Price_equation_LHS_vec - pulse_copy_num_covariance_vec
+
 # ╔═╡ e9d58996-30f0-43b2-b13b-9cf7edfcd9eb
 numerical_comparison_matrix = hcat(d_pulse_mean_copy_num_vec, pulse_tet_pop_Price_equation_LHS_vec)
+
 
 # ╔═╡ 026d3047-cca8-462f-8df3-b73bdeb4af31
 for row in eachrow(numerical_comparison_matrix)
@@ -4401,8 +4440,8 @@ version = "1.4.1+1"
 # ╟─d4d1f72f-7aa7-46e7-9be0-f38fe991bc0c
 # ╟─c3d81737-fc16-44a0-b3de-bab5e0f7aab2
 # ╟─3931b5c1-51df-42f5-86e9-09ddba2d2f11
-# ╠═644f1128-fa1e-442a-9fec-d805284240e9
-# ╠═f8be1737-038a-41c0-9f61-e1980b005ed2
+# ╟─644f1128-fa1e-442a-9fec-d805284240e9
+# ╟─f8be1737-038a-41c0-9f61-e1980b005ed2
 # ╟─b1f80124-822d-46e2-9386-54a0117f833d
 # ╟─749b2bd1-4ccc-48e0-9ab4-bc701500c728
 # ╟─137b0ae4-4718-49bc-8e91-60b0e9f90934
@@ -4414,8 +4453,10 @@ version = "1.4.1+1"
 # ╟─b9277783-9e31-44e5-82a3-a13af62c62e4
 # ╟─2dd8b9bd-057b-45a7-8b72-da50925f6a3b
 # ╟─b753c51f-6682-47e5-a015-c183e221aa32
+# ╟─0abeaf9e-5322-4b6d-ba8f-81efd831080b
 # ╟─08535a54-414b-4a3e-a718-b356cb22cb23
 # ╟─83685c04-3a04-4d30-90e4-ab9ec7eee180
+# ╟─9aa63215-219d-465e-b441-f7296c4d395c
 # ╟─39b0ddde-3cb4-4630-a4ff-a3ab163c57d8
 # ╟─35adaf46-3b45-4208-aa74-e89a54c4a6d5
 # ╟─248e7e49-749a-4110-a3df-12d9b873b949
@@ -4432,6 +4473,7 @@ version = "1.4.1+1"
 # ╠═b78463f4-1deb-45bd-b091-7ae15a23471b
 # ╠═412c944d-168d-4146-8bc8-7219db9c291a
 # ╠═de13afba-dec7-4a7a-a26b-85e26d36a84f
+# ╠═0cf84c01-0378-44be-b878-3c2119b468b9
 # ╠═260df35d-6d1c-42be-8270-01fb62627938
 # ╠═45362f0d-76ac-44e8-b6cd-0d1824b3a3b4
 # ╠═49e1dd14-e839-45cf-8e0a-f0badd573d67
@@ -4503,6 +4545,7 @@ version = "1.4.1+1"
 # ╠═c9c7c6e9-75b3-4900-b146-010dd37f4123
 # ╠═cef4643c-fd32-4a75-b9ab-0276341fc0bb
 # ╠═76311c6d-8e96-4265-8bcf-fbc80a6870f3
+# ╠═bc0d22dc-b1d2-48d8-aa9d-b0210ab3f9a7
 # ╠═e9d58996-30f0-43b2-b13b-9cf7edfcd9eb
 # ╠═026d3047-cca8-462f-8df3-b73bdeb4af31
 # ╠═e15bbef0-42f1-47d5-af03-ce95468cba93
