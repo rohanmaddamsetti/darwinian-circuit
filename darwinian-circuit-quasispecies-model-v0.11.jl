@@ -42,17 +42,25 @@ Despite considerable interest, the emergence and evolution of collective computa
 """
 
 # ╔═╡ d4d1f72f-7aa7-46e7-9be0-f38fe991bc0c
-md""" ## ANALYSIS TODO. Test the following claims with the mathematical model:"""
+md""" ## In this notebook, we test the following claims with our mathematical model:"""
+
+# ╔═╡ b706fac1-3a38-423b-bed3-db6518475c73
+md"""
+##### Claim (1): The speed at which selection tunes population-level gene expression in response to environmental change is determined by the covariance between gene expression and fitness in the population (Price's theorem).
+
+We examine Claim (1) by randomly sampling 1,000 random initial conditions with random plasmid copy numbers (PCN) and [Tet] concentrations.
+
+"""
 
 # ╔═╡ c3d81737-fc16-44a0-b3de-bab5e0f7aab2
-md""" ##### Claim (1) When ecDNA copy number is sufficiently high to maintain diverse ecDNAs in single cells, tunable evolutionary dynamics can emerge in otherwise clonal populations.
+md""" ##### Claim (2) When ecDNA copy number is sufficiently high to maintain diverse ecDNAs in single cells, tunable evolutionary dynamics can emerge in otherwise clonal populations.
 \
 The nice thing about the eigenvalue result is that we can immediately get the stationary distribution without having to simulate the differential equations. So, we can show how the stationary distribution changes as a function of the matrix, which is a function of PCN and [Tet] concentration.
 \
 \
 Results: The model shows this behavior at PCN == 5, Tet == 4. Set initial population to 100% TetA == 4. **Fitness declines!!** This is a very nice result. Also note that the stationary distribution depends on which absorbing state (tetA == 1 or tetA == PCN+1) has higher fitness.
 
-##### TODO: Figure out a nice figure to show result (1).
+##### TODO: Figure out a nice figure to show result (2).
 
 ##### TODO: vary the optimum (by varying [Tet] concentration), and show in terms of allele frequency.
 
@@ -74,7 +82,7 @@ When PCN == 40 and TET_CONC == 20, there is a nice bell curve, and no distributi
 
 # ╔═╡ 3931b5c1-51df-42f5-86e9-09ddba2d2f11
 md"""
-##### It is not the case that increasing PCN always results in more tunable dynamics. Here is a counterexample.
+##### IMPORTANT NOTE: It is not the case that increasing PCN always results in more tunable dynamics. Here is a counterexample.
 
 We set the initial configuration of the population to 100% "fitness optimum", that is, at TCN == TET_CONC. Then we examine how the distribution evolves.
 
@@ -83,14 +91,6 @@ Set TET_CONC == 5.
 Set PCN to 50. The distribution is no longer tunable, due to stochastic loss (too close to bottom absorbing state.)
 
 BUT-- when I set PCN to 5, the population is tunable again! The population goes to the tetA == 6 state, but can still go down to the tetA == 1 state by mutation since the population is large.
-"""
-
-# ╔═╡ 644f1128-fa1e-442a-9fec-d805284240e9
-md"""
-##### Claim (2): The speed at which selection tunes population-level gene expression in response to environmental change is determined by the covariance between gene expression and fitness in the population (Price's theorem).
-
-We examine Claim (2) by randomly sampling 1,000 random initial conditions with random plasmid copy numbers (PCN) and [Tet] concentrations.
-
 """
 
 # ╔═╡ f8be1737-038a-41c0-9f61-e1980b005ed2
@@ -918,9 +918,10 @@ end
 
 # ╔═╡ ea419d1b-1246-4999-a8a4-706c73e14ed8
 function TetPulseFunction(t)
-	## We model [Tet] pulses over time by dividing the current time by 200, and
+	## We model [Tet] pulses over time by dividing the current time by 100, and
 	## setting "[Tet] ON" if in the first half.
-	mod(t,200) < 100 ? TET_CONC : 0
+	pulse_cycle_time = 100
+	mod(t,pulse_cycle_time) < (pulse_cycle_time/2) ? TET_CONC : 0
 end
 
 # ╔═╡ 9241c94d-857c-4a31-93f1-cfed036cf2f2
@@ -4437,10 +4438,10 @@ version = "1.4.1+1"
 
 # ╔═╡ Cell order:
 # ╟─44e8209c-8d79-11ef-24db-ff1ea28d01b3
-# ╟─d4d1f72f-7aa7-46e7-9be0-f38fe991bc0c
+# ╠═d4d1f72f-7aa7-46e7-9be0-f38fe991bc0c
+# ╟─b706fac1-3a38-423b-bed3-db6518475c73
 # ╟─c3d81737-fc16-44a0-b3de-bab5e0f7aab2
 # ╟─3931b5c1-51df-42f5-86e9-09ddba2d2f11
-# ╟─644f1128-fa1e-442a-9fec-d805284240e9
 # ╟─f8be1737-038a-41c0-9f61-e1980b005ed2
 # ╟─b1f80124-822d-46e2-9386-54a0117f833d
 # ╟─749b2bd1-4ccc-48e0-9ab4-bc701500c728
