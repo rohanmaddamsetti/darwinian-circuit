@@ -37,7 +37,7 @@ Julia version 1.11.1.
 
 ##### Abstract
 
-Despite considerable interest, the emergence and evolution of collective computation in systems composed of simple equivalent components (e.g. cells, neurons) remains poorly understood. Here, we show the _de novo_ evolution of bacterial clones that modulate population-level gene expression in response to pulses of antibiotic. Genetic diversity is maintained within single cells by balancing selection on intracellular populations of plasmids containing a toxic TetA-GFP transposon. Theory and experiments reveal that when plasmid copy numbers are sufficiently high, diverse plasmids can be maintained within single cells. In this regime, tunable dynamics emerge in clonal populations. Theory shows that the rate at which gene expression changes in response to antibiotic depends on how gene expression covaries with fitness. This work demonstrates how mobile genetic elements allow host populations to rapidly evolve the ability to compute pulses in environmental stressors such as antibiotics, and describes a fundamental principle for engineering population-level gene expression with intracellular populations of mobile genetic elements.
+Despite considerable interest, the emergence and evolution of collective computation in systems composed of simple equivalent components (e.g. cells, neurons, ants) remains poorly understood. Here, we show the _de novo_ evolution of bacterial clones that modulate population-level gene expression in response to pulses of antibiotic. Genetic diversity is maintained within single cells by balancing selection on intracellular populations of plasmids containing a toxic TetA-GFP transposon. Theory and experiments reveal that when plasmid copy numbers are sufficiently high, diverse plasmids can be maintained within single cells. In this regime, tunable dynamics emerge in clonal populations. Theory shows that the rate at which gene expression changes in response to antibiotic depends on how gene expression covaries with fitness. This work demonstrates how mobile genetic elements allow host populations to rapidly evolve the ability to compute pulses in environmental stressors such as antibiotics, and describes a fundamental principle for engineering population-level gene expression with intracellular populations of mobile genetic elements.
 
 """
 
@@ -555,6 +555,14 @@ begin
 	tspan = (0.0, TIMESPAN)
 	
 	η₀ = 0.001 ## set the transposition rate η₀.
+
+	## Set plot default parameters:
+	## set the font to Helvetica and increase font sizes.
+	default(fontfamily="Helvetica",
+		tickfontsize=14,
+		xlabelfontsize=16,
+		ylabelfontsize=16,
+		titlefontsize=18)
 end
 
 # ╔═╡ 9e9cc2c2-55be-456e-95f0-224b08fbeae3
@@ -1004,7 +1012,7 @@ time_step_slider = @bind cur_timestep Slider(1:length(sol.u), default=1, show_va
 
 # ╔═╡ 6e3e1eec-03c2-4bb3-bb5a-9c27182753c7
 let
-	bar(xvec, sol.u[cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution")
+	bar(xvec, sol.u[cur_timestep], label="", xlabel="tetA copy number", ylabel="subpopulation frequency")
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
@@ -1029,21 +1037,21 @@ end
 
 # ╔═╡ d03e6d49-2c29-4101-9918-b8917fb037d8
 let
-	bar(xvec, final_const_Tet_population, label="")
+	bar(xvec, final_const_Tet_population, label="", xlabel="tetA copy number", ylabel="subpopulation frequency")
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
 
 # ╔═╡ bc4a7835-dd9f-42e4-b61e-118a33c7ff96
 let
-	bar(xvec, normalized_Amatrix_top_eigenvector, label="")
+	bar(xvec, normalized_Amatrix_top_eigenvector, label="", xlabel="tetA copy number", ylabel="subpopulation frequency")
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
 
 # ╔═╡ 9028f452-a9cd-42ad-94ff-f86e54462a7c
 let
-	bar(xvec, normalized_original_basis_vector, label="")
+	bar(xvec, normalized_original_basis_vector, label="", xlabel="tetA copy number", ylabel="subpopulation frequency")
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
@@ -1053,7 +1061,7 @@ md""" ##### plot mean copy number in the constant [Tet] population."""
 
 # ╔═╡ d0c028ae-b991-4558-87e6-41b4f5bfe274
 let
-	plot(sol.t, mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+	plot(sol.t, mean_copy_num_vec, label="mean tetA copy number", xlabel="time", ylabel="mean tetA copy number")
 end
 
 # ╔═╡ 7bfbb45d-57fc-4c9e-b929-ac44f7f88fef
@@ -1062,7 +1070,7 @@ md""" ##### plot tetA copy number--fitness covariance in the constant [Tet] popu
 # ╔═╡ 73873c97-daf6-4133-a657-90de30803517
 let
 	plot(sol.t, copy_num_covariance_vec, label="tetA-fitness covariance")
-	plot!(sol.t, d_mean_copy_num_vec_dt_vec, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative and covariance")
+	plot!(sol.t, d_mean_copy_num_vec_dt_vec, label="rate of change of mean tetA copy number", xlabel="time", ylabel="tetA copy number derivative and covariance")
 end
 
 # ╔═╡ 91d1760c-bbaf-466b-8eb7-623cb0dcd686
@@ -1071,12 +1079,12 @@ md""" ##### plot LHS of quasispecies continuous-time Price equation in the const
 # ╔═╡ 9b92d86b-9f19-4fed-be2b-691d58ffaab6
 let
 	plot(sol.t, constant_tet_pop_Price_equation_LHS_vec, label="Price equation LHS from Page and Nowak 2002")
-	plot!(sol.t, d_mean_copy_num_vec_dt_vec, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative and covariance")
+	plot!(sol.t, d_mean_copy_num_vec_dt_vec, label="rate of change of mean tetA copy number", xlabel="time", ylabel="tetA copy number derivative and covariance")
 end
 
 # ╔═╡ 49830d58-03a3-4379-aeea-767c9a3eeb26
 let
-	plot(sol.t, (constant_tet_pop_Price_equation_LHS_vec - d_mean_copy_num_vec_dt_vec), label="error check")
+	plot(sol.t, (constant_tet_pop_Price_equation_LHS_vec - d_mean_copy_num_vec_dt_vec), label="error check",xlabel="time", yaxis="error")
 end
 
 # ╔═╡ 1cff27ae-4465-4c38-8b26-5cace8a833d7
@@ -1116,7 +1124,7 @@ end
 
 # ╔═╡ d153fde0-3435-49f2-b493-2c2fc8fec41f
 let
-	plot(pcn5_tet15_sol.t, pcn5_tet15_copy_num_covariance, label="PCN=5, TET=15", xlabel="Time", ylabel="tetA copy number-fitness covariance")
+	plot(pcn5_tet15_sol.t, pcn5_tet15_copy_num_covariance, label="PCN=5, TET=15", xlabel="time", ylabel="tetA copy number-fitness covariance")
 
 	plot!(pcn15_tet15_sol.t, pcn15_tet15_copy_num_covariance, label="PCN=15, TET=15")
 	plot!(pcn25_tet15_sol.t, pcn25_tet15_copy_num_covariance, label="PCN=25, TET=15")
@@ -1125,7 +1133,7 @@ end
 
 # ╔═╡ 11e9cbd5-19f2-4401-ba19-8590d3f4dca7
 let
-	plot(pcn5_tet15_sol.t, pcn5_tet15_copy_num_velocity, label="PCN=5, TET=15", xlabel="Time", ylabel="rate of change of mean tetA copy number")
+	plot(pcn5_tet15_sol.t, pcn5_tet15_copy_num_velocity, label="PCN=5, TET=15", xlabel="time", ylabel="rate of change of mean tetA copy number")
 
 	plot!(pcn15_tet15_sol.t, pcn15_tet15_copy_num_velocity, label="PCN=15, TET=15")
 	plot!(pcn25_tet15_sol.t, pcn25_tet15_copy_num_velocity, label="PCN=25, TET=15")
@@ -1162,7 +1170,7 @@ end
 
 # ╔═╡ 86e16ddc-a9e0-4e2c-822c-abc9f19d0ccf
 let
-	plot(pcn5_tet40_sol.t, pcn5_tet40_copy_num_covariance, label="PCN=5, TET=40", xlabel="Time", ylabel="tetA copy number-fitness covariance")
+	plot(pcn5_tet40_sol.t, pcn5_tet40_copy_num_covariance, label="PCN=5, TET=40", xlabel="time", ylabel="tetA copy number-fitness covariance")
 
 	plot!(pcn15_tet40_sol.t, pcn15_tet40_copy_num_covariance, label="PCN=15, TET=40")
 	plot!(pcn25_tet40_sol.t, pcn25_tet40_copy_num_covariance, label="PCN=25, TET=40")
@@ -1172,7 +1180,7 @@ end
 
 # ╔═╡ 933c9aef-3f09-42aa-b7c5-8f7e5c63d1c9
 let
-	plot(pcn5_tet40_sol.t, pcn5_tet40_copy_num_velocity, label="PCN=5, TET=40", xlabel="Time", ylabel="rate of change of mean tetA copy number")
+	plot(pcn5_tet40_sol.t, pcn5_tet40_copy_num_velocity, label="PCN=5, TET=40", xlabel="time", ylabel="rate of change of mean tetA copy number")
 
 	plot!(pcn15_tet40_sol.t, pcn15_tet40_copy_num_velocity, label="PCN=15, TET=40")
 	plot!(pcn25_tet40_sol.t, pcn25_tet40_copy_num_velocity, label="PCN=25, TET=40")
@@ -1181,7 +1189,7 @@ end
 
 # ╔═╡ 99b06657-4eec-44a6-9e84-5fc7f88dfb9f
 let
-	plot(pcn40_tet40_sol.t, pcn40_tet40_copy_num_covariance, label="PCN=40, TET=40", xlabel="Time", ylabel="rate of change of mean tetA copy number")
+	plot(pcn40_tet40_sol.t, pcn40_tet40_copy_num_covariance, label="PCN=40, TET=40", xlabel="time", ylabel="rate of change of mean tetA copy number")
 	plot!(pcn100_tet40_sol.t, pcn100_tet40_copy_num_covariance, label="PCN=100,TET=40")
 end
 
@@ -1215,7 +1223,7 @@ pulse_time_step_slider = @bind pulse_cur_timestep Slider(1:length(pulse_sol.u), 
 
 # ╔═╡ 348fabc0-3caa-4585-975e-688a26b7fa8a
 let
-	bar(xvec, pulse_sol.u[pulse_cur_timestep], label="", xlabel="tetA copy number", ylabel="Current population distribution")
+	bar(xvec, pulse_sol.u[pulse_cur_timestep], label="", xlabel="tetA copy number", ylabel="subpopulation frequency")
 	# Add a vertical dashed line at x = TET_CONC
 	vline!([TET_CONC], linestyle=:dash, label="TET_CONC")
 end
@@ -1224,25 +1232,25 @@ end
 md""" ### plot the antibiotic pulse regime over time."""
 
 # ╔═╡ e22f600c-4468-47ff-93f5-ad004ff5ea23
-plot(pulse_sol.t, tet_pulse_vec,label="Tet pulse regime", xlabel="Time", ylabel="Tet concentration")
+plot(pulse_sol.t, tet_pulse_vec,label="Tet pulse regime", xlabel="time", ylabel="[Tet] concentration")
 
 # ╔═╡ d20f047d-68d3-44eb-a258-3642d1197a88
 md""" ##### plot mean copy number in the population."""
 
 # ╔═╡ 362c0eff-b354-481d-bc5f-673613e8b0a6
 let
-	plot(pulse_sol.t, pulse_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+	plot(pulse_sol.t, pulse_mean_copy_num_vec, label="mean tetA copy number", xlabel="time", ylabel="Mean tetA copy number")
 end
 
 # ╔═╡ 5f571b12-244c-4e7e-8774-883f0427ff06
 let
 	plot(pulse_sol.t, pulse_copy_num_covariance_vec, label="tetA copy number fitness covariance",alpha=0.5)
-	plot!(pulse_sol.t, d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="Time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right,alpha=0.5)
+	plot!(pulse_sol.t, d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right,alpha=0.5)
 end
 
 # ╔═╡ ab3d5352-abfa-4de3-8421-eb86472b91ea
 let
-	plot(pulse_sol.t, (d_pulse_mean_copy_num_vec - pulse_copy_num_covariance_vec), label="error check")
+	plot(pulse_sol.t, (d_pulse_mean_copy_num_vec - pulse_copy_num_covariance_vec), label="error check", xlabel="time", ylabel="error")
 end
 
 # ╔═╡ c9c7c6e9-75b3-4900-b146-010dd37f4123
@@ -1344,8 +1352,8 @@ end
 # ╔═╡ 47445b3c-bf48-485a-b291-79437595b45a
 let
 	plot(label="")
-	plot!(test_sol.t, test_copy_num_covariance, xlabel="Time", ylabel="tetA copy number covariance")
-	plot!(test_sol.t, test_copy_num_velocity, xlabel="Time", ylabel="tetA copy number velocity")
+	plot!(test_sol.t, test_copy_num_covariance, xlabel="time", ylabel="tetA copy number covariance")
+	plot!(test_sol.t, test_copy_num_velocity, xlabel="time", ylabel="tetA copy number velocity")
 end
 
 # ╔═╡ adfa712e-80ca-405e-9854-1d0024c3d6f1
@@ -1373,7 +1381,7 @@ begin
 		
 		my_sol, my_copy_num_covariance, my_copy_num_velocity = my_result_tuple
 			
-		scatter!(my_copy_num_velocity[2:end], my_copy_num_covariance[2:end], xlabel="tetA copy number velocity", ylabel="tetA copy number-fitness covariance", aspect_ratio=1,markersize=3)
+		scatter!(my_copy_num_covariance[2:end], my_copy_num_velocity[2:end], xlabel="tetA copy number-fitness covariance", ylabel="tetA copy number velocity",  aspect_ratio=1,markersize=3)
 	end
 	
 end
@@ -1437,7 +1445,7 @@ $equilibrium\ allele\ frequency = \frac{mean\ tetA\ copy\ number}{PCN+1}$.
 
 # ╔═╡ 1fe4e134-5347-4b18-8926-db04bcd104b3
 begin ## make eigenspecies_stationary_distribution_matrix.
-	PCN_range_max = 30 #100  ## for PCN max = 100 and [Tet] max = 50,
+	PCN_range_max = 40 #100  ## for PCN max = 100 and [Tet] max = 50,
 	Tet_conc_range_max = 30 ## this cell takes 1h run time.
 
 	## Initialize the matrix. 
@@ -1458,7 +1466,7 @@ end
 final_fitness_variance_eigenspecies_matrix = [calc_fitness_variance(eigenspecies_stationary_distribution_matrix[pcn, tet], tet) for pcn in 1:PCN_range_max, tet in 1:Tet_conc_range_max]
 
 # ╔═╡ e3ab744f-2068-4b86-b87d-85a347137409
-stationary_distribution_fitness_variance_map = heatmap(final_fitness_variance_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="fitness variance of stationary distribution")
+stationary_distribution_fitness_variance_map = heatmap(final_fitness_variance_eigenspecies_matrix', ylabel="[Tet] concentration", xlabel="plasmid copy number", title="fitness variance of stationary distribution")
 
 # ╔═╡ c0bbcd2b-09c7-4422-91e6-d78b7550cc43
 savefig(stationary_distribution_fitness_variance_map, "../results/modeling-results/stationary_distribution_fitness_variance.pdf")
@@ -1468,7 +1476,7 @@ savefig(stationary_distribution_fitness_variance_map, "../results/modeling-resul
 final_tetA_copy_variance_eigenspecies_matrix = [calc_tetA_copy_number_variance(eigenspecies_stationary_distribution_matrix[pcn, tet]) for pcn in 1:PCN_range_max, tet in 1:Tet_conc_range_max]
 
 # ╔═╡ d1cdb20e-df8f-45be-a9a9-3c445189877d
-stationary_distribution_tetA_variance_map = heatmap(final_tetA_copy_variance_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="tetA copy number variance of stationary distribution")
+stationary_distribution_tetA_variance_map = heatmap(final_tetA_copy_variance_eigenspecies_matrix', ylabel="[Tet] concentration", xlabel="plasmid copy number", title="tetA copy number variance of stationary distribution")
 
 # ╔═╡ 648fa994-88ed-470c-9f85-c5a9713a49b0
 savefig(stationary_distribution_tetA_variance_map, "../results/modeling-results/stationary_distribution_tetA_variance.pdf")
@@ -1478,7 +1486,7 @@ savefig(stationary_distribution_tetA_variance_map, "../results/modeling-results/
 final_entropy_eigenspecies_matrix = map(Entropy, eigenspecies_stationary_distribution_matrix)
 
 # ╔═╡ 0d52cfa4-142c-4780-a2b0-03a7f2b4e43d
-stationary_distribution_entropy_map = heatmap(final_entropy_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="Shannon entropy of stationary distribution")
+stationary_distribution_entropy_map = heatmap(final_entropy_eigenspecies_matrix', ylabel="[Tet] concentration", xlabel="plasmid copy number", title="Shannon entropy of stationary distribution")
 
 # ╔═╡ d5c3f4e7-e57b-47df-acb5-af76ed7f6748
 savefig(stationary_distribution_entropy_map, "../results/modeling-results/stationary_distribution_entropy.pdf")
@@ -1493,7 +1501,7 @@ md"""  #### let's now make a phase diagram showing the stationary distribution i
 final_allele_frequency_eigenspecies_matrix = [calc_mean_tetA_copy_number(eigenspecies_stationary_distribution_matrix[pcn, tet])/(pcn+1) for pcn in 1:PCN_range_max, tet in 1:Tet_conc_range_max]
 
 # ╔═╡ 2a991b7a-b2bc-42bb-8f0d-6ffc3408ada9
-stationary_distribution_allele_frequency_map = heatmap(final_allele_frequency_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="equilibrium allele frequency of stationary distribution")
+stationary_distribution_allele_frequency_map = heatmap(final_allele_frequency_eigenspecies_matrix', ylabel="[Tet] concentration", xlabel="plasmid copy number", title="equilibrium allele frequency of stationary distribution")
 
 # ╔═╡ 135f8788-0aa6-4e9f-a706-10eafb638842
 savefig(stationary_distribution_allele_frequency_map, "../results/modeling-results/stationary_distribution_equilibrium_tetA_allele_frequency.pdf")
@@ -1507,7 +1515,7 @@ md""" ### make a phase diagram showing how mean population fitness deviates from
 final_mean_fitness_deviation_eigenspecies_matrix = [calc_mean_fitness(eigenspecies_stationary_distribution_matrix[pcn, tet],tet)/fitness_function(tet, tet) for pcn in 1:PCN_range_max, tet in 1:Tet_conc_range_max]
 
 # ╔═╡ a31fbb70-9b83-4f33-a612-f2b2c115a5f4
-final_mean_fitness_deviation_map = heatmap(final_mean_fitness_deviation_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="fitness deviation of stationary distribution")
+final_mean_fitness_deviation_map = heatmap(final_mean_fitness_deviation_eigenspecies_matrix', ylabel="[Tet] concentration", xlabel="plasmid copy number", title="fitness deviation of stationary distribution")
 
 # ╔═╡ 74279b9d-4de8-4b03-9d6b-0985d7e48ede
 md""" Notice how the fitness deviation heat map and equilibrium allele frequency phase diagram shows that, when PCN == 5 and TET_CONC == 4 and given an initial population to 100% TetA == 4, **fitness declines!!** This result shows that the "optimal state" at the top of the landscape is not stable. This is a very nice result, that demonstrates the phase transition to tunable dynamics. Also note that the stationary distribution depends on which absorbing state (tetA == 1 or tetA == PCN+1) has higher fitness."""
@@ -1528,41 +1536,54 @@ end
 # ╔═╡ ccdce86d-e8a1-4f36-8f23-2296aef613db
 let
 	my_xvec = collect(1:(5+1))
-	bar(my_xvec, final_pop_pcn5_tet4, label="")
+	final_pop_pcn5_tet4_fig = bar(my_xvec, final_pop_pcn5_tet4, label="", xlabel="tetA copy number", ylabel="subpopulation frequency")
 	# Add a vertical dashed line at x = TET_CONC
-	vline!([4], linestyle=:dash, label="TET_CONC")
+	vline!([4], linestyle=:dash, label="[Tet]")
+	savefig(final_pop_pcn5_tet4_fig, "../results/modeling-results/final_pop_pcn5_tet4.pdf")
+	final_pop_pcn5_tet4_fig
 end
 
 # ╔═╡ 5cea363f-de01-41be-8e28-1335d657a7cd
 let
 	my_xvec = collect(1:(10+1))
-	bar(my_xvec, final_pop_pcn10_tet5, label="")
+	final_pop_pcn10_tet5_fig = bar(my_xvec, final_pop_pcn10_tet5, label="", xlabel="tetA copy number", ylabel="subpopulation frequency")
 	# Add a vertical dashed line at x = TET_CONC
-	vline!([5], linestyle=:dash, label="TET_CONC")
+	vline!([5], linestyle=:dash, label="[Tet]")
+	savefig(final_pop_pcn10_tet5_fig, "../results/modeling-results/final_pop_pcn10_tet5.pdf")
+	final_pop_pcn10_tet5_fig
 end
+
+# ╔═╡ c9455bc3-b3d7-4934-9a4c-cc138aa1e57a
+savefig("../results/modeling-results/final_pop_pcn10_tet5.pdf")
 
 # ╔═╡ f1323fcd-ea2f-4165-a5fa-e0888f7cba6b
 let
 	my_xvec = collect(1:(16+1))
-	bar(my_xvec, final_pop_pcn16_tet8, label="")
+	final_pop_pcn16_tet8_fig = bar(my_xvec, final_pop_pcn16_tet8, label="", xlabel="tetA copy number", ylabel="subpopulation frequency")
 	# Add a vertical dashed line at x = TET_CONC
-	vline!([8], linestyle=:dash, label="TET_CONC")
+	vline!([8], linestyle=:dash, label="[Tet]")
+	savefig(final_pop_pcn16_tet8_fig, "../results/modeling-results/final_pop_pcn16_tet8.pdf")
+	final_pop_pcn16_tet8_fig
 end
 
 # ╔═╡ 562ecba7-53c6-4f7b-8eee-e3a4999ea22f
 let
 	my_xvec = collect(1:(20+1))
-	bar(my_xvec, final_pop_pcn20_tet10, label="")
+	final_pop_pcn20_tet10_fig = bar(my_xvec, final_pop_pcn20_tet10, label="", xlabel="tetA copy number", ylabel="subpopulation frequency")
 	# Add a vertical dashed line at x = TET_CONC
-	vline!([10], linestyle=:dash, label="TET_CONC")
+	vline!([10], linestyle=:dash, label="[Tet]")
+	savefig(final_pop_pcn20_tet10_fig, "../results/modeling-results/final_pop_pcn20_tet10.pdf")
+	final_pop_pcn20_tet10_fig
 end
 
 # ╔═╡ 25faf55d-12b6-445f-98c2-d14e2fa6ac0d
 let
 	my_xvec = collect(1:(40+1))
-	bar(my_xvec, final_pop_pcn40_tet20, label="")
+	final_pop_pcn40_tet20_fig = bar(my_xvec, final_pop_pcn40_tet20, label="", xlabel="tetA copy number", ylabel="subpopulation frequency")
 	# Add a vertical dashed line at x = TET_CONC
-	vline!([20], linestyle=:dash, label="TET_CONC")
+	vline!([20], linestyle=:dash, label="[Tet]")
+	savefig(final_pop_pcn40_tet20_fig, "../results/modeling-results/final_pop_pcn40_tet20.pdf")
+	final_pop_pcn40_tet20_fig
 end
 
 # ╔═╡ b1a2b45e-2a63-4dff-b3f8-546a7e203791
@@ -1607,37 +1628,47 @@ end
 
 # ╔═╡ 7ba197fe-33fc-4a49-a52f-1055fd53030e
 let
-	plot(pcn5_tet4_sol.t, pcn5_tet4_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+	pcn5_tet4_pulsefig = plot(pcn5_tet4_sol.t, pcn5_tet4_mean_copy_num_vec, label="Mean tetA copy number", xlabel="time", ylabel="mean tetA copy number")
 	# Add a horizontal dashed line at y = TET_CONC
 	hline!([4], linestyle=:dash, label="[Tet] = 4")
+	savefig(pcn5_tet4_pulsefig, "../results/modeling-results/pcn5_tet4_pulsefig.pdf")
+	pcn5_tet4_pulsefig
 end
 
 # ╔═╡ 2905fb49-99a6-41e2-90a6-7f8fa36d4cbb
 let
-	plot(pcn10_tet5_sol.t, pcn10_tet5_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+	pcn10_tet5_pulsefig = plot(pcn10_tet5_sol.t, pcn10_tet5_mean_copy_num_vec, label="Mean tetA copy number", xlabel="time", ylabel="mean tetA copy number")
 		# Add a horizontal dashed line at y = TET_CONC
 	hline!([5], linestyle=:dash, label="[Tet] = 5")
+	savefig(pcn10_tet5_pulsefig, "../results/modeling-results/pcn10_tet5_pulsefig.pdf")
+	pcn10_tet5_pulsefig
 end
 
 # ╔═╡ f2702a90-936a-45b3-8162-ff07936f4c80
 let
-	plot(pcn16_tet8_sol.t, pcn16_tet8_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+	pcn16_tet8_pulsefig = plot(pcn16_tet8_sol.t, pcn16_tet8_mean_copy_num_vec, label="Mean tetA copy number", xlabel="time", ylabel="mean tetA copy number")
 	# Add a horizontal dashed line at y = TET_CONC
 	hline!([8], linestyle=:dash, label="[Tet] = 8")
+	savefig(pcn16_tet8_pulsefig, "../results/modeling-results/pcn16_tet8_pulsefig.pdf")
+	pcn16_tet8_pulsefig
 end
 
 # ╔═╡ 489d6a31-7b62-42ec-8b54-82cd47420b68
 let
-	plot(pcn20_tet10_sol.t, pcn20_tet10_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+	pcn20_tet10_pulsefig = plot(pcn20_tet10_sol.t, pcn20_tet10_mean_copy_num_vec, label="Mean tetA copy number", xlabel="time", ylabel="mean tetA copy number")
 		# Add a horizontal dashed line at y = TET_CONC
 	hline!([10], linestyle=:dash, label="[Tet] = 10")
+	savefig(pcn20_tet10_pulsefig, "../results/modeling-results/pcn20_tet10_pulsefig.pdf")
+	pcn20_tet10_pulsefig
 end
 
 # ╔═╡ b3b9c85d-9090-4c8f-b8a4-fc2696288cca
 let
-	plot(pcn40_tet20_sol.t, pcn40_tet20_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+	pcn40_tet20_pulsefig = plot(pcn40_tet20_sol.t, pcn40_tet20_mean_copy_num_vec, label="Mean tetA copy number", xlabel="time", ylabel="mean tetA copy number")
 	# Add a horizontal dashed line at y = TET_CONC
 	hline!([20], linestyle=:dash, label="[Tet] = 20")
+	savefig(pcn40_tet20_pulsefig, "../results/modeling-results/pcn40_tet20_pulsefig.pdf")
+	pcn40_tet20_pulsefig
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -4664,7 +4695,7 @@ version = "1.4.1+1"
 """
 
 # ╔═╡ Cell order:
-# ╟─44e8209c-8d79-11ef-24db-ff1ea28d01b3
+# ╠═44e8209c-8d79-11ef-24db-ff1ea28d01b3
 # ╟─d4d1f72f-7aa7-46e7-9be0-f38fe991bc0c
 # ╟─b706fac1-3a38-423b-bed3-db6518475c73
 # ╟─c3d81737-fc16-44a0-b3de-bab5e0f7aab2
@@ -4821,6 +4852,7 @@ version = "1.4.1+1"
 # ╠═3067c892-5fdb-4cbf-aa04-110dccfde19c
 # ╠═ccdce86d-e8a1-4f36-8f23-2296aef613db
 # ╠═5cea363f-de01-41be-8e28-1335d657a7cd
+# ╠═c9455bc3-b3d7-4934-9a4c-cc138aa1e57a
 # ╠═f1323fcd-ea2f-4165-a5fa-e0888f7cba6b
 # ╠═562ecba7-53c6-4f7b-8eee-e3a4999ea22f
 # ╠═25faf55d-12b6-445f-98c2-d14e2fa6ac0d
