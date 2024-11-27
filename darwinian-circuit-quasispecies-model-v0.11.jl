@@ -478,60 +478,6 @@ function sample_unit_vector(n)
     return x
 end
 
-# ╔═╡ 61672801-5ea4-43f5-9f24-cf77062707fe
-"""
-
-	pulse_prob = ODEProblem(pulse_quasispecies_odefunc, initial_pop_vec, tspan, TetPulseFunction)
-
-function pulse_quasispecies_odefunc(du, u, p, t; ϵ=1e-7)
-	## Define the ODE system.
-	## p is a TetPulseFunction of time that is passed in as a parameter.
-	cur_tet_conc = p(t)
-	
-	## Define the ODE system
-	A = MutSelMatrix(PCN, cur_tet_conc)
-	
-	## Enforce positivity constraint
-    u .= max.(u, 0.0)
-
-	## set subpopulations with population size < ϵ to zero, to model extinction.
-	u[u .< ϵ] .= 0
-
-	## Normalize the vector to ensure it sums to one
-	normalize_vector!(u)
-	
-	## This is more stable-- the numerical error in the fitness calculation
-	## is large enough to cause errors.
-	Au = A*u ## sugar to avoid recomputation
-    du .= Au - sum(Au) * u
-end
-
-function quasispecies_odefunc(du, u, p, t; ϵ=1e-7)
-	## ϵ is a (1/N) threshold to model bottlenecks in transfers/finite population sizes in experiments
-
-	## pcn and tet_conc needs to be passed in as parameters.
-	pcn, tet_conc = p
-	
-	## Define the ODE system
-	A = MutSelMatrix(pcn, tet_conc)
-
-	## Enforce positivity constraint
-    u .= max.(u, 0.0)
-
-	## set subpopulations with population size < ϵ to zero, to model extinction.
-	u[u .< ϵ] .= 0
-
-	## Normalize the vector to ensure it sums to one
-	normalize_vector!(u)
-	
-	## subtract the mean population growth during this dt interval.
-	Au = A*u ## sugar to avoid recomputation
-	du .= Au - sum(Au) * u
-end
-
-
-"""
-
 # ╔═╡ c10d54d1-eb66-4008-8f83-a54342ea8128
 function CalcMeanTetACopyNumberVec(sol)
 	mean_tetA_copy_num_vec = []
@@ -823,7 +769,7 @@ function calc_delta_expected_trait_change(pop_vec, Tet_conc)
 	""" calculate the time derivative of the expected change in trait value (Equation 5 in Page and Nowak 2002)."""
 	covariance_term = calc_tetA_copy_number_fitness_covariance(pop_vec, Tet_conc)
 
-	""" IMPORTANT: we that the expected derivative of the trait value vector == 0,
+	""" IMPORTANT: we assume that the expected derivative of the trait value vector == 0,
 	 such that we can ignore this term in the RHS of the Price equation.
 	 It is easy to see that this is true in this model, because the number of
 	 tetA copies is fixed per subpopulation (any change is equivalent to a
@@ -879,13 +825,21 @@ end
 
 # ╔═╡ ea1bdd07-3d5a-49ef-a626-95d9b264d297
 function quasispecies_odefunc(du, u, p, t; ϵ=1e-7)
-	## ϵ is a (1/N) threshold to model bottlenecks in transfers/finite population sizes in experiments
+	## ϵ is a (1/N) threshold to model bottlenecks in transfers/finite population sizes in experiments.
 
-	## pcn and tet_conc needs to be passed in as parameters.
-	pcn, tet_conc = p
+	## Unpack the parameters in p
+	pcn, tet_conc_function = p
+
+	# Check if tet_conc_function is indeed callable
+    if !isa(tet_conc_function, Function)
+        error("The second element of p must be a TetFunction")
+    end
+
+	## get the current [Tet] concentration
+	cur_tet_conc = tet_conc_function(t)
 	
 	## Define the ODE system
-	A = MutSelMatrix(pcn, tet_conc)
+	A = MutSelMatrix(pcn, cur_tet_conc)
 
 	## Enforce positivity constraint
     u .= max.(u, 0.0)
@@ -901,20 +855,17 @@ function quasispecies_odefunc(du, u, p, t; ϵ=1e-7)
 	du .= Au - sum(Au) * u
 end
 
-# ╔═╡ 162efa78-e3a7-4ebb-ad7a-395a567071b1
-function SolveConstantTetQuasispeciesSystem(my_initial_pop_vec, my_pcn, my_tet_conc;
-	my_quasispecies_odefunc=quasispecies_odefunc,
+# ╔═╡ 638d7f76-512c-4c11-951d-76a77341b59d
+function SolveTetQuasispeciesSystem(my_initial_pop_vec, my_pcn, my_tet_function;
 	my_tspan=tspan)
 	""" 
-	run the simulation for constant [Tet] concentration.
-	if use_random_initial_vec is true, then use a random initial population.
-	otherwise, start from one tetA transposon copy in the chromosome.
+	my_tet_function is a function from time to tet_conc.
 	"""
 	## max transposon copy number is tied to plasmid_copy_number
 	max_tcn = my_pcn + 1
-
+	
 	## Create an ODEProblem
-	prob = ODEProblem(my_quasispecies_odefunc, my_initial_pop_vec, my_tspan, (my_pcn, my_tet_conc))
+	prob = ODEProblem(quasispecies_odefunc, my_initial_pop_vec, my_tspan, (my_pcn, my_tet_function))
 	## Solve the ODE system
 	sol = solve(prob, Tsit5(), abstol=1e-9, reltol=1e-9)
 	return sol
@@ -933,56 +884,48 @@ function CalcNormalizedTopEigenvector(pcn, tet_conc)
 	return my_top_eigenvector	
 end
 
-# ╔═╡ b47a2305-9595-4514-9816-a0819fcd5fec
-function pulse_quasispecies_odefunc(du, u, p, t; ϵ=1e-7)
-	## Define the ODE system.
-	## p is a TetPulseFunction of time that is passed in as a parameter.
-	cur_tet_conc = p(t)
-	
-	## Define the ODE system
-	A = MutSelMatrix(PCN, cur_tet_conc)
-	
-	## Enforce positivity constraint
-    u .= max.(u, 0.0)
+# ╔═╡ ea419d1b-1246-4999-a8a4-706c73e14ed8
+function TetPulseFunction(t;tet_conc=TET_CONC)
+	## We model [Tet] pulses over time by dividing the current time by 100, and
+	## setting "[Tet] ON" if in the first half.
+	pulse_cycle_time = 100
+	return mod(t,pulse_cycle_time) < (pulse_cycle_time/2) ? tet_conc : 0
+end
 
-	## set subpopulations with population size < ϵ to zero, to model extinction.
-	u[u .< ϵ] .= 0
-
-	## Normalize the vector to ensure it sums to one
-	normalize_vector!(u)
-	
-	## This is more stable-- the numerical error in the fitness calculation
-	## is large enough to cause errors.
-	Au = A*u ## sugar to avoid recomputation
-    du .= Au - sum(Au) * u
+# ╔═╡ c899121e-2b9e-4519-b168-98994684a86d
+function CreateTetPulseFunction(tet_conc=TET_CONC)
+	## We model [Tet] pulses over time by dividing the current time by 100, and
+	## setting "[Tet] ON" if in the first half.
+	pulse_cycle_time = 100
+	return t -> mod(t,pulse_cycle_time) < (pulse_cycle_time/2) ? tet_conc : 0
 end
 
 # ╔═╡ bd19d151-c3fc-4ff0-b2c5-4ffe07adcae0
 function SolvePulseTetQuasispeciesSystem(my_initial_pop_vec, my_pcn, my_tet_conc;
-	my_quasispecies_odefunc=pulse_quasispecies_odefunc,
 	my_tspan=tspan)
-	""" 
-	run the simulation for constant [Tet] concentration.
-	if use_random_initial_vec is true, then use a random initial population.
-	otherwise, start from one tetA transposon copy in the chromosome.
-	"""
-	## max transposon copy number is tied to plasmid_copy_number
-	max_tcn = my_pcn + 1
-
-	## Create an ODEProblem
-	prob = ODEProblem(my_quasispecies_odefunc, my_initial_pop_vec, my_tspan, (my_pcn, my_tet_conc))
-	## Solve the ODE system
-	sol = solve(prob, Tsit5(), abstol=1e-9, reltol=1e-9)
-	return sol
+	## provide pulses of [Tet].
+	my_tet_function = CreateTetPulseFunction(my_tet_conc)
+	return SolveTetQuasispeciesSystem(my_initial_pop_vec, my_pcn, my_tet_function; my_tspan)
 end
 
 
-# ╔═╡ ea419d1b-1246-4999-a8a4-706c73e14ed8
-function TetPulseFunction(t)
-	## We model [Tet] pulses over time by dividing the current time by 100, and
-	## setting "[Tet] ON" if in the first half.
-	pulse_cycle_time = 100
-	mod(t,pulse_cycle_time) < (pulse_cycle_time/2) ? TET_CONC : 0
+# ╔═╡ ac741b84-00f6-4f70-89a4-07dbb24ec9cb
+function ConstantTetFunction(t;tet_conc=TET_CONC)
+	## The purpose of this function is to provide a common interface for downstream code that may use either TetPulseFunction(t) or ConstantTetFunction(t).
+	return tet_conc
+end
+
+# ╔═╡ 5bd6b242-9a1e-44ea-b319-6b7604e57624
+function CreateConstantTetFunction(tet_conc=TET_CONC)
+	return t -> tet_conc
+end
+
+# ╔═╡ 162efa78-e3a7-4ebb-ad7a-395a567071b1
+function SolveConstantTetQuasispeciesSystem(my_initial_pop_vec, my_pcn, my_tet_conc;
+	my_tspan=tspan)
+	## provide a constant [Tet] concentration.
+	my_tet_function = CreateConstantTetFunction(my_tet_conc)
+	return SolveTetQuasispeciesSystem(my_initial_pop_vec, my_pcn, my_tet_function; my_tspan)
 end
 
 # ╔═╡ 9241c94d-857c-4a31-93f1-cfed036cf2f2
@@ -1041,18 +984,18 @@ begin
 
 	## make a vector of tet concentration over time in the model solution
 	## for calculating summary statistics.
-	const_tet_vec = [TET_CONC for t in sol.t]
+	const_tet_vec = [ConstantTetFunction(t) for t in sol.t]
 
-	## calculate mean copy number in the constant [Tet] population.
+	## calculate mean copy number.
 	mean_copy_num_vec = CalcMeanTetACopyNumberVec(sol)
 
-	## calculate rate of copy number change in the constant [Tet] population.
+	## calculate rate of copy number change.
 	d_mean_copy_num_vec_dt_vec = CalcTetACopyNumberVelocity(sol)
 
-	## calculate tetA copy number--fitness covariance in the constant [Tet] population.
+	## calculate tetA copy number--fitness covariance.
 	copy_num_covariance_vec = CalcTetACopyNumberFitnessCovariance(sol, const_tet_vec)
 
-	## calculate Price equation LHS (covariance + mutation terms) for the constant [Tet] population.
+	## calculate Price equation LHS (covariance + mutation terms).
 	constant_tet_pop_Price_equation_LHS_vec = CalcPriceEquationLHS_vec(sol, const_tet_vec)
 end
 
@@ -1246,20 +1189,17 @@ end
 md""" ## model the [Tet] pulse conditions of the Darwin experiment."""
 
 # ╔═╡ 55f2289b-9268-4bca-9f0f-7f27e29697f8
-begin ## run the simulation for pulses of [Tet] concentration.
-	## Create an ODEProblem
-	pulse_prob = ODEProblem(pulse_quasispecies_odefunc, initial_pop_vec, tspan, TetPulseFunction)
-
-	## Solve the ODE system
-	pulse_sol = solve(pulse_prob, Tsit5(), abstol=1e-9, reltol=1e-9)
-
-	## calculate mean copy number.
-	pulse_mean_copy_num_vec = CalcMeanTetACopyNumberVec(pulse_sol)
+begin 
+	## run the simulation for pulses of [Tet] concentration.	
+	pulse_sol = SolvePulseTetQuasispeciesSystem(initial_pop_vec, PCN, TET_CONC)
 	
 	## make a vector of tet concentration over time in the model solution
 	## for calculating summary statistics.
 	tet_pulse_vec = [TetPulseFunction(t) for t in pulse_sol.t]
 
+	## calculate mean copy number.
+	pulse_mean_copy_num_vec = CalcMeanTetACopyNumberVec(pulse_sol)
+	
 	## calculate rate of copy number change.
 	d_pulse_mean_copy_num_vec = CalcTetACopyNumberVelocity(pulse_sol)
 
@@ -1452,30 +1392,33 @@ md"""  #### let's test Claim 2: when ecDNA copy number is sufficiently high to m
 # ╔═╡ ba17fa2d-7243-45aa-86d2-c740029e544b
 md"""
 
-#### TODO: directly show the stability of the internal equilibrium by varying PCN and the fitness optimum (by varying [Tet] concentration), and show in terms of allele frequency by dividing mean TetA copy number by PCN.
+We directly show the stability of the internal equilibrium by varying PCN and the fitness optimum (by varying [Tet] concentration) in three ways:
+\
+\
+1) examining the phase diagram in terms of allele frequency by dividing mean TetA copy number by TCN (TCN = PCN+1). The nice thing about the eigenvector result is that we can immediately get the stationary distribution without having to simulate the differential equations. So, we can show how the stationary distribution changes as a function of the matrix, which is a function of PCN and [Tet] concentration. We can make a phase diagram in which we vary PCN and [Tet] systematically, and show how does the stability of the internal equilibrium (in allele frequency space) varies.
+\
+When there is an internal allele frequency equilibrium, then the stationary state has a distribution of cells with varying TetA transposon copy number.
+\
+\
+2) examining the stationary distribution for representative PCN and [Tet] cases, based on the phase diagram.
+\
+\
+3) show pulse dynamics for these representative PCN and [Tet] cases, starting from the stationary distribution in the constant [Tet] scenario.
 
 #### TODO: Make a figure following this design:
 ##### Panel A: phase diagrams showing when stationary distribution shows variation in Tet.
 ##### Panel B: show stationary distributions for representative PCN and [Tet] cases, based on the phase diagram.
 ##### Panel C: show pulse dynamics for the corresponding PCN and [Tet] parameters.
 
-The nice thing about the eigenvalue result is that we can immediately get the stationary distribution without having to simulate the differential equations. So, we can show how the stationary distribution changes as a function of the matrix, which is a function of PCN and [Tet] concentration. We can make a phase diagram in which we vary PCN and [Tet] systematically, and show how does the stability of the internal equilibrium (in allele frequency space) varies. 
-\
-When there is an internal allele frequency equilibrium, then the stationary state has a distribution of cells with varying TetA transposon copy number.
-\
-\
-
 #### Result notes
-
-Idea to make this point: set TET\_CONC to 50% of PCN. Set the initial configuration of the population to 100% "fitness optimum", that is, at TCN == TET_CONC. Then show how the distribution evolves.
 
 When PCN == 5, and TET_CONC == 4, and initial population to 100% TetA == 4, **Fitness declines!!** This result shows that the "optimal state" at the top of the landscape is not stable. This is a very nice result, that demonstrates the phase transition to tunable dynamics. Also note that the stationary distribution depends on which absorbing state (tetA == 1 or tetA == PCN+1) has higher fitness.
 
 When PCN == 10 and TET_CONC == 5, the distribution is completely found at the boundaries in the constant [Tet] simulation. The distribution is not tunable in the pulsed [Tet] simulation. 
 
-When PCN == 16 and TET_CONC == 8, it is almost flat in the middle, and most of the  distribution is at each boundary. The distribution is not tunable in the pulsed [Tet] simulation. 
+When PCN == 16 and TET_CONC == 8, it is almost flat in the middle, and most of the  distribution is at each boundary. The distribution weakly tunable in the pulsed [Tet] simulation. 
 
-When PCN == 20 and TET_CONC == 10, there is a small bump in the middle, and some distribution at each boundary. The distribution is not tunable in the pulsed [Tet] simulation. 
+When PCN == 20 and TET_CONC == 10, there is a small bump in the middle, and some distribution at each boundary. The distribution is somewhat tunable in the pulsed [Tet] simulation. 
 
 When PCN == 40 and TET_CONC == 20, there is a nice bell curve, and no distribution at the boundaries. The distribution is highly tunable in the pulsed [Tet] simulation.
 
@@ -1541,7 +1484,7 @@ stationary_distribution_entropy_map = heatmap(final_entropy_eigenspecies_matrix,
 savefig(stationary_distribution_entropy_map, "../results/modeling-results/stationary_distribution_entropy.pdf")
 
 # ╔═╡ e90eeda2-9b71-43b5-8ad8-68d8ad66298d
-md"""  #### let's now make a phase diagram showing the stationary distribution in terms of _allele frequency_ (tetA copy number/PCN), depending on PCN and [Tet] concentration. Note that the optimal number of TetA copies == [Tet] concentration in this model, for easy interpretation of the model results.
+md"""  #### let's now make a phase diagram showing the stationary distribution in terms of _allele frequency_ (tetA copy number/TCN), where TCN = PCN+1, depending on PCN and [Tet] concentration. Note that the optimal number of TetA copies == [Tet] concentration in this model, for easy interpretation of the model results.
 
 """
 
@@ -1628,9 +1571,9 @@ When PCN == 5, and TET_CONC == 4, and initial population to 100% TetA == 4, **Fi
 
 When PCN == 10 and TET_CONC == 5, the distribution is completely found at the boundaries in the constant [Tet] simulation. The distribution is not tunable in the pulsed [Tet] simulation. 
 
-When PCN == 16 and TET_CONC == 8, it is almost flat in the middle, and most of the  distribution is at each boundary. The distribution is not tunable in the pulsed [Tet] simulation. 
+When PCN == 16 and TET_CONC == 8, it is almost flat in the middle, and most of the  distribution is at each boundary. The distribution is weakly tunable in the pulsed [Tet] simulation. 
 
-When PCN == 20 and TET_CONC == 10, there is a small bump in the middle, and some distribution at each boundary. The distribution is not tunable in the pulsed [Tet] simulation. 
+When PCN == 20 and TET_CONC == 10, there is a small bump in the middle, and some distribution at each boundary. The distribution is somewhat tunable in the pulsed [Tet] simulation. 
 
 When PCN == 40 and TET_CONC == 20, there is a nice bell curve, and no distribution at the boundaries. The distribution is highly tunable in the pulsed [Tet] simulation.
 """
@@ -1642,20 +1585,17 @@ md"""
 
 # ╔═╡ 950aff23-d57e-45ce-a57b-2f3c3571e619
 md"""
-For these time courses, set the initial configuration of the population to 100% "fitness optimum", that is, at TCN == TET_CONC. We can see whether the populations are tunable based on the dynamics under pulse [Tet] conditions.
+For these time courses, set the initial configuration of the population to the stationary distribution under the corresponding constant [Tet] scenario. We can see whether the populations are tunable based on the dynamics under pulse [Tet] conditions.
 """
-
-# ╔═╡ f9627ae7-80cc-43cd-9bb8-1e60f08c4f73
-md""" # CRITICAL BUG FIX: SOLVE PULSE DYNAMICS NOT CONSTANT DYNAMICS!"""
 
 # ╔═╡ 8648e178-59f5-49db-b47a-b00b703537ca
 begin
 	## solve the ODEs for the dynamics
-	pcn5_tet4_sol = SolveConstantTetQuasispeciesSystem(optimal_tetA_initial_pop_vec(5, 4), 5, 4)
-	pcn10_tet5_sol = SolveConstantTetQuasispeciesSystem(optimal_tetA_initial_pop_vec(10, 5), 10, 5)
-	pcn16_tet8_sol = SolveConstantTetQuasispeciesSystem(optimal_tetA_initial_pop_vec(16, 8), 16, 8)
-	pcn20_tet10_sol = SolveConstantTetQuasispeciesSystem(optimal_tetA_initial_pop_vec(20, 10), 20, 10)
-	pcn40_tet20_sol = SolveConstantTetQuasispeciesSystem(optimal_tetA_initial_pop_vec(40, 20), 40, 20)
+	pcn5_tet4_sol = SolvePulseTetQuasispeciesSystem(final_pop_pcn5_tet4, 5, 4)
+	pcn10_tet5_sol = SolvePulseTetQuasispeciesSystem(final_pop_pcn10_tet5, 10, 5)
+	pcn16_tet8_sol = SolvePulseTetQuasispeciesSystem(final_pop_pcn16_tet8, 16, 8)
+	pcn20_tet10_sol = SolvePulseTetQuasispeciesSystem(final_pop_pcn20_tet10, 20, 10)
+	pcn40_tet20_sol = SolvePulseTetQuasispeciesSystem(final_pop_pcn40_tet20, 40, 20)
 	
 	## get the mean tetA copy number dynamics from the ODE solutions
 	pcn5_tet4_mean_copy_num_vec = CalcMeanTetACopyNumberVec(pcn5_tet4_sol)
@@ -1668,26 +1608,36 @@ end
 # ╔═╡ 7ba197fe-33fc-4a49-a52f-1055fd53030e
 let
 	plot(pcn5_tet4_sol.t, pcn5_tet4_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+	# Add a horizontal dashed line at y = TET_CONC
+	hline!([4], linestyle=:dash, label="[Tet] = 4")
 end
 
 # ╔═╡ 2905fb49-99a6-41e2-90a6-7f8fa36d4cbb
 let
 	plot(pcn10_tet5_sol.t, pcn10_tet5_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+		# Add a horizontal dashed line at y = TET_CONC
+	hline!([5], linestyle=:dash, label="[Tet] = 5")
 end
 
 # ╔═╡ f2702a90-936a-45b3-8162-ff07936f4c80
 let
 	plot(pcn16_tet8_sol.t, pcn16_tet8_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+	# Add a horizontal dashed line at y = TET_CONC
+	hline!([8], linestyle=:dash, label="[Tet] = 8")
 end
 
 # ╔═╡ 489d6a31-7b62-42ec-8b54-82cd47420b68
 let
 	plot(pcn20_tet10_sol.t, pcn20_tet10_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+		# Add a horizontal dashed line at y = TET_CONC
+	hline!([10], linestyle=:dash, label="[Tet] = 10")
 end
 
 # ╔═╡ b3b9c85d-9090-4c8f-b8a4-fc2696288cca
 let
 	plot(pcn40_tet20_sol.t, pcn40_tet20_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+	# Add a horizontal dashed line at y = TET_CONC
+	hline!([20], linestyle=:dash, label="[Tet] = 20")
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -4762,9 +4712,9 @@ version = "1.4.1+1"
 # ╠═348e1723-08b6-4968-896c-8459afc8bb08
 # ╠═ea1bdd07-3d5a-49ef-a626-95d9b264d297
 # ╠═f1b278a5-1ce4-47b3-b93e-969e1f9ec6bf
+# ╠═638d7f76-512c-4c11-951d-76a77341b59d
 # ╠═162efa78-e3a7-4ebb-ad7a-395a567071b1
 # ╠═bd19d151-c3fc-4ff0-b2c5-4ffe07adcae0
-# ╠═61672801-5ea4-43f5-9f24-cf77062707fe
 # ╠═c10d54d1-eb66-4008-8f83-a54342ea8128
 # ╠═0b129025-f83c-4560-8b3e-a56356966db4
 # ╠═36bab24f-30a2-489f-94e0-fa5962a49b37
@@ -4773,7 +4723,9 @@ version = "1.4.1+1"
 # ╠═621be509-5e7e-415a-bcc6-daa7b1903834
 # ╠═192ab415-b73a-49d3-ba74-99b5d91ad482
 # ╠═ea419d1b-1246-4999-a8a4-706c73e14ed8
-# ╠═b47a2305-9595-4514-9816-a0819fcd5fec
+# ╠═c899121e-2b9e-4519-b168-98994684a86d
+# ╠═ac741b84-00f6-4f70-89a4-07dbb24ec9cb
+# ╠═5bd6b242-9a1e-44ea-b319-6b7604e57624
 # ╠═0d55f4ed-f01c-43c6-8a58-6edf9b77e9d9
 # ╠═f238e7a6-86f1-4898-bc03-3fd80f4e1f3e
 # ╟─8dfdd593-117b-430e-b988-2eaa70484b4c
@@ -4857,7 +4809,7 @@ version = "1.4.1+1"
 # ╠═27bc3701-8120-4be6-9dac-22f68687dbe5
 # ╠═0d52cfa4-142c-4780-a2b0-03a7f2b4e43d
 # ╠═d5c3f4e7-e57b-47df-acb5-af76ed7f6748
-# ╟─e90eeda2-9b71-43b5-8ad8-68d8ad66298d
+# ╠═e90eeda2-9b71-43b5-8ad8-68d8ad66298d
 # ╠═ac632907-7a80-48fe-b6b7-d796a48d8032
 # ╠═2a991b7a-b2bc-42bb-8f0d-6ffc3408ada9
 # ╠═135f8788-0aa6-4e9f-a706-10eafb638842
@@ -4872,10 +4824,9 @@ version = "1.4.1+1"
 # ╠═f1323fcd-ea2f-4165-a5fa-e0888f7cba6b
 # ╠═562ecba7-53c6-4f7b-8eee-e3a4999ea22f
 # ╠═25faf55d-12b6-445f-98c2-d14e2fa6ac0d
-# ╟─b1a2b45e-2a63-4dff-b3f8-546a7e203791
+# ╠═b1a2b45e-2a63-4dff-b3f8-546a7e203791
 # ╟─11e0bfe0-c9c5-41bc-8c17-0eed797691b1
-# ╠═950aff23-d57e-45ce-a57b-2f3c3571e619
-# ╠═f9627ae7-80cc-43cd-9bb8-1e60f08c4f73
+# ╟─950aff23-d57e-45ce-a57b-2f3c3571e619
 # ╠═8648e178-59f5-49db-b47a-b00b703537ca
 # ╠═7ba197fe-33fc-4a49-a52f-1055fd53030e
 # ╠═2905fb49-99a6-41e2-90a6-7f8fa36d4cbb
