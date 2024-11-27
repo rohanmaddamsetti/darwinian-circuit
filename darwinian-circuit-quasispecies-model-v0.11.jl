@@ -37,7 +37,7 @@ Julia version 1.11.1.
 
 ##### Abstract
 
-Despite considerable interest, the emergence and evolution of collective computation in systems composed of simple equivalent components (e.g. cells, neurons) remains poorly understood. Here, we show the _de novo_ evolution of bacterial clones that modulate population-level gene expression in response to pulses of antibiotic. Genetic diversity is maintained within single cells by balancing selection on intracellular populations of plasmids containing a toxic TetA-GFP transposon. Theory and experiments reveal that when plasmid copy numbers are sufficiently high, diverse plasmids can be maintained within single cells, triggering the emergence of tunable dynamics in clonal populations. Theory shows that the rate at which gene expression changes in response to antibiotic depends on how gene expression covaries with fitness. This work demonstrates how mobile genetic elements allow host populations to rapidly evolve the ability to compute pulses in environmental stressors such as antibiotics, and describes a fundamental principle for engineering population-level gene expression with intracellular populations of mobile genetic elements.
+Despite considerable interest, the emergence and evolution of collective computation in systems composed of simple equivalent components (e.g. cells, neurons) remains poorly understood. Here, we show the _de novo_ evolution of bacterial clones that modulate population-level gene expression in response to pulses of antibiotic. Genetic diversity is maintained within single cells by balancing selection on intracellular populations of plasmids containing a toxic TetA-GFP transposon. Theory and experiments reveal that when plasmid copy numbers are sufficiently high, diverse plasmids can be maintained within single cells. In this regime, tunable dynamics emerge in clonal populations. Theory shows that the rate at which gene expression changes in response to antibiotic depends on how gene expression covaries with fitness. This work demonstrates how mobile genetic elements allow host populations to rapidly evolve the ability to compute pulses in environmental stressors such as antibiotics, and describes a fundamental principle for engineering population-level gene expression with intracellular populations of mobile genetic elements.
 
 """
 
@@ -54,30 +54,6 @@ We examine Claim (1) by randomly sampling 1,000 random initial conditions with r
 
 # ╔═╡ c3d81737-fc16-44a0-b3de-bab5e0f7aab2
 md""" ##### Claim (2) When ecDNA copy number is sufficiently high to maintain diverse ecDNAs in single cells, tunable evolutionary dynamics can emerge in otherwise clonal populations.
-\
-The nice thing about the eigenvalue result is that we can immediately get the stationary distribution without having to simulate the differential equations. So, we can show how the stationary distribution changes as a function of the matrix, which is a function of PCN and [Tet] concentration.
-\
-\
-Results: The model shows this behavior at PCN == 5, Tet == 4. Set initial population to 100% TetA == 4. **Fitness declines!!** This is a very nice result. Also note that the stationary distribution depends on which absorbing state (tetA == 1 or tetA == PCN+1) has higher fitness.
-
-##### TODO: Figure out a nice figure to show result (2).
-
-##### TODO: vary the optimum (by varying [Tet] concentration), and show in terms of allele frequency.
-
-##### As we vary PCN, how does the stability of the internal equilibrium vary?
-
-We may be able to answer this question with a single figure, using this model!
-
-Idea to make this point: set TET\_CONC to 50% of PCN. Set the initial configuration of the population to 100% "fitness optimum", that is, at TCN == TET_CONC. Then show how the distribution evolves.
-
-When PCN == 10 and TET_CONC == 5, the distribution is completely found at the boundaries in the constant [Tet] simulation. The distribution is not tunable in the pulsed [Tet] simulation. 
-
-When PCN == 16 and TET_CONC == 8, it is almost flat in the middle, and most of the  distribution is at each boundary. The distribution is not tunable in the pulsed [Tet] simulation. 
-
-When PCN == 20 and TET_CONC == 10, there is a small bump in the middle, and some distribution at each boundary. The distribution is not tunable in the pulsed [Tet] simulation. 
-
-When PCN == 40 and TET_CONC == 20, there is a nice bell curve, and no distribution at the boundaries. The distribution is highly tunable in the pulsed [Tet] simulation.
-
 """
 
 # ╔═╡ 3931b5c1-51df-42f5-86e9-09ddba2d2f11
@@ -502,6 +478,60 @@ function sample_unit_vector(n)
     return x
 end
 
+# ╔═╡ 61672801-5ea4-43f5-9f24-cf77062707fe
+"""
+
+	pulse_prob = ODEProblem(pulse_quasispecies_odefunc, initial_pop_vec, tspan, TetPulseFunction)
+
+function pulse_quasispecies_odefunc(du, u, p, t; ϵ=1e-7)
+	## Define the ODE system.
+	## p is a TetPulseFunction of time that is passed in as a parameter.
+	cur_tet_conc = p(t)
+	
+	## Define the ODE system
+	A = MutSelMatrix(PCN, cur_tet_conc)
+	
+	## Enforce positivity constraint
+    u .= max.(u, 0.0)
+
+	## set subpopulations with population size < ϵ to zero, to model extinction.
+	u[u .< ϵ] .= 0
+
+	## Normalize the vector to ensure it sums to one
+	normalize_vector!(u)
+	
+	## This is more stable-- the numerical error in the fitness calculation
+	## is large enough to cause errors.
+	Au = A*u ## sugar to avoid recomputation
+    du .= Au - sum(Au) * u
+end
+
+function quasispecies_odefunc(du, u, p, t; ϵ=1e-7)
+	## ϵ is a (1/N) threshold to model bottlenecks in transfers/finite population sizes in experiments
+
+	## pcn and tet_conc needs to be passed in as parameters.
+	pcn, tet_conc = p
+	
+	## Define the ODE system
+	A = MutSelMatrix(pcn, tet_conc)
+
+	## Enforce positivity constraint
+    u .= max.(u, 0.0)
+
+	## set subpopulations with population size < ϵ to zero, to model extinction.
+	u[u .< ϵ] .= 0
+
+	## Normalize the vector to ensure it sums to one
+	normalize_vector!(u)
+	
+	## subtract the mean population growth during this dt interval.
+	Au = A*u ## sugar to avoid recomputation
+	du .= Au - sum(Au) * u
+end
+
+
+"""
+
 # ╔═╡ c10d54d1-eb66-4008-8f83-a54342ea8128
 function CalcMeanTetACopyNumberVec(sol)
 	mean_tetA_copy_num_vec = []
@@ -540,6 +570,17 @@ function chromosomal_tetA_initial_pop_vec(my_pcn)
 	initial_pop_vec = zeros(BigFloat, my_max_tcn)
 	## initialize the population as 100% 1 chromosomal tetA copy.
 	initial_pop_vec[1] = big"1.0"
+	
+	return initial_pop_vec
+end
+
+# ╔═╡ f238e7a6-86f1-4898-bc03-3fd80f4e1f3e
+function optimal_tetA_initial_pop_vec(my_pcn, my_optimal_tcn)
+	my_max_tcn = my_pcn + 1
+	initial_pop_vec = zeros(BigFloat, my_max_tcn)
+	@assert my_max_tcn >= my_optimal_tcn ## make sure we don't go out of bounds.
+	## initialize the population as 100%  my_optimal_tetA_copies.
+	initial_pop_vec[my_optimal_tcn] = big"1.0"
 	
 	return initial_pop_vec
 end
@@ -916,6 +957,26 @@ function pulse_quasispecies_odefunc(du, u, p, t; ϵ=1e-7)
     du .= Au - sum(Au) * u
 end
 
+# ╔═╡ bd19d151-c3fc-4ff0-b2c5-4ffe07adcae0
+function SolvePulseTetQuasispeciesSystem(my_initial_pop_vec, my_pcn, my_tet_conc;
+	my_quasispecies_odefunc=pulse_quasispecies_odefunc,
+	my_tspan=tspan)
+	""" 
+	run the simulation for constant [Tet] concentration.
+	if use_random_initial_vec is true, then use a random initial population.
+	otherwise, start from one tetA transposon copy in the chromosome.
+	"""
+	## max transposon copy number is tied to plasmid_copy_number
+	max_tcn = my_pcn + 1
+
+	## Create an ODEProblem
+	prob = ODEProblem(my_quasispecies_odefunc, my_initial_pop_vec, my_tspan, (my_pcn, my_tet_conc))
+	## Solve the ODE system
+	sol = solve(prob, Tsit5(), abstol=1e-9, reltol=1e-9)
+	return sol
+end
+
+
 # ╔═╡ ea419d1b-1246-4999-a8a4-706c73e14ed8
 function TetPulseFunction(t)
 	## We model [Tet] pulses over time by dividing the current time by 100, and
@@ -1078,8 +1139,15 @@ end
 # ╔═╡ 1cff27ae-4465-4c38-8b26-5cace8a833d7
 constant_tet_pop_Price_equation_LHS_vec - copy_num_covariance_vec
 
+# ╔═╡ e1046a07-ad24-45e0-b871-069640aa6df3
+md""" ### Here, we show that the response time depends on the linear regression of population fitness on the landscape. In this model, the population that is best able to "hit the peak", AKA the population with PCN == [Tet]-1 in this model, has the fastest response time. This is a key theoretical prediction of the Price equation that holds in this model. 
+
+#### IMPORTANT TODO: IS THIS TRUE??? See the case of [Tet] == 40 and PCN == 100 versus PCN == 40 below.
+
+"""
+
 # ╔═╡ 4bddf691-83a7-4101-bb00-0fe463e5de77
-md""" ## Vary PCN (5, 15, 25, 50), keep [Tet] == 15, and compare rate of changes of mean tetA copy number"""
+md""" #### Vary PCN (5, 15, 25, 50), keep [Tet] == 15, and compare rate of changes of mean tetA copy number"""
 
 # ╔═╡ f96766c2-bd3b-4782-a884-a2d72667d0e4
 begin
@@ -1122,7 +1190,7 @@ let
 end
 
 # ╔═╡ 9a48f3c4-a5d3-4d53-8248-557c4dd86efb
-md""" ## Vary PCN (5, 15, 25, 40, 50), keep [Tet] == 40, and compare rate of changes of mean tetA copy number"""
+md""" #### Vary PCN (5, 15, 25, 40, 50), keep [Tet] == 40, and compare rate of changes of mean tetA copy number"""
 
 # ╔═╡ cb0d4f61-2a7d-4fe2-b2a7-8b2aafae22bd
 begin
@@ -1166,6 +1234,12 @@ let
 	plot!(pcn15_tet40_sol.t, pcn15_tet40_copy_num_velocity, label="PCN=15, TET=40")
 	plot!(pcn25_tet40_sol.t, pcn25_tet40_copy_num_velocity, label="PCN=25, TET=40")
 	plot!(pcn100_tet40_sol.t, pcn100_tet40_copy_num_velocity, label="PCN=100, TET=40")
+end
+
+# ╔═╡ 99b06657-4eec-44a6-9e84-5fc7f88dfb9f
+let
+	plot(pcn40_tet40_sol.t, pcn40_tet40_copy_num_covariance, label="PCN=40, TET=40", xlabel="Time", ylabel="rate of change of mean tetA copy number")
+	plot!(pcn100_tet40_sol.t, pcn100_tet40_copy_num_covariance, label="PCN=100,TET=40")
 end
 
 # ╔═╡ a2603db4-3fd8-4cc7-a943-8fa142961a61
@@ -1260,10 +1334,22 @@ for row in eachrow(numerical_comparison_matrix)
 end
 
 # ╔═╡ e15bbef0-42f1-47d5-af03-ce95468cba93
-md""" ### Let's test claim 2:
-The speed at which selection tunes population-level gene expression in response to environmental change is determined by the covariance between gene expression and fitness in the population (Price's theorem).
+md""" #### Let's test Claim 1: the speed at which selection tunes population-level gene expression in response to environmental change is determined by the covariance between gene expression and fitness in the population (Price's theorem).
 
-We examine this last claim by randomly sampling 1,000 random initial conditions with random plasmid copy numbers (PCN) and [Tet] concentrations.
+We examine Claim (1) by randomly sampling 1,000 random initial conditions with random plasmid copy numbers (PCN) and [Tet] concentrations.
+"""
+
+# ╔═╡ 153e0346-5632-4b96-929c-07cac8f8cfb6
+md"""
+
+## TODO: run for N = 1000, then save the results to file. Then if these results exist on disk, load them. If they don't exist on disk, then run this (slow) code to create them.
+"""
+
+# ╔═╡ bc46fd90-a4c5-4ec0-80f6-c96c6901ac6d
+md"""
+## DEBUGGING TODO: 
+
+The Price equation prediction is _almost_ correct here, it is probably good enough to publish-- but there is some apparent numerical error between the Price equation prediction and actual TetA copy number change when the magnitude of the derivatives are very large. Are there any numerical techniques to reduce the remaining numerical error?
 """
 
 # ╔═╡ 38cd0bb1-137f-401b-8279-cc3a28ead6f3
@@ -1358,10 +1444,51 @@ my_big_scatterplot
 # ╔═╡ 798394c1-79a3-4886-b42d-c6f20c73c572
 savefig(my_big_scatterplot, "../results/modeling-results/velocity-covariance-scatterplot.pdf")
 
-# ╔═╡ 83f4511d-ffe2-4677-9940-3cbed562845f
-md"""  ## let's make a phase diagram of how the stationary distribution depends on PCN and [Tet] concentration.  
+# ╔═╡ 138d4602-86bf-4923-b648-b6d273f6adac
+md"""  #### let's test Claim 2: when ecDNA copy number is sufficiently high to maintain diverse ecDNAs in single cells, tunable evolutionary dynamics can emerge in otherwise clonal populations.
 
-The stationary distribution is a function of two parameters, PCN, [Tet]. To draw a heatmap, we need some summary statistic of the distribution. Let's try entropy and variance.
+"""
+
+# ╔═╡ ba17fa2d-7243-45aa-86d2-c740029e544b
+md"""
+
+#### TODO: directly show the stability of the internal equilibrium by varying PCN and the fitness optimum (by varying [Tet] concentration), and show in terms of allele frequency by dividing mean TetA copy number by PCN.
+
+#### TODO: Make a figure following this design:
+##### Panel A: phase diagrams showing when stationary distribution shows variation in Tet.
+##### Panel B: show stationary distributions for representative PCN and [Tet] cases, based on the phase diagram.
+##### Panel C: show pulse dynamics for the corresponding PCN and [Tet] parameters.
+
+The nice thing about the eigenvalue result is that we can immediately get the stationary distribution without having to simulate the differential equations. So, we can show how the stationary distribution changes as a function of the matrix, which is a function of PCN and [Tet] concentration. We can make a phase diagram in which we vary PCN and [Tet] systematically, and show how does the stability of the internal equilibrium (in allele frequency space) varies. 
+\
+When there is an internal allele frequency equilibrium, then the stationary state has a distribution of cells with varying TetA transposon copy number.
+\
+\
+
+#### Result notes
+
+Idea to make this point: set TET\_CONC to 50% of PCN. Set the initial configuration of the population to 100% "fitness optimum", that is, at TCN == TET_CONC. Then show how the distribution evolves.
+
+When PCN == 5, and TET_CONC == 4, and initial population to 100% TetA == 4, **Fitness declines!!** This result shows that the "optimal state" at the top of the landscape is not stable. This is a very nice result, that demonstrates the phase transition to tunable dynamics. Also note that the stationary distribution depends on which absorbing state (tetA == 1 or tetA == PCN+1) has higher fitness.
+
+When PCN == 10 and TET_CONC == 5, the distribution is completely found at the boundaries in the constant [Tet] simulation. The distribution is not tunable in the pulsed [Tet] simulation. 
+
+When PCN == 16 and TET_CONC == 8, it is almost flat in the middle, and most of the  distribution is at each boundary. The distribution is not tunable in the pulsed [Tet] simulation. 
+
+When PCN == 20 and TET_CONC == 10, there is a small bump in the middle, and some distribution at each boundary. The distribution is not tunable in the pulsed [Tet] simulation. 
+
+When PCN == 40 and TET_CONC == 20, there is a nice bell curve, and no distribution at the boundaries. The distribution is highly tunable in the pulsed [Tet] simulation.
+
+
+"""
+
+# ╔═╡ 83f4511d-ffe2-4677-9940-3cbed562845f
+md"""  #### let's first make a phase diagram of how the stationary distribution depends on PCN and [Tet] concentration.  
+
+The stationary distribution is a function of two parameters, PCN, [Tet]. To draw a heatmap, we need some summary statistic of the distribution. Let's try entropy,  variance, and 
+\
+\
+$equilibrium\ allele\ frequency = \frac{mean\ tetA\ copy\ number}{PCN+1}$.
 
 """
 
@@ -1412,6 +1539,156 @@ stationary_distribution_entropy_map = heatmap(final_entropy_eigenspecies_matrix,
 
 # ╔═╡ d5c3f4e7-e57b-47df-acb5-af76ed7f6748
 savefig(stationary_distribution_entropy_map, "../results/modeling-results/stationary_distribution_entropy.pdf")
+
+# ╔═╡ e90eeda2-9b71-43b5-8ad8-68d8ad66298d
+md"""  #### let's now make a phase diagram showing the stationary distribution in terms of _allele frequency_ (tetA copy number/PCN), depending on PCN and [Tet] concentration. Note that the optimal number of TetA copies == [Tet] concentration in this model, for easy interpretation of the model results.
+
+"""
+
+# ╔═╡ ac632907-7a80-48fe-b6b7-d796a48d8032
+## calculate the mean allele frequency (tetA copy number/(PCN+1)) of each stationary distribution in the matrix
+final_allele_frequency_eigenspecies_matrix = [calc_mean_tetA_copy_number(eigenspecies_stationary_distribution_matrix[pcn, tet])/(pcn+1) for pcn in 1:PCN_range_max, tet in 1:Tet_conc_range_max]
+
+# ╔═╡ 2a991b7a-b2bc-42bb-8f0d-6ffc3408ada9
+stationary_distribution_allele_frequency_map = heatmap(final_allele_frequency_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="equilibrium allele frequency of stationary distribution")
+
+# ╔═╡ 135f8788-0aa6-4e9f-a706-10eafb638842
+savefig(stationary_distribution_allele_frequency_map, "../results/modeling-results/stationary_distribution_equilibrium_tetA_allele_frequency.pdf")
+
+# ╔═╡ f1eb2fd8-5604-4ff8-9f88-421e72d970ab
+md""" ### make a phase diagram showing how mean population fitness deviates from the optimal population fitness.
+"""
+
+# ╔═╡ bc5318e4-728c-41da-af1d-f2b08bf5fa23
+## calculate how mean population fitness deviates from the optimal population fitness stationary distribution in the matrix: 
+final_mean_fitness_deviation_eigenspecies_matrix = [calc_mean_fitness(eigenspecies_stationary_distribution_matrix[pcn, tet],tet)/fitness_function(tet, tet) for pcn in 1:PCN_range_max, tet in 1:Tet_conc_range_max]
+
+# ╔═╡ a31fbb70-9b83-4f33-a612-f2b2c115a5f4
+final_mean_fitness_deviation_map = heatmap(final_mean_fitness_deviation_eigenspecies_matrix, xlabel="[Tet] concentration", ylabel="Plasmid copy number", title="fitness deviation of stationary distribution")
+
+# ╔═╡ 74279b9d-4de8-4b03-9d6b-0985d7e48ede
+md""" Notice how the fitness deviation heat map and equilibrium allele frequency phase diagram shows that, when PCN == 5 and TET_CONC == 4 and given an initial population to 100% TetA == 4, **fitness declines!!** This result shows that the "optimal state" at the top of the landscape is not stable. This is a very nice result, that demonstrates the phase transition to tunable dynamics. Also note that the stationary distribution depends on which absorbing state (tetA == 1 or tetA == PCN+1) has higher fitness."""
+
+# ╔═╡ 6ccd78c9-6e5c-453c-9a98-57c775ec61d9
+md""" #### Draw stationary distributions for representative PCN & [Tet] values, based on these phase diagrams.
+"""
+
+# ╔═╡ 3067c892-5fdb-4cbf-aa04-110dccfde19c
+begin
+	final_pop_pcn5_tet4 = CalcNormalizedTopEigenvector(5, 4)
+	final_pop_pcn10_tet5 = CalcNormalizedTopEigenvector(10, 5)
+	final_pop_pcn16_tet8 = CalcNormalizedTopEigenvector(16, 8)
+	final_pop_pcn20_tet10 = CalcNormalizedTopEigenvector(20, 10)
+	final_pop_pcn40_tet20 = CalcNormalizedTopEigenvector(40, 20)
+end
+
+# ╔═╡ ccdce86d-e8a1-4f36-8f23-2296aef613db
+let
+	my_xvec = collect(1:(5+1))
+	bar(my_xvec, final_pop_pcn5_tet4, label="")
+	# Add a vertical dashed line at x = TET_CONC
+	vline!([4], linestyle=:dash, label="TET_CONC")
+end
+
+# ╔═╡ 5cea363f-de01-41be-8e28-1335d657a7cd
+let
+	my_xvec = collect(1:(10+1))
+	bar(my_xvec, final_pop_pcn10_tet5, label="")
+	# Add a vertical dashed line at x = TET_CONC
+	vline!([5], linestyle=:dash, label="TET_CONC")
+end
+
+# ╔═╡ f1323fcd-ea2f-4165-a5fa-e0888f7cba6b
+let
+	my_xvec = collect(1:(16+1))
+	bar(my_xvec, final_pop_pcn16_tet8, label="")
+	# Add a vertical dashed line at x = TET_CONC
+	vline!([8], linestyle=:dash, label="TET_CONC")
+end
+
+# ╔═╡ 562ecba7-53c6-4f7b-8eee-e3a4999ea22f
+let
+	my_xvec = collect(1:(20+1))
+	bar(my_xvec, final_pop_pcn20_tet10, label="")
+	# Add a vertical dashed line at x = TET_CONC
+	vline!([10], linestyle=:dash, label="TET_CONC")
+end
+
+# ╔═╡ 25faf55d-12b6-445f-98c2-d14e2fa6ac0d
+let
+	my_xvec = collect(1:(40+1))
+	bar(my_xvec, final_pop_pcn40_tet20, label="")
+	# Add a vertical dashed line at x = TET_CONC
+	vline!([20], linestyle=:dash, label="TET_CONC")
+end
+
+# ╔═╡ b1a2b45e-2a63-4dff-b3f8-546a7e203791
+md"""
+When PCN == 5, and TET_CONC == 4, and initial population to 100% TetA == 4, **Fitness declines!!** This result shows that the "optimal state" at the top of the landscape is not stable. This is a very nice result, that demonstrates the phase transition to tunable dynamics. Also note that the stationary distribution depends on which absorbing state (tetA == 1 or tetA == PCN+1) has higher fitness.
+
+When PCN == 10 and TET_CONC == 5, the distribution is completely found at the boundaries in the constant [Tet] simulation. The distribution is not tunable in the pulsed [Tet] simulation. 
+
+When PCN == 16 and TET_CONC == 8, it is almost flat in the middle, and most of the  distribution is at each boundary. The distribution is not tunable in the pulsed [Tet] simulation. 
+
+When PCN == 20 and TET_CONC == 10, there is a small bump in the middle, and some distribution at each boundary. The distribution is not tunable in the pulsed [Tet] simulation. 
+
+When PCN == 40 and TET_CONC == 20, there is a nice bell curve, and no distribution at the boundaries. The distribution is highly tunable in the pulsed [Tet] simulation.
+"""
+
+# ╔═╡ 11e0bfe0-c9c5-41bc-8c17-0eed797691b1
+md""" 
+#### Draw pulse dynamics for these same representative PCN & [Tet] values.
+"""
+
+# ╔═╡ 950aff23-d57e-45ce-a57b-2f3c3571e619
+md"""
+For these time courses, set the initial configuration of the population to 100% "fitness optimum", that is, at TCN == TET_CONC. We can see whether the populations are tunable based on the dynamics under pulse [Tet] conditions.
+"""
+
+# ╔═╡ f9627ae7-80cc-43cd-9bb8-1e60f08c4f73
+md""" # CRITICAL BUG FIX: SOLVE PULSE DYNAMICS NOT CONSTANT DYNAMICS!"""
+
+# ╔═╡ 8648e178-59f5-49db-b47a-b00b703537ca
+begin
+	## solve the ODEs for the dynamics
+	pcn5_tet4_sol = SolveConstantTetQuasispeciesSystem(optimal_tetA_initial_pop_vec(5, 4), 5, 4)
+	pcn10_tet5_sol = SolveConstantTetQuasispeciesSystem(optimal_tetA_initial_pop_vec(10, 5), 10, 5)
+	pcn16_tet8_sol = SolveConstantTetQuasispeciesSystem(optimal_tetA_initial_pop_vec(16, 8), 16, 8)
+	pcn20_tet10_sol = SolveConstantTetQuasispeciesSystem(optimal_tetA_initial_pop_vec(20, 10), 20, 10)
+	pcn40_tet20_sol = SolveConstantTetQuasispeciesSystem(optimal_tetA_initial_pop_vec(40, 20), 40, 20)
+	
+	## get the mean tetA copy number dynamics from the ODE solutions
+	pcn5_tet4_mean_copy_num_vec = CalcMeanTetACopyNumberVec(pcn5_tet4_sol)
+	pcn10_tet5_mean_copy_num_vec = CalcMeanTetACopyNumberVec(pcn10_tet5_sol)
+	pcn16_tet8_mean_copy_num_vec = CalcMeanTetACopyNumberVec(pcn16_tet8_sol)
+	pcn20_tet10_mean_copy_num_vec = CalcMeanTetACopyNumberVec(pcn20_tet10_sol)
+	pcn40_tet20_mean_copy_num_vec = CalcMeanTetACopyNumberVec(pcn40_tet20_sol)
+end
+
+# ╔═╡ 7ba197fe-33fc-4a49-a52f-1055fd53030e
+let
+	plot(pcn5_tet4_sol.t, pcn5_tet4_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+end
+
+# ╔═╡ 2905fb49-99a6-41e2-90a6-7f8fa36d4cbb
+let
+	plot(pcn10_tet5_sol.t, pcn10_tet5_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+end
+
+# ╔═╡ f2702a90-936a-45b3-8162-ff07936f4c80
+let
+	plot(pcn16_tet8_sol.t, pcn16_tet8_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+end
+
+# ╔═╡ 489d6a31-7b62-42ec-8b54-82cd47420b68
+let
+	plot(pcn20_tet10_sol.t, pcn20_tet10_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+end
+
+# ╔═╡ b3b9c85d-9090-4c8f-b8a4-fc2696288cca
+let
+	plot(pcn40_tet20_sol.t, pcn40_tet20_mean_copy_num_vec, label="Mean tetA copy number", xlabel="Time", ylabel="Mean tetA copy number")
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -4438,7 +4715,7 @@ version = "1.4.1+1"
 
 # ╔═╡ Cell order:
 # ╟─44e8209c-8d79-11ef-24db-ff1ea28d01b3
-# ╠═d4d1f72f-7aa7-46e7-9be0-f38fe991bc0c
+# ╟─d4d1f72f-7aa7-46e7-9be0-f38fe991bc0c
 # ╟─b706fac1-3a38-423b-bed3-db6518475c73
 # ╟─c3d81737-fc16-44a0-b3de-bab5e0f7aab2
 # ╟─3931b5c1-51df-42f5-86e9-09ddba2d2f11
@@ -4486,6 +4763,8 @@ version = "1.4.1+1"
 # ╠═ea1bdd07-3d5a-49ef-a626-95d9b264d297
 # ╠═f1b278a5-1ce4-47b3-b93e-969e1f9ec6bf
 # ╠═162efa78-e3a7-4ebb-ad7a-395a567071b1
+# ╠═bd19d151-c3fc-4ff0-b2c5-4ffe07adcae0
+# ╠═61672801-5ea4-43f5-9f24-cf77062707fe
 # ╠═c10d54d1-eb66-4008-8f83-a54342ea8128
 # ╠═0b129025-f83c-4560-8b3e-a56356966db4
 # ╠═36bab24f-30a2-489f-94e0-fa5962a49b37
@@ -4496,6 +4775,7 @@ version = "1.4.1+1"
 # ╠═ea419d1b-1246-4999-a8a4-706c73e14ed8
 # ╠═b47a2305-9595-4514-9816-a0819fcd5fec
 # ╠═0d55f4ed-f01c-43c6-8a58-6edf9b77e9d9
+# ╠═f238e7a6-86f1-4898-bc03-3fd80f4e1f3e
 # ╟─8dfdd593-117b-430e-b988-2eaa70484b4c
 # ╟─9bd490b7-3f11-487e-b454-785c7d87391b
 # ╠═28bd0eee-f54e-4ab5-aecc-275fe3e8319a
@@ -4521,18 +4801,20 @@ version = "1.4.1+1"
 # ╠═d0c028ae-b991-4558-87e6-41b4f5bfe274
 # ╟─7bfbb45d-57fc-4c9e-b929-ac44f7f88fef
 # ╠═73873c97-daf6-4133-a657-90de30803517
-# ╠═91d1760c-bbaf-466b-8eb7-623cb0dcd686
+# ╟─91d1760c-bbaf-466b-8eb7-623cb0dcd686
 # ╠═9b92d86b-9f19-4fed-be2b-691d58ffaab6
 # ╠═49830d58-03a3-4379-aeea-767c9a3eeb26
 # ╠═1cff27ae-4465-4c38-8b26-5cace8a833d7
-# ╠═4bddf691-83a7-4101-bb00-0fe463e5de77
+# ╟─e1046a07-ad24-45e0-b871-069640aa6df3
+# ╟─4bddf691-83a7-4101-bb00-0fe463e5de77
 # ╠═f96766c2-bd3b-4782-a884-a2d72667d0e4
 # ╠═d153fde0-3435-49f2-b493-2c2fc8fec41f
 # ╠═11e9cbd5-19f2-4401-ba19-8590d3f4dca7
-# ╠═9a48f3c4-a5d3-4d53-8248-557c4dd86efb
+# ╟─9a48f3c4-a5d3-4d53-8248-557c4dd86efb
 # ╠═cb0d4f61-2a7d-4fe2-b2a7-8b2aafae22bd
 # ╠═86e16ddc-a9e0-4e2c-822c-abc9f19d0ccf
 # ╠═933c9aef-3f09-42aa-b7c5-8f7e5c63d1c9
+# ╠═99b06657-4eec-44a6-9e84-5fc7f88dfb9f
 # ╟─a2603db4-3fd8-4cc7-a943-8fa142961a61
 # ╠═55f2289b-9268-4bca-9f0f-7f27e29697f8
 # ╠═c83fbfaa-1f5f-40b9-a6c1-68d480c4dfe7
@@ -4549,17 +4831,21 @@ version = "1.4.1+1"
 # ╠═bc0d22dc-b1d2-48d8-aa9d-b0210ab3f9a7
 # ╠═e9d58996-30f0-43b2-b13b-9cf7edfcd9eb
 # ╠═026d3047-cca8-462f-8df3-b73bdeb4af31
-# ╠═e15bbef0-42f1-47d5-af03-ce95468cba93
+# ╟─e15bbef0-42f1-47d5-af03-ce95468cba93
+# ╟─153e0346-5632-4b96-929c-07cac8f8cfb6
+# ╟─bc46fd90-a4c5-4ec0-80f6-c96c6901ac6d
 # ╠═38cd0bb1-137f-401b-8279-cc3a28ead6f3
 # ╠═ab7f4870-6967-4910-b272-ed75fb8fbb54
 # ╠═506fb600-7043-4562-8470-ffd2fd48d073
 # ╠═47445b3c-bf48-485a-b291-79437595b45a
-# ╠═adfa712e-80ca-405e-9854-1d0024c3d6f1
+# ╟─adfa712e-80ca-405e-9854-1d0024c3d6f1
 # ╠═5f9855dd-004f-4dc7-9673-ca5f81fb441b
 # ╠═b1697098-07e0-4577-b144-9ecc3879422b
 # ╠═d530e10c-63ff-49bb-a7b1-ea4b363738d0
 # ╠═1f030b53-5503-490e-abf0-20101555d3b1
 # ╠═798394c1-79a3-4886-b42d-c6f20c73c572
+# ╟─138d4602-86bf-4923-b648-b6d273f6adac
+# ╟─ba17fa2d-7243-45aa-86d2-c740029e544b
 # ╟─83f4511d-ffe2-4677-9940-3cbed562845f
 # ╠═1fe4e134-5347-4b18-8926-db04bcd104b3
 # ╠═e3f29f0d-2197-4f72-b84b-098e4372f424
@@ -4571,5 +4857,30 @@ version = "1.4.1+1"
 # ╠═27bc3701-8120-4be6-9dac-22f68687dbe5
 # ╠═0d52cfa4-142c-4780-a2b0-03a7f2b4e43d
 # ╠═d5c3f4e7-e57b-47df-acb5-af76ed7f6748
+# ╟─e90eeda2-9b71-43b5-8ad8-68d8ad66298d
+# ╠═ac632907-7a80-48fe-b6b7-d796a48d8032
+# ╠═2a991b7a-b2bc-42bb-8f0d-6ffc3408ada9
+# ╠═135f8788-0aa6-4e9f-a706-10eafb638842
+# ╠═f1eb2fd8-5604-4ff8-9f88-421e72d970ab
+# ╠═bc5318e4-728c-41da-af1d-f2b08bf5fa23
+# ╠═a31fbb70-9b83-4f33-a612-f2b2c115a5f4
+# ╟─74279b9d-4de8-4b03-9d6b-0985d7e48ede
+# ╠═6ccd78c9-6e5c-453c-9a98-57c775ec61d9
+# ╠═3067c892-5fdb-4cbf-aa04-110dccfde19c
+# ╠═ccdce86d-e8a1-4f36-8f23-2296aef613db
+# ╠═5cea363f-de01-41be-8e28-1335d657a7cd
+# ╠═f1323fcd-ea2f-4165-a5fa-e0888f7cba6b
+# ╠═562ecba7-53c6-4f7b-8eee-e3a4999ea22f
+# ╠═25faf55d-12b6-445f-98c2-d14e2fa6ac0d
+# ╟─b1a2b45e-2a63-4dff-b3f8-546a7e203791
+# ╟─11e0bfe0-c9c5-41bc-8c17-0eed797691b1
+# ╠═950aff23-d57e-45ce-a57b-2f3c3571e619
+# ╠═f9627ae7-80cc-43cd-9bb8-1e60f08c4f73
+# ╠═8648e178-59f5-49db-b47a-b00b703537ca
+# ╠═7ba197fe-33fc-4a49-a52f-1055fd53030e
+# ╠═2905fb49-99a6-41e2-90a6-7f8fa36d4cbb
+# ╠═f2702a90-936a-45b3-8162-ff07936f4c80
+# ╠═489d6a31-7b62-42ec-8b54-82cd47420b68
+# ╠═b3b9c85d-9090-4c8f-b8a4-fc2696288cca
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
