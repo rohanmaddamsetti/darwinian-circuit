@@ -192,6 +192,7 @@ ggsave("../results/Fig2C.pdf", Fig2C, width=4, height=2.5)
 ########################################################
 ## 1) plot y-axis in log-scale.
 
+
 Fig1I.variation1 <- ggplot(data=Fig1I.df, aes(x=Population, y=`log(copy number)`, fill=ratio_type)) +
     geom_bar(stat="identity", position=position_dodge()) +
     theme_classic() +
@@ -275,84 +276,7 @@ transposon.plasmid.correlation.plot <- plot_grid(
 ggsave("../results/evolved-transposon-plasmid-correlation.pdf", transposon.plasmid.correlation.plot, width=6, height=3.5)
 
 
-########################################################
-## let's examine copy number in the ancestral clones.
-## these were directly streaked from glycerol stock onto LB plates, and then
-## the plates were sent for sequencing. So no selection was applied to maintain
-## the p15A or pUC plasmids in the ancestral clones on the plate.
 
-ancestral.transposon.coverage.df <- filter(transposon.coverage.df, Sample %in% ancestral.clone.input.df$Sample)
-
-ancestral.replicon.coverage.df <- map_dfr(.x = ancestral.clone.input.df$path, .f = coverage.nbinom.from.html) %>%
-    ## I am not examining dispersion or variance at this point.
-    select(Sample, mean, replicon) %>%
-    ## add transposon coverage data
-    bind_rows(ancestral.transposon.coverage.df) %>%
-    ## set NA coverage values to zero.
-    mutate(mean=sapply(mean, function(x) ifelse(is.na(x), 0,x))) %>%
-    ## and add metadata.
-    full_join(ancestral.clone.metadata)
-
-
-ancestral.replicon.coverage.ratio.df <- ancestral.replicon.coverage.df %>%
-    pivot_wider(names_from = replicon, values_from = mean, names_prefix = "mean_") %>%
-    group_by(Sample, Plasmid, Population) %>%
-    summarise(transposons.per.chromosome = (mean_transposon/mean_chromosome),
-              plasmids.per.chromosome = (mean_plasmid/mean_chromosome),
-              transposons.per.plasmid = (mean_transposon/mean_plasmid)) %>%
-    pivot_longer(cols = c(transposons.per.chromosome,plasmids.per.chromosome,transposons.per.plasmid),
-                 names_to = "ratio_type", values_to = "ratio")
-
-
-ancestralFig1I.df <- ancestral.replicon.coverage.ratio.df %>%
-    ## we don't need transposons per plasmid, since we can get
-    ## that from the other two ratios.
-    filter(ratio_type != "transposons.per.plasmid") %>%
-    mutate(ratio_type = fct_recode(as.factor(ratio_type),
-                                       `Transposon copy number` = "transposons.per.chromosome",
-                                   `Plasmid copy number` = "plasmids.per.chromosome")) %>%
-    mutate(`Copy number` = ratio) %>%
-    mutate(Population = as.factor(Population)) %>%
-    ## log-transform copy number.
-    mutate(`log(copy number)` = log2(ratio))
-
-ancestralFig1I <- ggplot(data=ancestralFig1I.df, aes(x=Population, y=`Copy number`, fill=ratio_type)) +
-    geom_bar(stat="identity", position=position_dodge()) +
-    theme_classic() +
-    facet_wrap(.~Plasmid, scales="free") +
-    theme(legend.title=element_blank(), legend.position="bottom")
-ggsave("../results/ancestralFig1I.pdf", ancestralFig1I, width=8, height=3.5)
-
-########################################################
-## Make the full transposon-plasmid correlation plot that LC asked for,
-## including DH5a mixed population data.
-
-## add columns to merge datasets.
-K12.ancestral.clone.plasmid.transposon.ratio.df <- ancestral.replicon.coverage.ratio.df %>%
-    mutate(Strain = "K12") %>%
-    mutate(SampleType = "Clone") %>%
-    mutate(Tet=0) %>%
-    mutate(Transposon="B30")
-
-K12.evolved.clone.plasmid.transposon.ratio.df <- evolved.replicon.coverage.ratio.df %>%
-    mutate(Strain = "K12") %>%
-    mutate(SampleType = "Clone") %>%
-    mutate(Tet=50) %>%
-    mutate(Transposon="B30")
-
-DH5a.evolved.mixed.pop.replicon.coverage.ratio.df <- read.csv(
-    "../../transposon-plasmid-evolution/results/draft-manuscript-1A/plasmid-transposon-coverage-ratios.csv") %>%
-    mutate(SampleType = "MixedPop") %>%
-    mutate(Strain = "DH5a")
-
-full.replicon.coverage.ratio.df <-
-    K12.ancestral.clone.plasmid.transposon.ratio.df %>%
-    bind_rows(K12.evolved.clone.plasmid.transposon.ratio.df) %>%
-    bind_rows(DH5a.evolved.mixed.pop.replicon.coverage.ratio.df) %>%
-    mutate(Population = as.factor(Population)) %>%
-    mutate(Tet = as.factor(Tet)) %>%
-    ## this is to fix discrepancies between labeling of DH5a and K-12 samples.
-    mutate(Plasmid = replace(Plasmid, Plasmid == "None", "No plasmid"))
 
 
 newFig1.df <- full.replicon.coverage.ratio.df %>%
@@ -379,9 +303,3 @@ newFig1 <- ggplot(data=newFig1.df,
                 color="gray",linetype="dashed",size=0.5)
 ggsave("../results/newFig1.pdf", newFig1, height=3.5)
 
-log.newFig1 <- newFig1 +
-    scale_x_continuous(trans='log10') +
-    scale_y_continuous(trans='log10')
-ggsave("../results/log-newFig1.pdf", log.newFig1, height=3.5)
-
-              
