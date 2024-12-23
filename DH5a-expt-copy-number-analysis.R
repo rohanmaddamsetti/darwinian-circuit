@@ -24,9 +24,9 @@ library(assertthat)
 library(viridis)
 
 ## Bioconductor dependencies
-library(IRanges)
-library(GenomicRanges)
-library(rtracklayer)
+##library(IRanges)
+##library(GenomicRanges)
+##library(rtracklayer)
 
 
 #' parse the summary.html breseq output file, and return the mean and relative variance
@@ -78,211 +78,24 @@ max.readlen.from.html <- function(breseq.output.dir) {
     return(max.readlen)
 }
 
-
-#' Find intervals longer than max.read.len that reject H0 coverage in genome.
-#' at an uncorrected alpha = 0.05. This is to have generous predicted boundaries for amplifications.
-#' Then do a more rigorous test for each region. take positions in the region separated by more than max.read.len,
-#' and determine the probability that all are independently significant under the null, compared to
-#' a corrected bonferroni. max.read.len ensures positions cannot be spanned by a single Illumina read.
-#' Estimate copy number by dividing mean coverage in each region by the mean of the H0 1x coverage distribution.
-#' return mean copy number, and boundaries for each region that passes the amplification test.
-
-find.candidate.amplifications <- function(breseq.output.dir, gnome) { #gnome is not a misspelling.
-    
-    gnome <- as.character(gnome)
-    print(gnome)
-    ## Use xml2 to get negative binomial fit and relative variance from
-    ## breseq output summary.html. This is H0 null distribution of 1x coverage.
-    nbinom.fit <- coverage.nbinom.from.html(breseq.output.dir) %>%
-        filter(replicon=="chromosome")
-    
-    ## Use xml2 to get max read length from summary.html.
-    max.read.len <- max.readlen.from.html(breseq.output.dir)
-    my.size.parameter <- nbinom.fit$mean^2/(nbinom.fit$variance - nbinom.fit$mean)
-    alpha <- 0.05
-   
-    uncorrected.threshold <- qnbinom(p=alpha, mu=nbinom.fit$mean, size=my.size.parameter, lower.tail=FALSE)
-    
-    genome.coverage.file <- file.path(breseq.output.dir,"08_mutation_identification", "NC_000913.coverage.tab")
-    
-    ## use dtplyr for speed!
-    genome.coverage <- lazy_dt(fread(genome.coverage.file)) %>%
-        select(position,unique_top_cov,unique_bot_cov) %>% mutate(coverage=unique_top_cov+unique_bot_cov)
-    
-    ## find candidate amplifications that pass the uncorrected threshold.
-    candidate.amplifications <- genome.coverage %>%
-        filter(coverage > uncorrected.threshold) %>%
-        ## now finally turn into a tibble.
-        as_tibble()
-    
-    ## calculate intervals of candidate amplifications.
-    boundaries <- candidate.amplifications %>%
-        mutate(left.diff=position - lag(position)) %>%
-        mutate(right.diff=lead(position) - position) %>%
-        ## corner case: check for the NA values at the endpoints and set them as boundaries.
-        mutate(is.right.boundary=is.na(right.diff)|ifelse(right.diff>1,TRUE,FALSE)) %>%
-        mutate(is.left.boundary=is.na(left.diff)|ifelse(left.diff>1,TRUE,FALSE)) %>%
-        filter(is.left.boundary==TRUE | is.right.boundary==TRUE)
- 
-    left.boundaries <- filter(boundaries,is.left.boundary==TRUE) %>%
-        arrange(position)
-        
-    right.boundaries <- filter(boundaries,is.right.boundary==TRUE) %>%
-        arrange(position)
-    
-    assert_that(nrow(left.boundaries) == nrow(right.boundaries))
-    
-    ## helper higher-order function to get min, max, mean coverage of each segment.
-    get.segment.coverage <- function(left.bound,right.bound,coverage.table,funcx) {
-        seg <- coverage.table %>% filter(position>left.bound) %>% filter(position<right.bound)
-        return(funcx(seg$coverage))
-    }
-    
-    amplified.segments <- data.frame(left.boundary=left.boundaries$position,right.boundary=right.boundaries$position) %>%
-        ## filter out intervals less than 2 * max.read.len.
-        mutate(len=right.boundary-left.boundary) %>%
-    filter(len>(2*max.read.len)) %>% mutate(amplication.index=row_number())
-
-    ## return empty dataframe  if there are no significant amplified segments.
-    if (nrow(amplified.segments) == 0) return(data.frame())
-
-    amplified.segments <- amplified.segments %>%
-        ## find min, max, and mean coverage of each amplified segment.
-        group_by(left.boundary,right.boundary) %>%
-        summarise(coverage.min=get.segment.coverage(left.boundary,right.boundary,candidate.amplifications,min),
-                  coverage.max=get.segment.coverage(left.boundary,right.boundary,candidate.amplifications,max),
-                  coverage.mean=get.segment.coverage(left.boundary,right.boundary,candidate.amplifications,mean)) %>%
-        mutate(len=right.boundary-left.boundary) %>%
-        mutate(copy.number.min=coverage.min/nbinom.fit$mean,copy.number.max=coverage.max/nbinom.fit$mean,
-               copy.number.mean=coverage.mean/nbinom.fit$mean) %>%
-        ## annotate with the sample name.
-        mutate(Sample=as.character(gnome))
-
-    return(amplified.segments)
-}
-
-
-find.DH5a.chromosomal.amplifications <- function(breseq.output.dir, gnome) { #gnome is not a misspelling.
-
-    ## length of K-12 NEB 5-alpha reference chromosome (GCF_001723505.1)
-    GENOME.LENGTH <- 4583637 
-    
-    amplified.segments <- find.candidate.amplifications(breseq.output.dir, gnome)
-    ## handle the case that there are no amplified.segments (empty dataframe).
-    if (nrow(amplified.segments) == 0) return(amplified.segments)
-    
-    ## Use xml2 to get negative binomial fit and relative variance from
-    ## breseq output summary.html. This is H0 null distribution of 1x coverage.
-    nbinom.fit <- coverage.nbinom.from.html(breseq.output.dir) %>%
-        filter(replicon=="chromosome")  
-    ## Use xml2 to get max read length from summary.html.
-    max.read.len <- max.readlen.from.html(breseq.output.dir)
-    my.size.parameter <- nbinom.fit$mean^2/(nbinom.fit$variance - nbinom.fit$mean)
-    alpha <- 0.05
-
-    ## divide alpha by the number of tests for the bonferroni correction.
-    bonferroni.alpha <- alpha/(GENOME.LENGTH + sum(amplified.segments$len))
-    corrected.threshold <- qnbinom(p = bonferroni.alpha, mu = nbinom.fit$mean, size = my.size.parameter, lower.tail=FALSE)
-    
-    ## This is my test: take the probability of the minimum coverage under H0 to the power of the number of
-    ## uncorrelated sites in the amplification (sites more than max.read.len apart). Then see if this is smaller than the
-    ## bonferroni corrected p-value for significance..
-    significant.amplifications <- amplified.segments %>%
-        mutate(pval=(pnbinom(q = coverage.min,
-                             mu = nbinom.fit$mean,
-                             size = my.size.parameter,
-                             lower.tail=FALSE))^(len%/%max.read.len)) %>%
-        mutate(is.significant = ifelse(pval < bonferroni.alpha, TRUE, FALSE)) %>%
-        filter(is.significant==TRUE) %>%
-        mutate(bonferroni.corrected.pval=pval*alpha/bonferroni.alpha)
-    
-    return(significant.amplifications)
-}
-
-
-annotate.sample.amplifications <- function(sample.amplifications) {
-
-    ancestor.gff <- unique(sample.amplifications$gff_path)
-    
-    ## create the IRanges object.
-    amp.ranges <- IRanges(sample.amplifications$left.boundary,
-                          sample.amplifications$right.boundary)
-    ## Turn into a GRanges object in order to find overlaps with K12 genes.
-    g.amp.ranges <- GRanges("NC_000913", ranges=amp.ranges)
-    ## and add the data.frame of sample.amplifications as metadata.
-    mcols(g.amp.ranges) <- sample.amplifications
-    
-    ## find the genes within the amplifications.
-    ancestor.gff.data <- import.gff(ancestor.gff)
-    ancestor.Granges <- as(ancestor.gff.data, "GRanges")
-    
-    ancestor.genes <- ancestor.Granges[ancestor.Granges$type == 'gene']
-    ## find overlaps between annotated genes and amplifications.
-    hits <- findOverlaps(ancestor.genes,g.amp.ranges,ignore.strand=FALSE)
-    
-    ## take the hits, the ancestor annotation, and the amplifications,
-    ## and produce a table of genes found in each amplication.
-    
-    hits.df <- data.frame(query.index=queryHits(hits),subject.index=subjectHits(hits))
-    
-    query.df <- data.frame(query.index=seq_len(length(ancestor.genes)),
-                           gene=ancestor.genes$Name,locus_tag=ancestor.genes$ID,
-                           start=start(ranges(ancestor.genes)),end=end(ranges(ancestor.genes)))
-    
-    subject.df <- bind_cols(data.frame(subject.index=seq_len(length(g.amp.ranges))),data.frame(mcols(g.amp.ranges)))
-    
-    amplified.genes.df <- left_join(hits.df,query.df) %>% left_join(subject.df) %>%
-        ## if gene is NA, replace with locus_tag. have to change factors to strings!
-        mutate(gene = ifelse(is.na(gene),as.character(locus_tag),as.character(gene)))
-    
-    return(amplified.genes.df)
-}
-
-
-annotate.amplifications <- function(amps.with.ancestors) {
-    amps.with.ancestors %>% split(.$Sample) %>%
-        map_dfr(.f = annotate.sample.amplifications)    
-}
-
-
-plot.DH5a.amp.segments <- function(annotated.amps) {
-    
-    labeled.annotated.amps <- annotated.amps %>%
-        mutate(log2.copy.number.mean=log2(copy.number.mean)) %>%
-        mutate(left.boundary.MB = left.boundary/1000000) %>%
-        mutate(right.boundary.MB = right.boundary/1000000)
-    
-    ## order the genes by start to get axes correct on heatmap.
-    labeled.annotated.amps$gene <- with(labeled.annotated.amps, reorder(gene, start))
-    ## reverse the order of genomes to make axes consistent with stacked barplot.
-    labeled.annotated.amps$Sample <- factor(labeled.annotated.amps$Sample)
-    labeled.annotated.amps$Sample <- factor(labeled.annotated.amps$Sample,
-                                            levels=rev(levels(labeled.annotated.amps$Sample)))
-    
-    segmentplot <- ggplot(
-        labeled.annotated.amps,
-        aes(x=left.boundary.MB,
-            xend=right.boundary.MB,
-            y=Sample,
-            yend=Sample,
-            color=copy.number.mean,
-            size=20,
-            frame=Plasmid)) +
-        geom_segment() +
-        ## draw vertical lines at acrBAR starts in DH5a (NZ_CP017100).
-        geom_vline(size=0.2,
-                   color = 'red',
-                   linetype = 'dashed',
-                   xintercept = c(389678/1000000, 390894/1000000, 391036/1000000)) +
-        xlab("chromosomal position (Mb)") +
-        ylab("") +
-        scale_color_viridis(name="copy number",option="plasma") +
-        facet_wrap(.~Plasmid,ncol=1, scales = "free_y") +
-        theme_classic(base_family='Helvetica') +
-        guides(size= "none") +
-        theme(legend.position="bottom") +
-        theme(axis.ticks=element_line(size=0.1))
-    return(segmentplot)
+recode.treatment.factor.names <- function(df) {
+    ## update the names of the Transposon, Plasmid, and Tet factors
+    ## for a prettier plot.
+    df %>%
+        ## update the names of the Transposon factor for a prettier plot.
+        mutate(Transposon_factor = fct_recode(as.factor(Transposon),
+                                              `TetA++ (strong promoter)` = "B30",
+                                              `TetA+ (weak promoter)` = "B20",
+                                              `Tn5-` = "B59")) %>%
+        ## update the names of the Plasmid factor for a prettier plot.
+        mutate(Plasmid_factor = fct_recode(as.factor(Plasmid),
+                                           `No plasmid` = "None",
+                                           `p15A plasmid` = "p15A",
+                                           `pUC plasmid` = "pUC")) %>%
+        ## update the names of the Tet factor for a prettier plot.
+        mutate(Tet_factor = fct_recode(as.factor(Tet),
+                                       `Tet 0` = "0",
+                                       `Tet 50` = "50"))
 }
 
 #######################################
@@ -293,95 +106,40 @@ plot.DH5a.amp.segments <- function(annotated.amps) {
 stopifnot(endsWith(getwd(), file.path("darwinian-circuit","src")))
 projdir <- file.path("..")
 
+## make a dataframe of samples and paths to the breseq output for each sample.
+mixedpop.results.dir <- file.path(projdir, "results", "DH5a-expt-genome-analysis", "mixed-pops")
+all.mixedpops <- list.files(mixedpop.results.dir,pattern='^RM')
+all.mixedpop.paths <- sapply(all.mixedpops, function(x) file.path(mixedpop.results.dir,x))
+mixedpop.input.df <- data.frame(Sample=all.mixedpops, path=all.mixedpop.paths)
 
-## helper function for adding metadata for RM7.140.31-60.
-Evolved.Sample.ID.to.Plasmid <- function(sample.id) {
-    ## get rid of the prefix and turn the rest into a number.
-    sample.num <- strtoi(str_replace(sample.id, "^RM7-140-", "" ))
-    if (sample.num <= 40)
-        plasmid.type = "No plasmid"
-    else if (sample.num <= 50)
-        plasmid.type = "p15A"
-    else if (sample.num <= 60)
-        plasmid.type = "pUC"
-    else
-        stop("sample from nine-day tetA-GFP barcode experiment out of range")
-    return(plasmid.type)
-}
-
-
-## helper function for adding metadata for RM7.140.31-60.
-Evolved.Sample.ID.to.Population <- function(sample.id) {
-    ## get rid of the prefix and turn the rest into a number.
-    sample.num <- strtoi(str_replace(sample.id, "^RM7-140-", "" ))
-    population.num <- ((sample.num - 30) %% 10)
-    if (population.num == 0)
-        population.num <- 10
-    return(population.num)
-}
-
-
-clone.data.dir <- file.path(projdir, "results", "nine-day-GFP-barcode-expt-genome-analysis")
-## don't match the GFF files.
-all.clones <- Filter(function(x) return(!str_detect(x, "gff")), list.files(clone.data.dir,pattern='^RM7'))
-all.clone.paths <- sapply(all.clones, function(x) file.path(clone.data.dir,x))
-clone.input.df <- data.frame(Sample=all.clones, path=all.clone.paths)
-
-ancestral.clone.input.df <- filter(clone.input.df, !str_detect(Sample, "^RM7-140-"))
-evolved.clone.input.df <- filter(clone.input.df, str_detect(Sample, "^RM7-140-"))
-
-## generate evolved clone metadata from the Sample column.
-evolved.clone.metadata <- evolved.clone.input.df %>%
-    select(Sample) %>%
-    ## get the plasmid type from the sample ID.
-    mutate(Plasmid = sapply(Sample, Evolved.Sample.ID.to.Plasmid)) %>%
-    ## get the population number from the sample ID.
-    mutate(Population = sapply(Sample, Evolved.Sample.ID.to.Population)) %>%
-    ## need a GFF file for annotating chromosomal amplifications.
-    mutate(gff_path = "../results/nine-day-GFP-barcode-expt-genome-analysis/LCA.gff3")
-
-## The no plasmid ancestor clones are RM7.107.3,4,5,6,7,8,9,10,11,13.
-## The p15A ancestor clones are RM7.106.3,5,6,7,8,10,11,12,13,15.
-## The pUC ancestor clones are RM7.107.38,39,41,42,44,45,46,48,49,56.
-ancestral.clone.metadata <- data.frame(
-    Sample = c(
-        "RM7-107-3","RM7-107-4","RM7-107-5","RM7-107-6","RM7-107-7",
-        "RM7-107-8","RM7-107-9","RM7-107-10","RM7-107-11","RM7-107-13",
-        "RM7-106-3","RM7-106-5","RM7-106-6","RM7-106-7","RM7-106-8",
-        "RM7-106-10","RM7-106-11","RM7-106-12","RM7-106-13","RM7-106-15",
-        "RM7-107-38","RM7-107-39","RM7-107-41","RM7-107-42","RM7-107-44",
-        "RM7-107-45","RM7-107-46","RM7-107-48","RM7-107-49","RM7-107-56"),
-    Plasmid = c(
-        rep("No plasmid",10), rep("p15A",10), rep("pUC",10)),
-    Population = c(
-        seq(1:10), seq(1:10), seq(1:10)),
-    ## need a GFF file for annotating chromosomal amplifications.
-    gff_path = rep("../results/nine-day-GFP-barcode-expt-genome-analysis/LCA.gff3", 30))
-
+DH5a.expt.metadata <- read.csv(
+    file.path(
+        projdir,
+        "data",
+        "DH5a-genome-sequencing",
+        "DH5a-evolved-populations-and-clones.csv"))
 
 ######################################################################
 ## Plot the plasmid/chromosome and transposon/chromosome ratio in each sample.
 
-## Get the actual coverage for the B31-N20 transposons in each clone.
-## This is calculated by get-nine-day-GFP-barcode-expt-transposon-coverage.py.
-transposon.coverage.file <- file.path(projdir, "results", "nine-day-GFP-barcode-expt-genome-analysis", "transposon-coverage.csv")
+## Get the actual coverage for the transposons in each mixed population.
+## This is calculated by get-DH5a-expt-transposon-coverage.py.
+transposon.coverage.file <- file.path(projdir, "results", "DH5a-expt-genome-analysis", "transposon-coverage.csv")
 transposon.coverage.df <- read.csv(transposon.coverage.file) %>%
     ## let's add metadata and rename columns for compatibility.
     dplyr::rename(mean = TransposonCoverage) %>%
     dplyr::mutate(replicon = "transposon") 
 
-ancestral.transposon.coverage.df <- filter(transposon.coverage.df, Sample %in% ancestral.clone.input.df$Sample)
-evolved.transposon.coverage.df <- filter(transposon.coverage.df, Sample %in% evolved.clone.input.df$Sample)
 
-evolved.replicon.coverage.df <- map_dfr(.x = evolved.clone.input.df$path, .f = coverage.nbinom.from.html) %>%
+evolved.replicon.coverage.df <- map_dfr(.x = mixedpop.input.df$path, .f = coverage.nbinom.from.html) %>%
     ## I am not examining dispersion or variance at this point.
     select(Sample, mean, replicon) %>%
     ## add transposon coverage data
-    bind_rows(evolved.transposon.coverage.df) %>%
+    bind_rows(transposon.coverage.df) %>%
     ## set NA coverage values to zero.
     mutate(mean=sapply(mean, function(x) ifelse(is.na(x), 0,x))) %>%
     ## and add metadata.
-    full_join(evolved.clone.metadata)
+    inner_join(DH5a.expt.metadata)
 
 
 evolved.replicon.coverage.ratio.df <- evolved.replicon.coverage.df %>%
@@ -391,10 +149,12 @@ evolved.replicon.coverage.ratio.df <- evolved.replicon.coverage.df %>%
               plasmids.per.chromosome = (mean_plasmid/mean_chromosome),
               transposons.per.plasmid = (mean_transposon/mean_plasmid)) %>%
     pivot_longer(cols = c(transposons.per.chromosome,plasmids.per.chromosome,transposons.per.plasmid),
-                 names_to = "ratio_type", values_to = "ratio")
+                 names_to = "ratio_type", values_to = "ratio") %>%
+    ungroup() %>%
+    ## add metadata again.
+    inner_join(DH5a.expt.metadata)
     
-
-Fig1I.df <- evolved.replicon.coverage.ratio.df %>%
+copy.number.plot.df <- evolved.replicon.coverage.ratio.df %>%
     ## we don't need transposons per plasmid, since we can get
     ## that from the other two ratios.
     filter(ratio_type != "transposons.per.plasmid") %>%
@@ -404,21 +164,32 @@ Fig1I.df <- evolved.replicon.coverage.ratio.df %>%
     mutate(`Copy number` = ratio) %>%
     mutate(Population = as.factor(Population)) %>%
     ## log-transform copy number.
-    mutate(`log(copy number)` = log2(ratio))
+    mutate(`log(copy number)` = log2(ratio)) %>%
+    ## update the names of the Transposon, Plasmid, and Tet factors
+    ## for a prettier plot.
+    recode.treatment.factor.names()
 
-Fig1I <- ggplot(data=Fig1I.df, aes(x=Population, y=`Copy number`, fill=ratio_type)) +
+Fig2C.df <- copy.number.plot.df %>%
+    filter(Transposon != "B59") %>%
+    filter(Tet == 50) %>%
+    filter(Plasmid == "pUC")
+
+Fig2C <- Fig2C.df %>%
+    ggplot(
+        aes(x=Population, y=`Copy number`, fill=ratio_type)) +
     geom_bar(stat="identity", position=position_dodge()) +
     theme_classic() +
-    facet_wrap(.~Plasmid, scales="free") +
-    theme(legend.title=element_blank(), legend.position="bottom")
-ggsave("../results/Fig1I.pdf", Fig1I, width=8, height=3.5)
+    facet_wrap(Transposon_factor~Plasmid_factor, scales="free") +
+    theme(
+        legend.title=element_blank(),
+        legend.position="bottom",
+        strip.background = element_blank())
+ggsave("../results/Fig2C.pdf", Fig2C, width=4, height=2.5)
 
 ## let's write out the table.
-write.csv(evolved.replicon.coverage.ratio.df, "../results/nine-day-GFP-barcode-expt-genome-analysis/nine-day-GFP-barcode-expt-plasmid-transposon-coverage-ratios.csv", quote=F, row.names=FALSE)
+ write.csv(evolved.replicon.coverage.ratio.df, "../results/DH5a-expt-genome-analysis/DH5a-expt-plasmid-transposon-coverage-ratios.csv", quote=F, row.names=FALSE)
 
 ########################################################
-## Lingchong also asked for the following variations of Figure 1I.
-
 ## 1) plot y-axis in log-scale.
 
 Fig1I.variation1 <- ggplot(data=Fig1I.df, aes(x=Population, y=`log(copy number)`, fill=ratio_type)) +
@@ -503,37 +274,6 @@ transposon.plasmid.correlation.plot <- plot_grid(
     pUC.transposon.plasmid.correlation.plot,nrow=1)
 ggsave("../results/evolved-transposon-plasmid-correlation.pdf", transposon.plasmid.correlation.plot, width=6, height=3.5)
 
-########################################################
-## Supplementary Figure 1C. Heatmap figure for examining amplifications.
-
-## Find chromosomal amplifications in the samples, and annotate with their reference gff file.
-evolved.amps <- map2_df(evolved.clone.input.df$path,
-                        evolved.clone.input.df$Sample,                              
-                        ##find.K12.candidate.amplifications) %>% ## for uncorrected p-values
-                        find.K12.chromosomal.amplifications) %>% ## for corrected p-values.
-    ungroup() %>%
-    ## add GFF column for annotate.amplifications function.
-    mutate(gff_path = "../results/nine-day-GFP-barcode-expt-genome-analysis/LCA.gff3")
-
-annotated.amps <- annotate.amplifications(evolved.amps) %>%
-    ## get the plasmid type from the sample ID.
-    ## we need this for the function plot.amp.segments.
-    mutate(Plasmid = sapply(Sample, Evolved.Sample.ID.to.Plasmid))
-
-## make a figure of the significant amplifications found with the bonferroni method.
-amp.segment.plot <- plot.DH5a.amp.segments(annotated.amps)
-## show the plot.
-ggsave("../results/S1FigC.pdf",
-       amp.segment.plot, height=6.5, width=4)
-
-parallel.amplified.genes <- annotated.amps %>%
-    group_by(gene, locus_tag, start, end) %>%
-    summarize(parallel.amplifications = n()) %>%
-    arrange(desc(parallel.amplifications)) %>%
-    filter(parallel.amplifications > 2)
-
-acrABR.amps <- annotated.amps %>%
-    filter(str_detect(gene, "acr"))
 
 ########################################################
 ## let's examine copy number in the ancestral clones.
