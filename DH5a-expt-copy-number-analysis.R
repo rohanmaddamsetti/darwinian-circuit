@@ -6,6 +6,7 @@ library(tidyverse)
 library(xml2)
 library(assertthat)
 
+
 #' parse the summary.html breseq output file, and return the mean and relative variance
 #' of the negative binomial fit to the read coverage distribution, returned as a
 #' data.frame with columns {mean, relative.variance}.
@@ -41,6 +42,7 @@ coverage.nbinom.from.html <- function(breseq.output.dir, sample.has.plasmid=TRUE
     return(coverage.df)
 }
 
+
 #' get the maximum length of a sequencing read from the summary.html breseq
 #' output file.
 max.readlen.from.html <- function(breseq.output.dir) {
@@ -55,7 +57,8 @@ max.readlen.from.html <- function(breseq.output.dir) {
     return(max.readlen)
 }
 
-recode.treatment.factor.names <- function(df) {
+
+recode.DH5a.expt.treatment.factor.names <- function(df) {
     ## update the names of the Transposon, Plasmid, and Tet factors
     ## for a prettier plot.
     df %>%
@@ -140,7 +143,7 @@ copy.number.plot.df <- evolved.replicon.coverage.ratio.df %>%
     mutate(Population = as.factor(Population)) %>%
     ## update the names of the Transposon, Plasmid, and Tet factors
     ## for a prettier plot.
-    recode.treatment.factor.names()
+    recode.DH5a.treatment.factor.names()
 
 ## For Figure 2C, just show pUC in the Tet50 treatment with the working Tn5 transposase.
 Fig2C.df <- copy.number.plot.df %>%
@@ -170,7 +173,7 @@ S1Fig.df <- evolved.replicon.coverage.ratio.df %>%
     pivot_wider(names_from = ratio_type, values_from = ratio) %>%
     ## update the names of the Transposon, Plasmid, and Tet factors
     ## for a prettier plot.
-    recode.treatment.factor.names() %>%
+    recode.DH5a.expt.treatment.factor.names() %>%
     select(-Tet, -Plasmid, -Transposon) %>%
     rename(Tet = "Tet_factor") %>%
     rename(Plasmid = "Plasmid_factor") %>%
