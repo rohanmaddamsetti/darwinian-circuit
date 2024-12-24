@@ -12,15 +12,15 @@ Usage: python get-DH5a-expt-transposon-coverage.py > ../results/DH5a-expt-genome
 import os
 
 ## Global constants from B30-miniTn5-TetA.gb. (strong tetA promoter)
-B30_TRANSPOSON_COORDS = (2990, 4367)
+B30_TRANSPOSON_COORDS = (3032, 4409) ## empirical coverage boundary.
 
 ## Global constants from B59-miniTn5-TetA.gb.
 ## (strong tetA promoter, no Tn5 in these strains).
-B59_TRANSPOSON_COORDS = (1459, 2836)
+B59_TRANSPOSON_COORDS = (1459, 2836) ## annotated transposon region.
 
 ## Global constants from B20-miniTn5-TetA.gb.
 ## (medium tetA promoter).
-B20_TRANSPOSON_COORDS = (2990, 4367)
+B20_TRANSPOSON_COORDS = (3032, 4409) ## empirical coverage boundary.
 
 
 def get_transposon_coverage(transposon_coverage_f):

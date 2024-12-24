@@ -6,10 +6,6 @@ library(tidyverse)
 library(xml2)
 library(assertthat)
 
-##library(data.table)
-##library(dtplyr)
-##library(cowplot)
-
 #' parse the summary.html breseq output file, and return the mean and relative variance
 #' of the negative binomial fit to the read coverage distribution, returned as a
 #' data.frame with columns {mean, relative.variance}.
