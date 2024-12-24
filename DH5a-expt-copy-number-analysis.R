@@ -1,33 +1,14 @@
 ##DH5a-expt-copy-number-analysis.R by Rohan Maddamsetti.
 
-## 1) use xml2 to get negative binomial fit from
-## breseq output summary.html. This is H0 null distribution of 1x coverage.
-
-## 2) Find intervals longer than max.read.len that reject H0 coverage in genome.
-##    at an uncorrected alpha = 0.05. This is to have generous predicted boundaries for amplifications.
-
-## 3) Do a more rigorous test for each region. take positions in the region separated by more than max.read.len,
-## and determine the probability that all are independently significant under the null, compared to
-## a corrected bonferroni. The max.read.len ensures positions cannot be spanned by a single Illumina read.
-
-## 4) Estimate copy number by dividing mean coverage in each region by the mean
-##   of the H0 1x coverage distribution.
-
-## 5) return copy number and boundaries for each significant amplification.
-
 library(tidyverse)
+## use xml2 to get negative binomial fit from
+## breseq output summary.html. 
 library(xml2)
-library(cowplot)
-library(data.table)
-library(dtplyr)
 library(assertthat)
-library(viridis)
 
-## Bioconductor dependencies
-##library(IRanges)
-##library(GenomicRanges)
-##library(rtracklayer)
-
+##library(data.table)
+##library(dtplyr)
+##library(cowplot)
 
 #' parse the summary.html breseq output file, and return the mean and relative variance
 #' of the negative binomial fit to the read coverage distribution, returned as a
@@ -130,7 +111,6 @@ transposon.coverage.df <- read.csv(transposon.coverage.file) %>%
     dplyr::rename(mean = TransposonCoverage) %>%
     dplyr::mutate(replicon = "transposon") 
 
-
 evolved.replicon.coverage.df <- map_dfr(.x = mixedpop.input.df$path, .f = coverage.nbinom.from.html) %>%
     ## I am not examining dispersion or variance at this point.
     select(Sample, mean, replicon) %>%
@@ -140,7 +120,6 @@ evolved.replicon.coverage.df <- map_dfr(.x = mixedpop.input.df$path, .f = covera
     mutate(mean=sapply(mean, function(x) ifelse(is.na(x), 0,x))) %>%
     ## and add metadata.
     inner_join(DH5a.expt.metadata)
-
 
 evolved.replicon.coverage.ratio.df <- evolved.replicon.coverage.df %>%
     pivot_wider(names_from = replicon, values_from = mean, names_prefix = "mean_") %>%
@@ -161,14 +140,13 @@ copy.number.plot.df <- evolved.replicon.coverage.ratio.df %>%
     mutate(ratio_type = fct_recode(as.factor(ratio_type),
                                        `Transposon copy number` = "transposons.per.chromosome",
                                    `Plasmid copy number` = "plasmids.per.chromosome")) %>%
-    mutate(`Copy number` = ratio) %>%
+    mutate(`Copy number` = ratio) %>% 
     mutate(Population = as.factor(Population)) %>%
-    ## log-transform copy number.
-    mutate(`log(copy number)` = log2(ratio)) %>%
     ## update the names of the Transposon, Plasmid, and Tet factors
     ## for a prettier plot.
     recode.treatment.factor.names()
 
+## For Figure 2C, just show pUC in the Tet50 treatment with the working Tn5 transposase.
 Fig2C.df <- copy.number.plot.df %>%
     filter(Transposon != "B59") %>%
     filter(Tet == 50) %>%
@@ -190,116 +168,30 @@ ggsave("../results/Fig2C.pdf", Fig2C, width=4, height=2.5)
  write.csv(evolved.replicon.coverage.ratio.df, "../results/DH5a-expt-genome-analysis/DH5a-expt-plasmid-transposon-coverage-ratios.csv", quote=F, row.names=FALSE)
 
 ########################################################
-## 1) plot y-axis in log-scale.
+## Supplementary Figure S1. Plot transposon copy number against plasmid copy number.
 
-
-Fig1I.variation1 <- ggplot(data=Fig1I.df, aes(x=Population, y=`log(copy number)`, fill=ratio_type)) +
-    geom_bar(stat="identity", position=position_dodge()) +
-    theme_classic() +
-    facet_wrap(.~Plasmid, scales="free") +
-    theme(legend.title=element_blank(), legend.position="bottom")
-ggsave("../results/Fig1I-log-scale.pdf", Fig1I.variation1, width=8, height=3.5)
-
-## 2) Rank order isolates in each group by transposon copy number.
-transposon.copy.ranks <- Fig1I.df %>%
-    filter(ratio_type == "Transposon copy number") %>%
-    arrange(Plasmid, `Copy number`) %>%
-    group_by(Plasmid) %>% 
-    mutate(Rank = rank(`Copy number`, ties.method = "first")) %>%
-    mutate(Rank = as.factor(Rank)) %>%
-    ## have to drop columns to get the merge to work right.
-    select(Sample, Plasmid, Rank)
-
-rank.ordered.Fig1I.df <- Fig1I.df %>%
-    full_join(transposon.copy.ranks)
-
-rank.ordered.Fig1I <- ggplot(data=rank.ordered.Fig1I.df, aes(x=Rank, y=`Copy number`, fill=ratio_type)) +
-    geom_bar(stat="identity", position=position_dodge()) +
-    theme_classic() +
-    facet_wrap(.~Plasmid, scales="free") +
-    xlab("Ranked populations") +
-    theme(legend.title=element_blank(), legend.position="bottom")
-ggsave("../results/Fig1I-rank-ordered.pdf", rank.ordered.Fig1I, width=8, height=3.5)
-
-## 3) Plot plasmid-copy-number against transposon-copy-number.
-## let's calculate lines of best fit for p15A and pUC separately.
-p15A.transposon.plasmid.copy.df <- evolved.replicon.coverage.ratio.df %>%
-    filter(Plasmid == "p15A")
-
-p15A.transposon.plasmid.correlation <- lm(
-    transposons.per.chromosome~plasmids.per.chromosome,
-    data=p15A.transposon.plasmid.copy.df)
-summary(p15A.transposon.plasmid.correlation)
-
-p15A.transposon.plasmid.correlation.plot <- ggplot(
-    data=p15A.transposon.plasmid.copy.df,
-    aes(x=plasmids.per.chromosome,y=transposons.per.chromosome,color=Plasmid)) +
-    geom_point(color="blue") +
-    ylim(0,180) +
-    geom_abline(slope=1,
-                intercept=0,
-                color="gray",linetype="dashed",size=0.1) +
-    geom_abline(slope=p15A.transposon.plasmid.correlation$coefficients[2],
-                intercept=p15A.transposon.plasmid.correlation$coefficients[1],
-                color="red",linetype="dashed",size=0.1) +
-    facet_wrap(.~Plasmid) +
-    theme_classic() +
-    guides(color="none")
-
-
-pUC.transposon.plasmid.copy.df <- evolved.replicon.coverage.ratio.df %>%
-    filter(Plasmid == "pUC")
-
-pUC.transposon.plasmid.correlation <- lm(
-    transposons.per.chromosome~plasmids.per.chromosome,
-    data=pUC.transposon.plasmid.copy.df)
-summary(pUC.transposon.plasmid.correlation)
-
-pUC.transposon.plasmid.correlation.plot <- ggplot(
-    data=pUC.transposon.plasmid.copy.df,
-    aes(x=plasmids.per.chromosome,y=transposons.per.chromosome,color=Plasmid)) +
-    geom_point(color="orange") +
-    ylim(0,2000) +
-    geom_abline(slope=1,
-                intercept=0,
-                color="gray",linetype="dashed",size=0.1) +
-    geom_abline(slope=pUC.transposon.plasmid.correlation$coefficients[2],
-                intercept=pUC.transposon.plasmid.correlation$coefficients[1],
-                color="red",linetype="dashed",size=0.1) +
-    facet_wrap(.~Plasmid) +
-    theme_classic() +
-    guides(color="none")
-
-transposon.plasmid.correlation.plot <- plot_grid(
-    p15A.transposon.plasmid.correlation.plot,
-    pUC.transposon.plasmid.correlation.plot,nrow=1)
-ggsave("../results/evolved-transposon-plasmid-correlation.pdf", transposon.plasmid.correlation.plot, width=6, height=3.5)
-
-
-
-
-
-newFig1.df <- full.replicon.coverage.ratio.df %>%
-    ## we don't need transposons per plasmid, since we can get
-    ## that from the other two ratios.
-    filter(ratio_type != "transposons.per.plasmid") %>%
-    mutate(ratio_type = fct_recode(as.factor(ratio_type),
-                                   `Transposon copy number` = "transposons.per.chromosome",
-                                   `Plasmid copy number` = "plasmids.per.chromosome")) %>%
+S1Fig.df <- evolved.replicon.coverage.ratio.df %>%
     pivot_wider(names_from = ratio_type, values_from = ratio) %>%
-    ## set no plasmid treatment copy number to 0.
-    mutate(`Plasmid copy number` = replace_na(`Plasmid copy number`, 0)) %>%
-    ## unite the Strain, SampleType, Tet, Transposon columns together
-        unite("Treatment", Strain:Transposon, sep="-", remove = FALSE)
+    ## update the names of the Transposon, Plasmid, and Tet factors
+    ## for a prettier plot.
+    recode.treatment.factor.names() %>%
+    select(-Tet, -Plasmid, -Transposon) %>%
+    rename(Tet = "Tet_factor") %>%
+    rename(Plasmid = "Plasmid_factor") %>%
+    rename(Transposon = "Transposon_factor")
 
-
-newFig1 <- ggplot(data=newFig1.df,
-                  aes(x=`Plasmid copy number`, y=`Transposon copy number`, color=Treatment, shape=Plasmid)) +
+S1Fig <- S1Fig.df %>%
+    ggplot(
+        aes(x=plasmids.per.chromosome, y=transposons.per.chromosome, color=Transposon, shape=Plasmid)) +
     geom_point() +
     theme_classic() +
-#    facet_wrap(SampleType~Tet) +
+    facet_wrap(~Tet) +
+    xlab("plasmid copy number") +
+    ylab("transposon copy number") +
     geom_abline(slope=1,
                 intercept=0,
-                color="gray",linetype="dashed",size=0.5)
-ggsave("../results/newFig1.pdf", newFig1, height=3.5)
+                color="gray",
+                linetype="dashed",
+                size=0.5)
+ggsave("../results/S1Fig.pdf", S1Fig, height=3)
 
