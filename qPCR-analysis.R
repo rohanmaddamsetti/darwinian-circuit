@@ -42,182 +42,11 @@ calc.probe.fold.differences <- function(well.df) {
 }
 
 
-calc.probe.fold.differences2 <- function(well.df) {
-    ## this is a helper function for calculating probe fold differences
-    ## per well.
-
-    ## data analysis using constants calculated from Yi's standard curve calibration.
-    T.per.C.constant <- 0.39071847356712
-    C <- filter(well.df, probe == 'C')$cycle_at_threshold
-    T <- filter(well.df, probe == 'T')$cycle_at_threshold
-    T.per.C <- 2^(C - T)/T.per.C.constant
-
-    return.df <- data.frame(Well = unique(well.df$Well),
-                            Transposon = unique(well.df$Transposon),
-                            Treatment = unique(well.df$Treatment),
-                            Replicate = unique(well.df$Replicate),
-                            transposons.per.chromosome = T.per.C)
-    
-    return(return.df)
-}
-
-
-calc.tet.cm.CNV.with.B30.control <- function(df.with.B30.control) {
-    ## IMPORTANT: this function assumes perfect amplification efficiency
-    ## (m = 1, or 2x amplification each cycle.)
-    ## I can use a standard curve to determine m more precisely in the future.
-
-    m.cm <- 1 ## TODO: calibrate with a standard curve.
-    m.tet <- 1 ## TODO: calibrate with a standard curve.
-
-    control.data <- filter(df.with.B30.control, Treatment == "B30")
-    tet.control.data <- filter(control.data, probe == "T")
-    cm.control.data <- filter(control.data, probe == "C")
-
-    ## question: maybe I should be using geometric mean here instead?
-    control.tet.Cq <- mean(tet.control.data$cycle_at_threshold)
-    control.cm.Cq <- mean(cm.control.data$cycle_at_threshold)
-    
-    beta <- 2^(m.tet * control.tet.Cq - m.cm * control.cm.Cq)
-
-    helper.func <- function(well.df) {
-        ## note: this helper uses the beta variable defined above.
-        C <- filter(well.df, probe == 'C')$cycle_at_threshold
-        T <- filter(well.df, probe == 'T')$cycle_at_threshold
-        T.per.C <- beta * 2^(m.cm * C - m.tet * T)
-
-        return.df <- data.frame(Well = unique(well.df$Well),
-                                Transposon = unique(well.df$Transposon),
-                                Treatment = unique(well.df$Treatment),
-                                Sample = unique(well.df$Sample),
-                                transposons.per.chromosome = T.per.C)
-        return(return.df)
-    }
-
-        
-    results <- df.with.B30.control %>%
-        split(.$Well) %>%
-        map_dfr(helper.func)
-    return(results)
-}
-
-
-calc.tet.cm.CNV.with.INIT.control <- function(df.with.INIT.control) {
-    ## IMPORTANT: this function assumes perfect amplification efficiency
-    ## (m = 1, or 2x amplification each cycle.)
-    ## I can use a standard curve to determine m more precisely in the future.
-
-    m.cm <- 2^1.055 ## calibrated with May 6 2021 standard curve.
-    m.tet <- 2^0.904 ## calibrated with May 6 2021 standard curve.
-
-    control.data <- filter(df.with.INIT.control, Treatment == "INIT")
-    tet.control.data <- filter(control.data, probe == "T")
-    cm.control.data <- filter(control.data, probe == "C")
-
-    ## question: maybe I should be using geometric mean here instead?
-    mean.control.tet.Cq <- mean(tet.control.data$cycle_at_threshold)
-    mean.control.cm.Cq <- mean(cm.control.data$cycle_at_threshold)
-    
-    beta <- 2^(m.tet * mean.control.tet.Cq - m.cm * mean.control.cm.Cq)
-
-    helper.func <- function(well.df) {
-        ## note: this helper uses the beta variable defined above.
-        C <- filter(well.df, probe == 'C')$cycle_at_threshold
-        T <- filter(well.df, probe == 'T')$cycle_at_threshold
-        T.per.C <- beta * 2^(m.cm * C - m.tet * T)
-
-        return.df <- data.frame(Well = unique(well.df$Well),
-                                Transposon = unique(well.df$Transposon),
-                                Treatment = unique(well.df$Treatment),
-                                Replicate = unique(well.df$Replicate),
-                                ##Clone = unique(well.df$Clone),
-                                transposons.per.chromosome = T.per.C)
-        return(return.df)
-    }
-
-    
-    results <- df.with.INIT.control %>%
-        split(.$Well) %>%
-        map_dfr(helper.func)
-    return(results)
-}
-
-
-######################################################################
-## standard curve calibration analysis. Data collected May 6 2021.
-
-calibration.data.may.06 <- read.csv(
-    "../data/qPCR-data/2021-05-06-Rohan-B30-calibration.csv") %>%
-    ## data from LB culture dilutions craps out at the low dilution end.
-    ## the DNA data looks quite good across the whole range.
-    ## filter out the low end.
-    filter(Log2DilutionFactor > -3)
-    
-## plot a linear regression per Treatment.
-## INIT := 1:100 dilution of LB culture of DH5a + B30 cells in PCR H20.
-## B30 := dilution of purified B30 miniTn5 plasmid DNA in PCR H20.
-
-calibration.plot <- ggplot(calibration.data.may.06,
-                           aes(x = Log2DilutionFactor,
-                               y = cycle_at_threshold,
-                               color = probe)) +
-    geom_point() + geom_smooth(method="lm") +
-    facet_wrap(.~Treatment)
-
-ggsave("../results/qPCR-results/2021-05-06-B30-calibration-std-curve.pdf",calibration.plot)
-
-## get the estimates of the slopes of the linear regression.
-## the slope m is a measure of the probe amplification efficiency.
-## slope = 1 with perfect efficiency.
-
-## the purified plasmid sample is a control.
-## in terms of parameter estimates, we only care about the culture dilution.
-
-plasmid.calibration.data <- calibration.data.may.06 %>%
-    filter(Treatment == "B30")
-
-cell.calibration.data <- calibration.data.may.06 %>%
-    filter(Treatment == "INIT")
-
-T.plasmid.calibration.data <- plasmid.calibration.data %>%
-    filter(probe == "T")
-
-C.plasmid.calibration.data <- plasmid.calibration.data %>%
-    filter(probe == "C")
-
-T.cell.calibration.data <- cell.calibration.data %>%
-    filter(probe == "T")
-
-C.cell.calibration.data <- cell.calibration.data %>%
-    filter(probe == "C")
-
-T.plasmid.regression <- lm(cycle_at_threshold~Log2DilutionFactor,
-                           data=T.plasmid.calibration.data)
-
-summary(T.plasmid.regression)
-
-C.plasmid.regression <- lm(cycle_at_threshold~Log2DilutionFactor,
-                           data=C.plasmid.calibration.data)
-
-summary(C.plasmid.regression)
-
-T.cell.regression <- lm(cycle_at_threshold~Log2DilutionFactor,
-                           data=T.cell.calibration.data)
-
-summary(T.cell.regression)
-
-C.cell.regression <- lm(cycle_at_threshold~Log2DilutionFactor,
-                           data=C.cell.calibration.data)
-
-summary(C.cell.regression)
-
-
 ######################################################################
 ## analyze clones isolated from Tet50 B30 no plasmid and Tet50 B30 + A18 plasmid
 ## populations.
 ## using 1:10 cell dilutions in PCR H20,
 ## qPCR experiment conducted on July 13 2021.
-## I FORGOT TO INCLUDE INIT CULTURE CONTROL SAMPLES!!!
 ## I will normalize based on the standard curve that Yi initially made.
 
 well.to.clone.2021.07.13 <- function(Well) {
@@ -226,6 +55,7 @@ well.to.clone.2021.07.13 <- function(Well) {
     rowletter <- substring(Well,1,1)
     return(rowletter)
 }
+
 
 data.july.13 <- read.csv("../data/qPCR-data/2021-07-13_evolved-clones-qPCR.csv")
 
@@ -285,7 +115,7 @@ ggsave("../results/qPCR-results/no-plasmid-qPCR-07-13-2021.pdf", no.plasmid.figu
 ## analyze all Tet50 pops, using undiluted gDNA and 1:10 culture dilutions in PCR H20.
 ## next time, dilute gDNA 1:100 before running!
 ## qPCR experiment conducted on July 18 2021.
-## for now, normalize based on the standard curve that Yi initially made.
+## normalize based on the standard curve that Yi initially made.
 
 paired.gDNA.culture.data.july.28 <- read.csv("../data/qPCR-data/2021-07-28_paired_gDNA-culture_qPCR.csv")
 
