@@ -92,5 +92,3 @@ Fig2E <- Fig2E.data %>%
           strip.text.x = element_text(size = 14))
 
 ggsave("../results/Fig2E.pdf", Fig2E, width=7, height=2.25)
-
-
