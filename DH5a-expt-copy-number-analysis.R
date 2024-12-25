@@ -143,7 +143,7 @@ copy.number.plot.df <- evolved.replicon.coverage.ratio.df %>%
     mutate(Population = as.factor(Population)) %>%
     ## update the names of the Transposon, Plasmid, and Tet factors
     ## for a prettier plot.
-    recode.DH5a.treatment.factor.names()
+    recode.DH5a.expt.treatment.factor.names()
 
 ## For Figure 2C, just show pUC in the Tet50 treatment with the working Tn5 transposase.
 Fig2C.df <- copy.number.plot.df %>%
@@ -159,7 +159,7 @@ Fig2C <- Fig2C.df %>%
     facet_wrap(Transposon_factor~Plasmid_factor, scales="free") +
     theme(
         legend.title=element_blank(),
-        legend.position="bottom",
+        legend.position="top",
         strip.background = element_blank())
 ggsave("../results/Fig2C.pdf", Fig2C, width=4, height=2.5)
 
