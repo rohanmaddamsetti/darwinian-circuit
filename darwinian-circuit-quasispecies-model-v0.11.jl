@@ -33,11 +33,11 @@ by Rohan Maddamsetti
 
 Julia version 1.11.1.  
 
-## Mobile genetic elements drive the emergence of collective computation in bacteria
+## Emergence of population-level feedback control by transposon-plasmid coevolution
 
 ##### Abstract
 
-Despite considerable interest, the emergence and evolution of collective computation in systems composed of simple equivalent components (such as cells or neurons) remains poorly understood. Here, we show the _de novo_ evolution of clonal bacterial strains that express population-level pulses of GFP in response to pulses of tetracycline. Balancing selection maintains genetically diverse intracellular plasmid populations within single cells, due to the toxic effects of a TetA-GFP tetracycline resistance transposon. The intracellular balance of plasmids containing the transposon responds to antibiotic selection. The stability of the balancing selection regime and the magnitude of the GFP response increases with plasmid copy number. In this regime, the distribution of plasmids within cells tracks environmental antibiotic concentrations, effectively carrying out a form of population-level Bayesian computation. The rate at which GFP expression changes in response to antibiotic is determined by the covariance between GFP expression and bacterial fitness, due to a fundamental evolutionary law known as the Price equation. This work shows how mobile genetic elements allow host populations to rapidly evolve the ability to compute pulse in environmental stressors and describes a fundamental principle for engineering population-level gene expression with intracellular populations of mobile genetic elements.
+The origins of complex adaptive functions from simpler components remains poorly understood. Here, we report the spontaneous evolution of population-level feedback control in clonal bacterial strains, enabling these strains to express pulses of GFP in response to pulses of tetracycline. Balancing selection maintains diverse intracellular plasmids within single cells, due to negative feedback from the toxic effects of a TetA-GFP tetracycline resistance transposon. The intracellular balance of plasmids containing the transposon responds to antibiotic selection. The stability of the balancing selection regime and the magnitude of the GFP response increases with plasmid copy number. In the balancing selection regime, the distribution of plasmids within cells tracks antibiotic concentrations, effectively carrying out population-level Bayesian inference of the environment. The rate at which GFP expression changes in response to antibiotic is determined by the covariance between GFP expression and bacterial fitness. This work shows how mobile genetic elements allow host populations to rapidly evolve the ability to track changes in environmental stressors and describes a fundamental principle for engineering population-level gene expression with intracellular populations of mobile genetic elements. Our findings imply that novel computational abilities can emerge in biological systems, on laboratory timescales, without direct selection for such properties.
 
 """
 
@@ -1291,7 +1291,7 @@ We examine Claim (1) by randomly sampling 1,000 random initial conditions with r
 # ╔═╡ 153e0346-5632-4b96-929c-07cac8f8cfb6
 md"""
 
-## TODO: run for N = 1000, then save the results to file. Then if these results exist on disk, load them. If they don't exist on disk, then run this (slow) code to create them.
+## TODO: run for N = 1000, then save the results to file. Then if these results exist on disk, load them. If they don't exist on disk, then run this (slow) code to create them. Move the code for making the N = 1000 file into a separate piece of Julia code for speed so that this notebook is not slowed down.
 """
 
 # ╔═╡ bc46fd90-a4c5-4ec0-80f6-c96c6901ac6d
@@ -1369,7 +1369,7 @@ begin
 
 	## sample N times.
 	N = 10
-	## N = 1000
+	## N = 100
 	for i in 1:N
 
 		## sample a random [Tet] concentration between 0 and 50
@@ -1579,7 +1579,12 @@ md""" ### make a phase diagram showing how mean population fitness deviates from
 final_mean_fitness_deviation_eigenspecies_matrix = [calc_mean_fitness(eigenspecies_stationary_distribution_matrix[pcn, tet],tet)/fitness_function(tet, tet) for pcn in 1:PCN_range_max, tet in 1:Tet_conc_range_max]
 
 # ╔═╡ a31fbb70-9b83-4f33-a612-f2b2c115a5f4
-final_mean_fitness_deviation_map = heatmap(final_mean_fitness_deviation_eigenspecies_matrix', ylabel="[Tet] concentration", xlabel="plasmid copy number", title="fitness deviation of stationary distribution")
+let
+	final_mean_fitness_deviation_map = heatmap(final_mean_fitness_deviation_eigenspecies_matrix', ylabel="[Tet] concentration", xlabel="plasmid copy number", title="fitness deviation of stationary distribution")
+
+	savefig(final_mean_fitness_deviation_map, "../results/modeling-results/final_mean_fitness_deviation_map.pdf")
+	final_mean_fitness_deviation_map
+end
 
 # ╔═╡ 74279b9d-4de8-4b03-9d6b-0985d7e48ede
 md""" Notice how the fitness deviation heat map and equilibrium allele frequency phase diagram shows that, when PCN == 5 and TET_CONC == 4 and given an initial population to 100% TetA == 4, **fitness declines!!** This result shows that the "optimal state" at the top of the landscape is not stable. This is a very nice result, that demonstrates the phase transition to tunable dynamics. Also note that the stationary distribution depends on which absorbing state (tetA == 1 or tetA == PCN+1) has higher fitness."""
@@ -1688,6 +1693,46 @@ begin
 	pcn16_tet8_mean_copy_num_vec = CalcMeanTetACopyNumberVec(pcn16_tet8_sol)
 	pcn20_tet10_mean_copy_num_vec = CalcMeanTetACopyNumberVec(pcn20_tet10_sol)
 	pcn40_tet20_mean_copy_num_vec = CalcMeanTetACopyNumberVec(pcn40_tet20_sol)
+
+	## make vectors of tet concentration over time in the model solutions
+	## for calculating summary statistics.
+	pcn5_tet4_pulse_vec = [TetPulseFunction(t, tet_conc=4) for t in pcn5_tet4_sol.t]
+	pcn10_tet5_pulse_vec = [TetPulseFunction(t, tet_conc=5) for t in pcn10_tet5_sol.t]
+	pcn16_tet8_pulse_vec = [TetPulseFunction(t, tet_conc=8) for t in pcn16_tet8_sol.t]
+	pcn20_tet10_pulse_vec = [TetPulseFunction(t, tet_conc=10) for t in pcn20_tet10_sol.t]
+	pcn40_tet20_pulse_vec = [TetPulseFunction(t, tet_conc=20) for t in pcn40_tet20_sol.t]
+
+	## calculate rates of copy number change from the ODE solutions.
+	pcn5_tet4_d_pulse_mean_copy_num_vec = CalcTetACopyNumberVelocity(pcn5_tet4_sol)
+	pcn10_tet5_d_pulse_mean_copy_num_vec = CalcTetACopyNumberVelocity(pcn10_tet5_sol)
+	pcn16_tet8_d_pulse_mean_copy_num_vec = CalcTetACopyNumberVelocity(pcn16_tet8_sol)
+	pcn20_tet10_d_pulse_mean_copy_num_vec = CalcTetACopyNumberVelocity(pcn20_tet10_sol)
+	pcn40_tet20_d_pulse_mean_copy_num_vec = CalcTetACopyNumberVelocity(pcn40_tet20_sol)
+
+	### calculate Price equation LHS from the ODE solutions.
+	pcn5_tet4_pulse_Price_equation_LHS_vec = CalcPriceEquationLHS_vec(pcn5_tet4_sol, pcn5_tet4_pulse_vec)
+	
+	pcn10_tet5_pulse_Price_equation_LHS_vec = CalcPriceEquationLHS_vec(pcn10_tet5_sol, pcn10_tet5_pulse_vec)
+	
+	pcn16_tet8_pulse_Price_equation_LHS_vec = CalcPriceEquationLHS_vec(pcn16_tet8_sol, pcn16_tet8_pulse_vec)
+	
+	pcn20_tet10_pulse_Price_equation_LHS_vec = CalcPriceEquationLHS_vec(pcn20_tet10_sol, pcn20_tet10_pulse_vec)
+	
+	pcn40_tet20_pulse_Price_equation_LHS_vec = CalcPriceEquationLHS_vec(pcn40_tet20_sol, pcn40_tet20_pulse_vec)
+	
+	### calculate tetA copy number--fitness covariance from the ODE solutions.
+	pcn5_tet4_pulse_copy_num_covariance_vec = CalcTetACopyNumberFitnessCovariance(pcn5_tet4_sol, pcn5_tet4_pulse_vec)
+
+	pcn10_tet5_pulse_copy_num_covariance_vec = CalcTetACopyNumberFitnessCovariance(pcn10_tet5_sol, pcn10_tet5_pulse_vec)
+
+	pcn16_tet8_pulse_copy_num_covariance_vec = CalcTetACopyNumberFitnessCovariance(pcn16_tet8_sol, pcn16_tet8_pulse_vec)
+
+	pcn20_tet10_pulse_copy_num_covariance_vec = CalcTetACopyNumberFitnessCovariance(pcn20_tet10_sol, pcn20_tet10_pulse_vec)
+
+	pcn40_tet20_pulse_copy_num_covariance_vec = CalcTetACopyNumberFitnessCovariance(pcn40_tet20_sol, pcn40_tet20_pulse_vec)
+
+
+	
 end
 
 # ╔═╡ 7ba197fe-33fc-4a49-a52f-1055fd53030e
@@ -1733,6 +1778,76 @@ let
 	hline!([20], linestyle=:dash, label="[Tet] = 20")
 	savefig(pcn40_tet20_pulsefig, "../results/modeling-results/pcn40_tet20_pulsefig.pdf")
 	pcn40_tet20_pulsefig
+end
+
+# ╔═╡ 60a88dd5-243e-433a-aa91-1a29526e6e8c
+md""" 
+#### Draw Price theorem predictions for these same representative PCN & [Tet] values.
+"""
+
+# ╔═╡ bef56080-368b-4d64-af08-740394dfe5d2
+let
+	pcn5_tet4_price_eq_fig = plot(pcn5_tet4_sol.t, 
+		pcn5_tet4_pulse_Price_equation_LHS_vec,  label="Price equation prediction",alpha=0.5)
+	
+	plot!(pcn5_tet4_sol.t, pcn5_tet4_pulse_copy_num_covariance_vec, label="tetA copy number fitness covariance",alpha=0.5)
+	
+	plot!(pcn5_tet4_sol.t, pcn5_tet4_d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right,alpha=0.5)
+
+	savefig(pcn5_tet4_price_eq_fig, "../results/modeling-results/pcn5_tet4_price_eq_fig.pdf")
+	pcn5_tet4_price_eq_fig
+end
+
+# ╔═╡ 58535a41-226d-4193-9c8a-70d4c3bbd1a0
+let
+	pcn10_tet5_price_eq_fig = plot(pcn10_tet5_sol.t, 
+		pcn10_tet5_pulse_Price_equation_LHS_vec,  label="Price equation prediction",alpha=0.5)
+	
+	plot!(pcn10_tet5_sol.t, pcn10_tet5_pulse_copy_num_covariance_vec, label="tetA copy number fitness covariance",alpha=0.5)
+	
+	plot!(pcn10_tet5_sol.t, pcn10_tet5_d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right,alpha=0.5)
+	
+	savefig(pcn10_tet5_price_eq_fig, "../results/modeling-results/pcn10_tet5_price_eq_fig.pdf")
+	pcn10_tet5_price_eq_fig
+end
+
+# ╔═╡ 126fe9a6-3fe1-4805-8156-9b112cdc6132
+let
+	pcn16_tet8_price_eq_fig = plot(pcn16_tet8_sol.t, 
+		pcn16_tet8_pulse_Price_equation_LHS_vec,  label="Price equation prediction",alpha=0.5)
+		
+	plot!(pcn16_tet8_sol.t, pcn16_tet8_pulse_copy_num_covariance_vec, label="tetA copy number fitness covariance",alpha=0.5)
+	
+	plot!(pcn16_tet8_sol.t, pcn16_tet8_d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right,alpha=0.5)
+
+	savefig(pcn16_tet8_price_eq_fig, "../results/modeling-results/pcn16_tet8_price_eq_fig.pdf")
+	pcn16_tet8_price_eq_fig
+end
+
+# ╔═╡ 5768920c-15b3-4be2-bab5-03c0d4d3c9e3
+let
+	pcn20_tet10_price_eq_fig = plot(pcn20_tet10_sol.t, 
+		pcn20_tet10_pulse_Price_equation_LHS_vec,  label="Price equation prediction",alpha=0.5)
+	
+	plot!(pcn20_tet10_sol.t, pcn20_tet10_pulse_copy_num_covariance_vec, label="tetA copy number fitness covariance",alpha=0.5)
+	
+	plot!(pcn20_tet10_sol.t, pcn20_tet10_d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right,alpha=0.5)
+
+	savefig(pcn20_tet10_price_eq_fig, "../results/modeling-results/pcn20_tet10_price_eq_fig.pdf")
+	pcn20_tet10_price_eq_fig
+end
+
+# ╔═╡ ee8b810c-4b6e-4b6a-8c0a-7304392217f8
+let
+	pcn40_tet20_price_eq_fig = plot(pcn40_tet20_sol.t, 
+		pcn40_tet20_pulse_Price_equation_LHS_vec,  label="Price equation prediction",alpha=0.5)
+		
+	plot!(pcn40_tet20_sol.t, pcn40_tet20_pulse_copy_num_covariance_vec, label="tetA copy number fitness covariance",alpha=0.5)
+	
+	plot!(pcn40_tet20_sol.t, pcn40_tet20_d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right,alpha=0.5)
+
+	savefig(pcn40_tet20_price_eq_fig, "../results/modeling-results/pcn40_tet20_price_eq_fig.pdf")
+	pcn40_tet20_price_eq_fig
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -4879,10 +4994,10 @@ version = "1.4.1+1"
 # ╠═e9d58996-30f0-43b2-b13b-9cf7edfcd9eb
 # ╠═026d3047-cca8-462f-8df3-b73bdeb4af31
 # ╟─e15bbef0-42f1-47d5-af03-ce95468cba93
-# ╟─153e0346-5632-4b96-929c-07cac8f8cfb6
+# ╠═153e0346-5632-4b96-929c-07cac8f8cfb6
 # ╟─bc46fd90-a4c5-4ec0-80f6-c96c6901ac6d
-# ╠═f3109642-2e16-4e11-8b1c-19667a380321
-# ╠═a24529bf-7679-45b9-ac84-a84169ec7c7e
+# ╟─f3109642-2e16-4e11-8b1c-19667a380321
+# ╟─a24529bf-7679-45b9-ac84-a84169ec7c7e
 # ╠═38cd0bb1-137f-401b-8279-cc3a28ead6f3
 # ╠═ab7f4870-6967-4910-b272-ed75fb8fbb54
 # ╠═506fb600-7043-4562-8470-ffd2fd48d073
@@ -4923,13 +5038,19 @@ version = "1.4.1+1"
 # ╠═562ecba7-53c6-4f7b-8eee-e3a4999ea22f
 # ╠═25faf55d-12b6-445f-98c2-d14e2fa6ac0d
 # ╟─b1a2b45e-2a63-4dff-b3f8-546a7e203791
-# ╟─11e0bfe0-c9c5-41bc-8c17-0eed797691b1
-# ╟─950aff23-d57e-45ce-a57b-2f3c3571e619
+# ╠═11e0bfe0-c9c5-41bc-8c17-0eed797691b1
+# ╠═950aff23-d57e-45ce-a57b-2f3c3571e619
 # ╠═8648e178-59f5-49db-b47a-b00b703537ca
 # ╠═7ba197fe-33fc-4a49-a52f-1055fd53030e
 # ╠═2905fb49-99a6-41e2-90a6-7f8fa36d4cbb
 # ╠═f2702a90-936a-45b3-8162-ff07936f4c80
 # ╠═489d6a31-7b62-42ec-8b54-82cd47420b68
 # ╠═b3b9c85d-9090-4c8f-b8a4-fc2696288cca
+# ╠═60a88dd5-243e-433a-aa91-1a29526e6e8c
+# ╠═bef56080-368b-4d64-af08-740394dfe5d2
+# ╠═58535a41-226d-4193-9c8a-70d4c3bbd1a0
+# ╠═126fe9a6-3fe1-4805-8156-9b112cdc6132
+# ╠═5768920c-15b3-4be2-bab5-03c0d4d3c9e3
+# ╠═ee8b810c-4b6e-4b6a-8c0a-7304392217f8
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
