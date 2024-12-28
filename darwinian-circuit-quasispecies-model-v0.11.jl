@@ -1092,53 +1092,54 @@ end
 constant_tet_pop_Price_equation_LHS_vec - copy_num_covariance_vec
 
 # ╔═╡ e1046a07-ad24-45e0-b871-069640aa6df3
-md""" ### Here, we show that the response time depends on the linear regression of population fitness on the landscape. In this model, the population that is best able to "hit the peak", AKA the population with PCN == [Tet]-1 in this model, has the fastest response time. This is a key theoretical prediction of the Price equation that holds in this model. 
-
-#### IMPORTANT TODO: IS THIS TRUE??? See the case of [Tet] == 40 and PCN == 100 versus PCN == 40 below.
+md""" ### Here, we show that the response time depends on the linear regression of population fitness on the landscape. In this model, the population that is best able to "hit the peak", has the fastest response time. This is a key theoretical prediction of the Price equation. 
 
 """
 
 # ╔═╡ 4bddf691-83a7-4101-bb00-0fe463e5de77
-md""" #### Vary PCN (5, 15, 25, 50), keep [Tet] == 15, and compare rate of changes of mean tetA copy number"""
+md""" #### Vary PCN (5, 15, 25, 50), keep [Tet] == 10, and compare rate of changes of mean tetA copy number"""
 
 # ╔═╡ f96766c2-bd3b-4782-a884-a2d72667d0e4
 begin
-	pcn5_tet15_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(5), 5, 15)
-	pcn5_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn5_tet15_sol, [15 for t in pcn5_tet15_sol.t])
-	pcn5_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn5_tet15_sol)
+	pcn5_tet10_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(5), 5, 10)
+	pcn5_tet10_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn5_tet10_sol, [10 for t in pcn5_tet10_sol.t])
+	pcn5_tet10_copy_num_velocity = CalcTetACopyNumberVelocity(pcn5_tet10_sol)
 
 	
-	pcn15_tet15_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(15), 15, 15)
-	pcn15_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn15_tet15_sol, [15 for t in pcn15_tet15_sol.t])
-	pcn15_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn15_tet15_sol)
+	pcn15_tet10_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(15), 15, 10)
+	pcn15_tet10_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn15_tet10_sol, [10 for t in pcn15_tet10_sol.t])
+	pcn15_tet10_copy_num_velocity = CalcTetACopyNumberVelocity(pcn15_tet10_sol)
 
 	
-	pcn25_tet15_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(25), 25, 15)
-	pcn25_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn25_tet15_sol, [15 for t in pcn25_tet15_sol.t])
-	pcn25_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn25_tet15_sol)
+	pcn25_tet10_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(25), 25, 10)
+	pcn25_tet10_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn25_tet10_sol, [10 for t in pcn25_tet10_sol.t])
+	pcn25_tet10_copy_num_velocity = CalcTetACopyNumberVelocity(pcn25_tet10_sol)
 
 	
-	pcn50_tet15_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(50), 50, 15)
-	pcn50_tet15_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn50_tet15_sol, [15 for t in pcn50_tet15_sol.t])
-	pcn50_tet15_copy_num_velocity = CalcTetACopyNumberVelocity(pcn50_tet15_sol)
+	pcn50_tet10_sol = SolveConstantTetQuasispeciesSystem(chromosomal_tetA_initial_pop_vec(50), 50, 10)
+	pcn50_tet10_copy_num_covariance = CalcTetACopyNumberFitnessCovariance(pcn50_tet10_sol, [10 for t in pcn50_tet10_sol.t])
+	pcn50_tet10_copy_num_velocity = CalcTetACopyNumberVelocity(pcn50_tet10_sol)
 end
 
 # ╔═╡ d153fde0-3435-49f2-b493-2c2fc8fec41f
 let
-	plot(pcn5_tet15_sol.t, pcn5_tet15_copy_num_covariance, label="PCN=5, TET=15", xlabel="time", ylabel="tetA copy number-fitness covariance")
+	plot(pcn5_tet10_sol.t, pcn5_tet10_copy_num_covariance, label="PCN=5, TET=10", xlabel="time", ylabel="tetA copy number-fitness covariance")
 
-	plot!(pcn15_tet15_sol.t, pcn15_tet15_copy_num_covariance, label="PCN=15, TET=15")
-	plot!(pcn25_tet15_sol.t, pcn25_tet15_copy_num_covariance, label="PCN=25, TET=15")
-	plot!(pcn50_tet15_sol.t, pcn50_tet15_copy_num_covariance, label="PCN=50, TET=15")
+	plot!(pcn15_tet10_sol.t, pcn15_tet10_copy_num_covariance, label="PCN=15, TET=10")
+	plot!(pcn25_tet10_sol.t, pcn25_tet10_copy_num_covariance, label="PCN=25, TET=10")
+	plot!(pcn50_tet10_sol.t, pcn50_tet10_copy_num_covariance, label="PCN=50, TET=10")
 end
 
 # ╔═╡ 11e9cbd5-19f2-4401-ba19-8590d3f4dca7
 let
-	plot(pcn5_tet15_sol.t, pcn5_tet15_copy_num_velocity, label="PCN=5, TET=15", xlabel="time", ylabel="rate of change of mean tetA copy number")
+	tet10_response_plot = plot(pcn5_tet10_sol.t, pcn5_tet10_copy_num_velocity, label="PCN=5, TET=10", xlabel="time", ylabel="change in mean tetA copy number")
 
-	plot!(pcn15_tet15_sol.t, pcn15_tet15_copy_num_velocity, label="PCN=15, TET=15")
-	plot!(pcn25_tet15_sol.t, pcn25_tet15_copy_num_velocity, label="PCN=25, TET=15")
-	plot!(pcn50_tet15_sol.t, pcn50_tet15_copy_num_velocity, label="PCN=50, TET=15")
+	plot!(pcn15_tet10_sol.t, pcn15_tet10_copy_num_velocity, label="PCN=15, TET=10")
+	plot!(pcn25_tet10_sol.t, pcn25_tet10_copy_num_velocity, label="PCN=25, TET=10")
+	plot!(pcn50_tet10_sol.t, pcn50_tet10_copy_num_velocity, label="PCN=50, TET=10")
+	
+	savefig(tet10_response_plot, "../results/modeling-results/tet10_response_plot.pdf")
+	tet10_response_plot
 end
 
 # ╔═╡ 9a48f3c4-a5d3-4d53-8248-557c4dd86efb
@@ -1175,23 +1176,19 @@ let
 
 	plot!(pcn15_tet40_sol.t, pcn15_tet40_copy_num_covariance, label="PCN=15, TET=40")
 	plot!(pcn25_tet40_sol.t, pcn25_tet40_copy_num_covariance, label="PCN=25, TET=40")
-	plot!(pcn40_tet40_sol.t, pcn40_tet40_copy_num_covariance, label="PCN=40, TET=40")
 	plot!(pcn100_tet40_sol.t, pcn100_tet40_copy_num_covariance, label="PCN=100,TET=40")
 end
 
 # ╔═╡ 933c9aef-3f09-42aa-b7c5-8f7e5c63d1c9
 let
-	plot(pcn5_tet40_sol.t, pcn5_tet40_copy_num_velocity, label="PCN=5, TET=40", xlabel="time", ylabel="rate of change of mean tetA copy number")
+	tet40_response_plot = plot(pcn5_tet40_sol.t, pcn5_tet40_copy_num_velocity, label="PCN=5, TET=40", xlabel="time", ylabel="change of mean tetA copy number")
 
 	plot!(pcn15_tet40_sol.t, pcn15_tet40_copy_num_velocity, label="PCN=15, TET=40")
 	plot!(pcn25_tet40_sol.t, pcn25_tet40_copy_num_velocity, label="PCN=25, TET=40")
 	plot!(pcn100_tet40_sol.t, pcn100_tet40_copy_num_velocity, label="PCN=100, TET=40")
-end
 
-# ╔═╡ 99b06657-4eec-44a6-9e84-5fc7f88dfb9f
-let
-	plot(pcn40_tet40_sol.t, pcn40_tet40_copy_num_covariance, label="PCN=40, TET=40", xlabel="time", ylabel="rate of change of mean tetA copy number")
-	plot!(pcn100_tet40_sol.t, pcn100_tet40_copy_num_covariance, label="PCN=100,TET=40")
+	savefig(tet40_response_plot, "../results/modeling-results/tet40_response_plot.pdf")
+	tet40_response_plot
 end
 
 # ╔═╡ a2603db4-3fd8-4cc7-a943-8fa142961a61
@@ -4967,8 +4964,8 @@ version = "1.4.1+1"
 # ╠═9b92d86b-9f19-4fed-be2b-691d58ffaab6
 # ╠═49830d58-03a3-4379-aeea-767c9a3eeb26
 # ╠═1cff27ae-4465-4c38-8b26-5cace8a833d7
-# ╟─e1046a07-ad24-45e0-b871-069640aa6df3
-# ╟─4bddf691-83a7-4101-bb00-0fe463e5de77
+# ╠═e1046a07-ad24-45e0-b871-069640aa6df3
+# ╠═4bddf691-83a7-4101-bb00-0fe463e5de77
 # ╠═f96766c2-bd3b-4782-a884-a2d72667d0e4
 # ╠═d153fde0-3435-49f2-b493-2c2fc8fec41f
 # ╠═11e9cbd5-19f2-4401-ba19-8590d3f4dca7
@@ -4976,7 +4973,6 @@ version = "1.4.1+1"
 # ╠═cb0d4f61-2a7d-4fe2-b2a7-8b2aafae22bd
 # ╠═86e16ddc-a9e0-4e2c-822c-abc9f19d0ccf
 # ╠═933c9aef-3f09-42aa-b7c5-8f7e5c63d1c9
-# ╠═99b06657-4eec-44a6-9e84-5fc7f88dfb9f
 # ╟─a2603db4-3fd8-4cc7-a943-8fa142961a61
 # ╠═55f2289b-9268-4bca-9f0f-7f27e29697f8
 # ╠═c83fbfaa-1f5f-40b9-a6c1-68d480c4dfe7
