@@ -364,10 +364,6 @@ $\frac{d}{dt}\mathbb{E}(TCN(t)) =  \beta_{\mathbf{r},TCN} \cdot Var(TCN)$.
 This result gives the instantaneous change in TCN, and shows that it depends on the slope of the linear regression of fitness on TCN, and the variance of TCN in the population. This has a nice geometric interpretation.
 """
 
-# ╔═╡ 9aa63215-219d-465e-b441-f7296c4d395c
-md""" #### TODO: make a figure or figure panel to illustrate this interpretation.
-"""
-
 # ╔═╡ 39b0ddde-3cb4-4630-a4ff-a3ab163c57d8
 md""" ### notes on eigenvalues and eigenvectors of the MutSel matrix. """
 
@@ -4871,7 +4867,7 @@ version = "1.4.1+1"
 """
 
 # ╔═╡ Cell order:
-# ╠═44e8209c-8d79-11ef-24db-ff1ea28d01b3
+# ╟─44e8209c-8d79-11ef-24db-ff1ea28d01b3
 # ╟─d4d1f72f-7aa7-46e7-9be0-f38fe991bc0c
 # ╟─b706fac1-3a38-423b-bed3-db6518475c73
 # ╟─c3d81737-fc16-44a0-b3de-bab5e0f7aab2
@@ -4891,7 +4887,6 @@ version = "1.4.1+1"
 # ╟─0abeaf9e-5322-4b6d-ba8f-81efd831080b
 # ╟─08535a54-414b-4a3e-a718-b356cb22cb23
 # ╟─83685c04-3a04-4d30-90e4-ab9ec7eee180
-# ╟─9aa63215-219d-465e-b441-f7296c4d395c
 # ╟─39b0ddde-3cb4-4630-a4ff-a3ab163c57d8
 # ╟─35adaf46-3b45-4208-aa74-e89a54c4a6d5
 # ╟─248e7e49-749a-4110-a3df-12d9b873b949
