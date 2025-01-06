@@ -552,14 +552,25 @@ begin
 	
 	η₀ = 0.001 ## set the transposition rate η₀.
 
+	## set up plot dimensions
+	width_to_height_ratio=1.5
+	my_plot_height = 3*72
+	my_plot_width = width_to_height_ratio * my_plot_height
+	my_plot_size = (my_plot_width, my_plot_height)
+	
 	## Set plot default parameters:
 	## set the font to Arial and increase font sizes.
 	## Helvetica does not render properly in PDF.
 	default(fontfamily="Arial", 
-		tickfontsize=11,
-		xlabelfontsize=14,
-		ylabelfontsize=14,
-		titlefontsize=16)
+		tickfontsize=12,
+		xlabelfontsize=9,
+		ylabelfontsize=9,
+		legendfontsize=6,
+		titlefontsize=10,
+		size=my_plot_size,
+		grid=false
+	)
+	
 end
 
 # ╔═╡ 9e9cc2c2-55be-456e-95f0-224b08fbeae3
@@ -674,6 +685,10 @@ function CalcTetACopyNumberFitnessCovariance(sol, tet_conc_vec)
 	end
 	return copy_num_covariance_vec
 end
+
+# ╔═╡ 2f5d53c1-5b8b-40eb-a897-c1efbf1977a9
+## Retrieve the current default size
+println("Default plot size: ", Plots.default(:size))
 
 # ╔═╡ 6bd86018-8a50-4b8d-a2bd-40bfbe45829b
 PCNSlider = @bind PCN Slider(1:100, default=50, show_value=true)
@@ -1119,8 +1134,8 @@ end
 
 # ╔═╡ d153fde0-3435-49f2-b493-2c2fc8fec41f
 let
-	plot(pcn5_tet10_sol.t, pcn5_tet10_copy_num_covariance, label="PCN=5, TET=10", xlabel="time", ylabel="tetA copy number-fitness covariance")
-
+	plot(pcn5_tet10_sol.t, pcn5_tet10_copy_num_covariance, label="PCN=5, TET=10", xlabel="time", ylabel="tetA copy number-fitness covariance", ylabelfontsize=7)
+	
 	plot!(pcn15_tet10_sol.t, pcn15_tet10_copy_num_covariance, label="PCN=15, TET=10")
 	plot!(pcn25_tet10_sol.t, pcn25_tet10_copy_num_covariance, label="PCN=25, TET=10")
 	plot!(pcn50_tet10_sol.t, pcn50_tet10_copy_num_covariance, label="PCN=50, TET=10")
@@ -1128,13 +1143,14 @@ end
 
 # ╔═╡ 11e9cbd5-19f2-4401-ba19-8590d3f4dca7
 let
-	tet10_response_plot = plot(pcn5_tet10_sol.t, pcn5_tet10_copy_num_velocity, label="PCN=5, TET=10", xlabel="time", ylabel="change in mean tetA copy number")
+	tet10_response_plot = plot(pcn5_tet10_sol.t, pcn5_tet10_copy_num_velocity, label="PCN=5, TET=10", xlabel="time", ylabel="change in mean tetA copy number", ylabelfontsize=7)
 
 	plot!(pcn15_tet10_sol.t, pcn15_tet10_copy_num_velocity, label="PCN=15, TET=10")
 	plot!(pcn25_tet10_sol.t, pcn25_tet10_copy_num_velocity, label="PCN=25, TET=10")
 	plot!(pcn50_tet10_sol.t, pcn50_tet10_copy_num_velocity, label="PCN=50, TET=10")
 	
-	savefig(tet10_response_plot, "../results/modeling-results/tet10_response_plot.pdf")
+	savefig(tet10_response_plot, 
+		"../results/modeling-results/tet10_response_plot.pdf")
 	tet10_response_plot
 end
 
@@ -1168,7 +1184,7 @@ end
 
 # ╔═╡ 86e16ddc-a9e0-4e2c-822c-abc9f19d0ccf
 let
-	plot(pcn5_tet40_sol.t, pcn5_tet40_copy_num_covariance, label="PCN=5, TET=40", xlabel="time", ylabel="tetA copy number-fitness covariance")
+	plot(pcn5_tet40_sol.t, pcn5_tet40_copy_num_covariance, label="PCN=5, TET=40", xlabel="time", ylabel="tetA copy number-fitness covariance", ylabelfontsize=7)
 
 	plot!(pcn15_tet40_sol.t, pcn15_tet40_copy_num_covariance, label="PCN=15, TET=40")
 	plot!(pcn25_tet40_sol.t, pcn25_tet40_copy_num_covariance, label="PCN=25, TET=40")
@@ -1177,7 +1193,7 @@ end
 
 # ╔═╡ 933c9aef-3f09-42aa-b7c5-8f7e5c63d1c9
 let
-	tet40_response_plot = plot(pcn5_tet40_sol.t, pcn5_tet40_copy_num_velocity, label="PCN=5, TET=40", xlabel="time", ylabel="change of mean tetA copy number")
+	tet40_response_plot = plot(pcn5_tet40_sol.t, pcn5_tet40_copy_num_velocity, label="PCN=5, TET=40", xlabel="time", ylabel="change of mean tetA copy number", ylabelfontsize=7)
 
 	plot!(pcn15_tet40_sol.t, pcn15_tet40_copy_num_velocity, label="PCN=15, TET=40")
 	plot!(pcn25_tet40_sol.t, pcn25_tet40_copy_num_velocity, label="PCN=25, TET=40")
@@ -1824,7 +1840,7 @@ let
 	
 	plot!(pcn20_tet10_sol.t, pcn20_tet10_pulse_copy_num_covariance_vec, label="tetA copy number fitness covariance",alpha=0.5)
 	
-	plot!(pcn20_tet10_sol.t, pcn20_tet10_d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right,alpha=0.5)
+	plot!(pcn20_tet10_sol.t, pcn20_tet10_d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:none,alpha=0.5)
 
 	savefig(pcn20_tet10_price_eq_fig, "../results/modeling-results/pcn20_tet10_price_eq_fig.pdf")
 	pcn20_tet10_price_eq_fig
@@ -1837,7 +1853,7 @@ let
 		
 	plot!(pcn40_tet20_sol.t, pcn40_tet20_pulse_copy_num_covariance_vec, label="tetA copy number fitness covariance",alpha=0.5)
 	
-	plot!(pcn40_tet20_sol.t, pcn40_tet20_d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:right,alpha=0.5)
+	plot!(pcn40_tet20_sol.t, pcn40_tet20_d_pulse_mean_copy_num_vec, label="Rate of change of mean tetA copy number", xlabel="time", ylabel="tetA copy number derivative\nand covariance with fitness", legend=:none,alpha=0.5)
 
 	savefig(pcn40_tet20_price_eq_fig, "../results/modeling-results/pcn40_tet20_price_eq_fig.pdf")
 	pcn40_tet20_price_eq_fig
@@ -4933,6 +4949,7 @@ version = "1.4.1+1"
 # ╟─8dfdd593-117b-430e-b988-2eaa70484b4c
 # ╟─9bd490b7-3f11-487e-b454-785c7d87391b
 # ╠═28bd0eee-f54e-4ab5-aecc-275fe3e8319a
+# ╠═2f5d53c1-5b8b-40eb-a897-c1efbf1977a9
 # ╠═6bd86018-8a50-4b8d-a2bd-40bfbe45829b
 # ╠═a506ff86-41c6-44ac-adf5-c3fdb368cb02
 # ╟─9241c94d-857c-4a31-93f1-cfed036cf2f2
@@ -4959,8 +4976,8 @@ version = "1.4.1+1"
 # ╠═9b92d86b-9f19-4fed-be2b-691d58ffaab6
 # ╠═49830d58-03a3-4379-aeea-767c9a3eeb26
 # ╠═1cff27ae-4465-4c38-8b26-5cace8a833d7
-# ╠═e1046a07-ad24-45e0-b871-069640aa6df3
-# ╠═4bddf691-83a7-4101-bb00-0fe463e5de77
+# ╟─e1046a07-ad24-45e0-b871-069640aa6df3
+# ╟─4bddf691-83a7-4101-bb00-0fe463e5de77
 # ╠═f96766c2-bd3b-4782-a884-a2d72667d0e4
 # ╠═d153fde0-3435-49f2-b493-2c2fc8fec41f
 # ╠═11e9cbd5-19f2-4401-ba19-8590d3f4dca7
