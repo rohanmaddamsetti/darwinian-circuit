@@ -53,7 +53,7 @@ gated.pUC.df <- as_tibble(exprs(gated.pUC.flowdata)) %>%
 gated.CloDF13.df <- as_tibble(exprs(gated.CloDF13.flowdata)) %>%
     mutate(Plasmid = "CloDF13")
 gated.ColE1.df <- as_tibble(exprs(gated.ColE1.flowdata)) %>%
-    mutate(Plasmid = "ColE1")
+    mutate(Plasmid = "pBR322")
 gated.p15A.df <- as_tibble(exprs(gated.p15A.flowdata)) %>%
     mutate(Plasmid = "p15A")
 gated.pSC101.df <- as_tibble(exprs(gated.pSC101.flowdata)) %>%
@@ -61,7 +61,7 @@ gated.pSC101.df <- as_tibble(exprs(gated.pSC101.flowdata)) %>%
 
 
 ## merge into a big dataframe.
-Fig4D.df <- bind_rows(
+Fig5B.df <- bind_rows(
     gated.pUC.df,
     gated.CloDF13.df,
     gated.ColE1.df,
@@ -69,15 +69,26 @@ Fig4D.df <- bind_rows(
     gated.pSC101.df
 ) %>%
     ## order the plasmid factor
-    mutate(Plasmid = factor(Plasmid, levels=c("pUC", "CloDF13","ColE1","p15A","pSC101")))
+    mutate(Plasmid = factor(Plasmid, levels=c("pUC", "CloDF13","pBR322","p15A","pSC101")))
 
 
-Fig4D <- ggplot(Fig4D.df, aes(x = log10(`GFP-A`), fill=Plasmid)) +
+## Plasmid color scheme.
+## https://colorbrewer2.org/#type=sequential&scheme=PuRd&n=5
+PLASMID_COLORSCALE <- c(
+    "pUC" = "#7a0177",
+    "CloDF13" = "#c51b8a",
+    "pBR322" = "#f768a1",
+    "p15A" = "#fbb4b9",
+    "pSC101" = "#cccccc"
+)
+
+Fig5B <- ggplot(Fig5B.df, aes(x = log10(`GFP-A`), fill=Plasmid)) +
     geom_histogram(bins=500, alpha = 0.5) +
     theme_classic() +
     facet_grid(Plasmid~.) +
     guides(fill="none") +
     xlab("log10(GFP) (arbitrary units)") +
-    ylab("cell counts")
+    ylab("cell counts") +
+    scale_fill_manual(values = PLASMID_COLORSCALE)
     
-ggsave("../results/flow-cytometry/Fig4D.pdf", Fig4D, width=3, height=4)
+ggsave("../results/flow-cytometry/Fig5B.pdf", Fig5B, width=3, height=4)

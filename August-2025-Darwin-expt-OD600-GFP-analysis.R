@@ -4,12 +4,12 @@
 library(tidyverse)
 
 ## Plasmid color scheme.
-## https://colorbrewer2.org/#type=sequential&scheme=PuRd&n=4
+## https://colorbrewer2.org/#type=sequential&scheme=PuRd&n=5
 PLASMID_COLORSCALE <- c(
-    "pUC" = "#ce1256",
-    "CloDF13" = "#df65b0",
-    "pBR322" = "#d7b5d8",
-    "p15A" = "#f1eef6"
+    "pUC" = "#7a0177",
+    "CloDF13" = "#c51b8a",
+    "pBR322" = "#f768a1",
+    "p15A" = "#fbb4b9"
 )
 
 
