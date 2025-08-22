@@ -89,7 +89,7 @@ Fig5C <- Fig5C + theme(legend.position = "none")
 ## Figure 5D: transposons by qPCR.
 Fig5D <- Kan.qPCR.data %>%
     ggplot(aes(x = Day, y = log10(transposon.copy), color=Plasmid, group = interaction(Replicate, Plasmid))) +
-    ylab("log10(transposons)") +
+    ylab(expression("log10(" * italic("tetA") *" copies)")) +
     scale_color_manual(values = PLASMID_COLORSCALE) +
     geom_line() +
     theme_classic() +
@@ -99,7 +99,7 @@ Fig5D <- Kan.qPCR.data %>%
 ## Figure 5E: transposons per plasmid by qPCR.
 Fig5E <- Kan.qPCR.data %>%
     ggplot(aes(x = Day, y = transposons.per.plasmid, color=Plasmid, group = interaction(Replicate, Plasmid))) +
-    ylab("transposons/plasmid") +
+    ylab(expression(italic("tetA") * " per plasmid")) +
     scale_color_manual(values = PLASMID_COLORSCALE) +
     geom_line() +
     theme_classic() +
@@ -148,7 +148,7 @@ S6FigA <- S6FigA + theme(legend.position = "none")
 ## Supplementary Figure S6 B: transposons by qPCR.
 S6FigB <- noKan.qPCR.data %>%
     ggplot(aes(x = Day, y = log10(transposon.copy), color=Plasmid, group = interaction(Replicate, Plasmid))) +
-    ylab("log10(transposons)") +
+    ylab(expression("log10(" * italic("tetA") *" copies)")) +
     scale_color_manual(values = PLASMID_COLORSCALE) +
     geom_line() +
     theme_classic() +
@@ -159,7 +159,7 @@ S6FigB <- noKan.qPCR.data %>%
 ## Supplementary Figure S6 C: transposons per plasmid by qPCR.
 S6FigC <- noKan.qPCR.data %>%
     ggplot(aes(x = Day, y = transposons.per.plasmid, color=Plasmid, group = interaction(Replicate, Plasmid))) +
-    ylab("transposons/plasmid") +
+    ylab(expression(italic("tetA") * " per plasmid")) +
     scale_color_manual(values = PLASMID_COLORSCALE) +
     geom_line() +
     theme_classic() +
