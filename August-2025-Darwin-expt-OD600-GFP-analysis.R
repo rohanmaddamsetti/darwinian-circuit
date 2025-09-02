@@ -1,7 +1,15 @@
 ## August-2025-Darwin-expt-OD600-GFP-analysis.R
 ## by Rohan Maddamsetti.
 
+## Note: measurements "OVER" the GFP100 measurement range are encoded as 63000
+## as a ceiling for all real Tecan Infinite Pro GFP100 readings.
+
 library(tidyverse)
+
+
+## Days when Tet 10 selection was applied in the August 2025 experiment.
+AUG_2025_TET_SELECTION_DAYS <- c(0,3,10)
+
 
 ## Plasmid color scheme.
 ## https://colorbrewer2.org/#type=sequential&scheme=PuRd&n=5
@@ -12,10 +20,6 @@ PLASMID_COLORSCALE <- c(
     "p15A" = "#fbb4b9"
 )
 
-
-## let's analyze data collected with Grayson.
-## Note: measurements "OVER" the GFP100 measurement range are encoded as 80000
-## as a guessed maximum-ish value.
 
 ## at first, I'm not subtracting the blanks.
 ## TODO: SUBTRACT BLANK READINGS!!!
@@ -33,42 +37,54 @@ August.2025.darwin.data <- read.csv("../data/OD600-GFP-data/2025-August-Darwin-e
 Rohan.GFP55.timecourse.plot <- August.2025.darwin.data %>%
     filter(Block == "Rohan") %>%
     ggplot(
-        aes(x=Day, y=log10(normalized.GFP55), color=Plasmid, shape=Block)) +
+        aes(x=Day, y=log10(normalized.GFP55), color=Plasmid, group = interaction(Replicate, Plasmid))) +
     scale_color_manual(values = PLASMID_COLORSCALE) +
     facet_grid(Treatment~Replicate) +
     theme(legend.position = "bottom") +
     ggtitle("Rohan's Block") +
-    geom_line() + theme_classic()
+    geom_line() +
+    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
+    theme_classic() +
+    theme(legend.position = "bottom")
 
 Rohan.GFP100.timecourse.plot <- August.2025.darwin.data %>%
     filter(Block == "Rohan") %>%
     ggplot(
-        aes(x=Day, y=log10(normalized.GFP100), color=Plasmid, shape=Block)) +
+        aes(x=Day, y=log10(normalized.GFP100), color=Plasmid, group = interaction(Replicate, Plasmid))) +
     scale_color_manual(values = PLASMID_COLORSCALE) +
     facet_grid(Treatment~Replicate) +
     theme(legend.position = "bottom") +
     ggtitle("Rohan's Block") +
-    geom_line() + theme_classic()
+    geom_line() +
+    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
+    theme_classic() +
+    theme(legend.position = "bottom")
 
 Grayson.GFP55.timecourse.plot <- August.2025.darwin.data %>%
     filter(Block == "Grayson") %>%
     ggplot(
-        aes(x=Day, y=log10(normalized.GFP55), color=Plasmid, shape=Block)) +
+        aes(x=Day, y=log10(normalized.GFP55), color=Plasmid, group = interaction(Replicate, Plasmid))) +
     scale_color_manual(values = PLASMID_COLORSCALE) +
     facet_grid(Treatment~Replicate) +
     theme(legend.position = "bottom") +
     ggtitle("Grayson's Block") +
-    geom_line() + theme_classic()
+    geom_line() +
+    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
+    theme_classic() +
+    theme(legend.position = "bottom")
 
 Grayson.GFP100.timecourse.plot <- August.2025.darwin.data %>%
     filter(Block == "Grayson") %>%
     ggplot(
-        aes(x=Day, y=log10(normalized.GFP100), color=Plasmid, shape=Block)) +
+        aes(x=Day, y=log10(normalized.GFP100), color=Plasmid, group = interaction(Replicate, Plasmid))) +
     scale_color_manual(values = PLASMID_COLORSCALE) +
     facet_grid(Treatment~Replicate) +
     theme(legend.position = "bottom") +
     ggtitle("Grayson's Block") +
-    geom_line() + theme_classic()
+    geom_line() +
+    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
+    theme_classic() +
+    theme(legend.position = "bottom")
 
 
 

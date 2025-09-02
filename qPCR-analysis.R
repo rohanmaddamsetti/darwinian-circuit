@@ -6,6 +6,22 @@ library(tidyverse)
 library(cowplot)
 
 
+## Days when Tet 10 selection was applied in the August 2025 experiment.
+AUG_2025_TET_SELECTION_DAYS <- c(
+    0,
+    ##3, ## omit day 3 since we did not collect data on that day.
+    10)
+
+
+## Plasmid color scheme:
+## https://colorbrewer2.org/#type=sequential&scheme=PuRd&n=5
+PLASMID_COLORSCALE <- c(
+    "pUC" = "#7a0177",
+    "CloDF13" = "#c51b8a",
+    "pBR322" = "#f768a1",
+    "p15A" = "#fbb4b9"
+)
+
 ##################################################################
 ## functions for analysis of 2021 data.
 ## These data are used for Figure 2D in the manuscript.
@@ -168,61 +184,198 @@ Day2.results <- Day2.data.August.4.2025 %>%
     map_dfr(calc.probe.fold.differences.for.2025.data) %>%
     mutate(Day = 2)
 
-## Combine data across days.
-full.results <- rbind(Day0.results, Day1.results, Day2.results) %>%
-    mutate(Day = as.factor(Day)) %>%
-    mutate(Replicate=as.factor(Replicate)) %>%
-    mutate(Plasmid=factor(Plasmid, levels = c("pUC", "CloDF13", "pBR322", "p15A")))
+## Day 9 data.
+Day9.data.August.11.2025 <- read.csv("../data/qPCR-data/2025-08-11_Rohan_Grayson_Darwin_Expt_Day9-Run4.csv")
 
-plasmids.per.chromosome.fig <- full.results %>%
+Day9.results <- Day9.data.August.11.2025 %>%
+    split(.$Well) %>%
+    map_dfr(calc.probe.fold.differences.for.2025.data) %>%
+    mutate(Day = 9)
+
+## Day 10 data.
+Day10.data.August.12.2025 <- read.csv("../data/qPCR-data/2025-08-12_Rohan_Grayson_Darwin_Expt_Day10.csv")
+
+Day10.results <- Day10.data.August.12.2025 %>%
+    split(.$Well) %>%
+    map_dfr(calc.probe.fold.differences.for.2025.data) %>%
+    mutate(Day = 10)
+
+## Day 12 data.
+## Note that the original data from the qPCR machine has the wrong day (should be Day 12 but Day 13 written in title).
+Day12.data.August.14.2025 <- read.csv("../data/qPCR-data/2025-08-14_Rohan_Grayson_Darwin_Expt_Day12.csv")
+
+Day12.results <- Day12.data.August.14.2025 %>%
+    split(.$Well) %>%
+    map_dfr(calc.probe.fold.differences.for.2025.data) %>%
+    mutate(Day = 12)
+
+
+## Generate NA data for the days that were not sampled.
+NA.data.template <- Day12.results %>%
+    mutate(transposons.per.chromosome = NA) %>%
+    mutate(plasmids.per.chromosome = NA) %>%
+    mutate(transposons.per.plasmid = NA) %>%
+    mutate(Day = NA)
+
+Day3.results <- NA.data.template %>%
+    mutate(Day = 3)
+
+Day4.results <- NA.data.template %>%
+    mutate(Day = 4)
+
+Day5.results <- NA.data.template %>%
+    mutate(Day = 5)
+
+Day6.results <- NA.data.template %>%
+    mutate(Day = 6)
+
+Day7.results <- NA.data.template %>%
+    mutate(Day = 7)
+
+Day8.results <- NA.data.template %>%
+    mutate(Day = 8)
+
+
+
+## Combine data across days.
+full.results <- rbind(
+    ## actual data here
+    Day0.results, Day1.results, Day2.results,
+    ## NA missing data here
+    ##Day3.results, Day4.results, Day5.results, Day6.results, Day7.results, Day8.results,
+    ## actual data here
+    Day9.results, Day10.results, Day12.results) %>%
+    mutate(Replicate=as.factor(Replicate)) %>%
+    mutate(Day=as.factor(Day)) %>%
+    mutate(Plasmid=factor(Plasmid, levels = c("pUC", "CloDF13", "pBR322", "p15A"))) %>%
+    ## it looks like the transposon did not jump onto the plasmid of the p15A clone.
+    ## let's remove this from the analysis.
+    filter(Plasmid != "p15A")
+
+
+Grayson.plasmids.per.chromosome.fig <- full.results %>%
+    filter(Block == "Grayson") %>%
     ggplot(
-        aes(x=Day, y=log10(plasmids.per.chromosome), color=Replicate, shape=Block)) +
-    facet_grid(Treatment~Plasmid) +
-    geom_point() +
+        aes(x=Day, y=log10(plasmids.per.chromosome), color=Plasmid, group = interaction(Replicate, Plasmid))) +
+    facet_grid(Treatment~Replicate) +
+    geom_line() +
+    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
     theme_classic() +
-    geom_hline(yintercept=1, linetype="dashed", color="gray") +
+    scale_color_manual(values = PLASMID_COLORSCALE) +
     ylab("log10(plasmids per chromosome)") +
     ##    scale_y_continuous(limits=c(0,1.2), breaks=c(0,0.5,1)) +
     theme(strip.background=element_blank(),
           axis.text.x = element_text(size=10),
           strip.text.x = element_text(size = 14)) +
-    ggtitle("plasmids per chromosome")
+    ggtitle("Grayson's Block: plasmids per chromosome") +
+    theme(legend.position = "bottom")
 
-plasmids.per.chromosome.fig
-ggsave("../results/August2025-plasmids-per-chromosome-fig.pdf", plasmids.per.chromosome.fig)
+Grayson.plasmids.per.chromosome.fig
+ggsave("../results/August2025-Grayson-plasmids-per-chromosome-fig.pdf", Grayson.plasmids.per.chromosome.fig)
 
 
-transposons.per.plasmid.fig <- full.results %>%
+Grayson.transposons.per.plasmid.fig <- full.results %>%
+    filter(Block == "Grayson") %>%
     ggplot(
-        aes(x=Day, y=transposons.per.plasmid, color=Replicate, shape=Block)) +
-    facet_grid(Treatment~Plasmid) +
-    geom_point() +
+        aes(x=Day, y=transposons.per.plasmid, color=Plasmid, group = interaction(Replicate, Plasmid))) +
+    facet_grid(Treatment~Replicate) +
+    geom_line() +
+    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
     theme_classic() +
-    geom_hline(yintercept=1, linetype="dashed", color="gray") +
+    scale_color_manual(values = PLASMID_COLORSCALE) +
     ylab("transposons per plasmid") +
     ##    scale_y_continuous(limits=c(0,1.2), breaks=c(0,0.5,1)) +
     theme(strip.background=element_blank(),
           axis.text.x = element_text(size=10),
           strip.text.x = element_text(size = 14)) +
-    ggtitle("transposons per plasmid")
+    ggtitle("Grayson's Block: transposons per plasmid") +
+    theme(legend.position = "bottom")
 
-transposons.per.plasmid.fig
-ggsave("../results/August2025-transposons-per-plasmid-fig.pdf", transposons.per.plasmid.fig)
+Grayson.transposons.per.plasmid.fig
+ggsave("../results/August2025-Grayson-transposons-per-plasmid-fig.pdf", Grayson.transposons.per.plasmid.fig)
 
 
-transposons.per.chromosome.fig <- full.results %>%
+Grayson.transposons.per.chromosome.fig <- full.results %>%
+    filter(Block == "Grayson") %>%
     ggplot(
-        aes(x=Day, y=log10(transposons.per.chromosome), color=Replicate, shape=Block)) +
-    facet_grid(Treatment~Plasmid) +
-    geom_point() +
+        aes(x=Day, y=log10(transposons.per.chromosome), color=Plasmid, group = interaction(Replicate, Plasmid))) +
+    facet_grid(Treatment~Replicate) +
+    geom_line() +
+    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
     theme_classic() +
-    geom_hline(yintercept=1, linetype="dashed", color="gray") +
+    scale_color_manual(values = PLASMID_COLORSCALE) +
     ylab("log10(transposons per chromosome)") +
     ##    scale_y_continuous(limits=c(0,1.2), breaks=c(0,0.5,1)) +
     theme(strip.background=element_blank(),
           axis.text.x = element_text(size=10),
           strip.text.x = element_text(size = 14)) +
-    ggtitle("transposons per chromosome")
+    ggtitle("Grayson's Block: transposons per chromosome") +
+    theme(legend.position = "bottom")
 
-transposons.per.chromosome.fig
-ggsave("../results/August2025-transposons-per-chromosome-fig.pdf", transposons.per.chromosome.fig)
+Grayson.transposons.per.chromosome.fig
+ggsave("../results/August2025-Grayson-transposons-per-chromosome-fig.pdf", Grayson.transposons.per.chromosome.fig)
+
+
+
+
+Rohan.plasmids.per.chromosome.fig <- full.results %>%
+    filter(Block == "Rohan") %>%
+    ggplot(
+        aes(x=Day, y=log10(plasmids.per.chromosome), color=Plasmid, group = interaction(Replicate, Plasmid))) +
+    facet_grid(Treatment~Replicate) +
+    geom_line() +
+    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
+    theme_classic() +
+    scale_color_manual(values = PLASMID_COLORSCALE) +
+    ylab("log10(plasmids per chromosome)") +
+    ##    scale_y_continuous(limits=c(0,1.2), breaks=c(0,0.5,1)) +
+    theme(strip.background=element_blank(),
+          axis.text.x = element_text(size=10),
+          strip.text.x = element_text(size = 14)) +
+    ggtitle("Rohan's Block: plasmids per chromosome") +
+    theme(legend.position = "bottom")
+
+Rohan.plasmids.per.chromosome.fig
+ggsave("../results/August2025-Rohan-plasmids-per-chromosome-fig.pdf", Rohan.plasmids.per.chromosome.fig)
+
+
+Rohan.transposons.per.plasmid.fig <- full.results %>%
+    filter(Block == "Rohan") %>%
+    ggplot(
+        aes(x=Day, y=transposons.per.plasmid, color=Plasmid, group = interaction(Replicate, Plasmid))) +
+    facet_grid(Treatment~Replicate) +
+    geom_line() +
+    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
+    theme_classic() +
+    scale_color_manual(values = PLASMID_COLORSCALE) +
+    ylab("transposons per plasmid") +
+    ##    scale_y_continuous(limits=c(0,1.2), breaks=c(0,0.5,1)) +
+    theme(strip.background=element_blank(),
+          axis.text.x = element_text(size=10),
+          strip.text.x = element_text(size = 14)) +
+    ggtitle("Rohan's Block: transposons per plasmid") +
+    theme(legend.position = "bottom")
+
+Rohan.transposons.per.plasmid.fig
+ggsave("../results/August2025-Rohan-transposons-per-plasmid-fig.pdf", Rohan.transposons.per.plasmid.fig)
+
+
+Rohan.transposons.per.chromosome.fig <- full.results %>%
+    filter(Block == "Rohan") %>%
+    ggplot(
+        aes(x=Day, y=log10(transposons.per.chromosome), color=Plasmid, group = interaction(Replicate, Plasmid))) +
+    facet_grid(Treatment~Replicate) +
+    geom_line() +
+    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
+    theme_classic() +
+    scale_color_manual(values = PLASMID_COLORSCALE) +
+    ylab("log10(transposons per chromosome)") +
+    ##    scale_y_continuous(limits=c(0,1.2), breaks=c(0,0.5,1)) +
+    theme(strip.background=element_blank(),
+          axis.text.x = element_text(size=10),
+          strip.text.x = element_text(size = 14)) +
+    ggtitle("Rohan's Block: transposons per chromosome") +
+    theme(legend.position = "bottom")
+
+Rohan.transposons.per.chromosome.fig
+ggsave("../results/August2025-Rohan-transposons-per-chromosome-fig.pdf", Rohan.transposons.per.chromosome.fig)
