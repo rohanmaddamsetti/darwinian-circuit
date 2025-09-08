@@ -1,6 +1,8 @@
  ## qPCR-analysis.R by Rohan Maddamsetti.
 ## This script analyzes qPCR data using Yi's transposon and antibiotic resistance marker system.
 
+## CRITICAL TODO: FIGURE OUT HOW TO MAP FROM YI'S QPCR ANALYSIS TO YUANCHI'S qPCR ANALYSIS!!!
+
 
 library(tidyverse)
 library(cowplot)
@@ -118,17 +120,24 @@ ggsave("../results/Fig2E.pdf", Fig2E, width=7, height=2.25)
 ##################################################################
 ## functions for analysis of 2025 data
 
-calc.probe.fold.differences.for.2025.data <- function(well.df) {
-    ## this is a helper function for calculating probe fold differences
-    ## per well.
+calc.probe.fold.differences.for.August.2025.data <- function(well.df, use.Yuanchi.calibration=FALSE) {
+    ## this helper function calculates probe fold differences per well.
 
-    ## Use the calculation method in Yuanchi's paper.
-    ## data analysis using constants calculated from Yuanchi's standard curve calibration,
-    ## as reported in her paper.
-    CmR.amplification.factor <- 2.01
-    KanR.amplification.factor <- 2.03
-    TetR.amplification.factor <- 1.99
+    ## numbers calculated from my standard curve calibrations, omitting p15A.
+    CmR.amplification.factor <- 2.14
+    KanR.amplification.factor <- 2.23
+    TetR.amplification.factor <- 2.18
+
+    if (use.Yuanchi.calibration) {
+        ## Use the calculation method in Yuanchi's paper.
+        ## data analysis using constants calculated from Yuanchi's standard curve calibration,
+        ## as reported in her paper.
+        CmR.amplification.factor <- 2.01
+        KanR.amplification.factor <- 2.03
+        TetR.amplification.factor <- 1.99
     
+    }
+        
     C <- filter(well.df, probe_target == 'cmR')$cycle_at_threshold
     T <- filter(well.df, probe_target == 'tetA')$cycle_at_threshold
     K <- filter(well.df, probe_target == 'kanR')$cycle_at_threshold
@@ -157,6 +166,35 @@ calc.probe.fold.differences.for.2025.data <- function(well.df) {
 
 
 ##################################################################
+## analyze calibration curve data collected on August 13 2025.
+August.2025.calibration.data <- read.csv("../data/qPCR-data/2025-08-13_Rohan_Grayson_Calibration_Expt.csv") %>%
+    mutate(TechnicalReplicate = as.factor(TechnicalReplicate)) %>%
+    filter(Plasmid != "p15A")
+
+## visualize the data.
+initial_calibration_fig <- August.2025.calibration.data %>%
+    ggplot(aes(x = LogDilutionFactor, y=cycle_at_threshold, color=Plasmid, shape=TechnicalReplicate)) +
+    geom_point() +
+    facet_grid(TechnicalReplicate~ probe_target) +
+    theme_classic()
+
+initial_calibration_fig
+
+
+## calculate linear regressions for each probe_target, plasmid, TechnicalReplicate
+CT_regression_df <- August.2025.calibration.data %>%
+    group_by(probe_target) %>%
+    do(broom::tidy(lm(cycle_at_threshold ~ LogDilutionFactor, data = .))) %>%
+    filter(term == "LogDilutionFactor") %>%
+    tidyr::pivot_wider(
+    names_from = term,
+    values_from = estimate) %>%
+    rename(slope = LogDilutionFactor) %>%
+    mutate(amplification_factor = 10^-(1/slope))
+
+
+
+##################################################################
 ## analyze Darwin circuit experiment data from work with Grayson in August 2025.
 ## normalize based on the standard curve that Yuanchi made for her paper (see bioRxiv preprint).
 
@@ -165,7 +203,7 @@ Day0.data.August.2.2025 <- read.csv("../data/qPCR-data/2025-08-02_Rohan_Grayson_
 
 Day0.results <- Day0.data.August.2.2025 %>%
     split(.$Well) %>%
-    map_dfr(calc.probe.fold.differences.for.2025.data) %>%
+    map_dfr(calc.probe.fold.differences.for.August.2025.data) %>%
     mutate(Day = 0)
 
 ## Day 1 data.
@@ -173,7 +211,7 @@ Day1.data.August.3.2025 <- read.csv("../data/qPCR-data/2025-08-03_Rohan_Grayson_
 
 Day1.results <- Day1.data.August.3.2025 %>%
     split(.$Well) %>%
-    map_dfr(calc.probe.fold.differences.for.2025.data) %>%
+    map_dfr(calc.probe.fold.differences.for.August.2025.data) %>%
     mutate(Day = 1)
 
 ## Day 2 data.
@@ -181,7 +219,7 @@ Day2.data.August.4.2025 <- read.csv("../data/qPCR-data/2025-08-04_Rohan_Grayson_
 
 Day2.results <- Day2.data.August.4.2025 %>%
     split(.$Well) %>%
-    map_dfr(calc.probe.fold.differences.for.2025.data) %>%
+    map_dfr(calc.probe.fold.differences.for.August.2025.data) %>%
     mutate(Day = 2)
 
 ## Day 9 data.
@@ -189,7 +227,7 @@ Day9.data.August.11.2025 <- read.csv("../data/qPCR-data/2025-08-11_Rohan_Grayson
 
 Day9.results <- Day9.data.August.11.2025 %>%
     split(.$Well) %>%
-    map_dfr(calc.probe.fold.differences.for.2025.data) %>%
+    map_dfr(calc.probe.fold.differences.for.August.2025.data) %>%
     mutate(Day = 9)
 
 ## Day 10 data.
@@ -197,7 +235,7 @@ Day10.data.August.12.2025 <- read.csv("../data/qPCR-data/2025-08-12_Rohan_Grayso
 
 Day10.results <- Day10.data.August.12.2025 %>%
     split(.$Well) %>%
-    map_dfr(calc.probe.fold.differences.for.2025.data) %>%
+    map_dfr(calc.probe.fold.differences.for.August.2025.data) %>%
     mutate(Day = 10)
 
 ## Day 12 data.
@@ -206,7 +244,7 @@ Day12.data.August.14.2025 <- read.csv("../data/qPCR-data/2025-08-14_Rohan_Grayso
 
 Day12.results <- Day12.data.August.14.2025 %>%
     split(.$Well) %>%
-    map_dfr(calc.probe.fold.differences.for.2025.data) %>%
+    map_dfr(calc.probe.fold.differences.for.August.2025.data) %>%
     mutate(Day = 12)
 
 
