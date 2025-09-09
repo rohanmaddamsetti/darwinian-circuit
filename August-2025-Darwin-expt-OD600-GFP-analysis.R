@@ -31,156 +31,46 @@ August.2025.darwin.data <- read.csv("../data/OD600-GFP-data/2025-August-Darwin-e
     mutate(log.normalized.GFP100 = log10(GFP100/OD600)) %>%
     ## let's remove the blank measurements for now.
     filter(Sample != "Blank") %>%
-    mutate(Tet = as.factor(Tet)) 
-    
+    mutate(Tet = as.factor(Tet)) %>%
+    ## rename Grayson's block to G-block and Rohan's block to R-block.
+    mutate(Block = recode(Block, "Grayson" = "G-block", "Rohan" = "R-block"))
 
-Rohan.GFP55.timecourse.plot <- August.2025.darwin.data %>%
-    filter(Block == "Rohan") %>%
+
+## Kanamycin- treatment goes into Figure 5F.
+Fig5F <- August.2025.darwin.data %>%
+    filter(Treatment == "Kan+") %>%
     ggplot(
         aes(x=Day, y=log10(normalized.GFP55), color=Plasmid, group = interaction(Replicate, Plasmid))) +
     scale_color_manual(values = PLASMID_COLORSCALE) +
-    facet_grid(Treatment~Replicate) +
+    facet_grid(Block~Replicate) +
     theme(legend.position = "bottom") +
-    ggtitle("Rohan's Block") +
+    ggtitle("August 2025 experiment, Kanamycin+ treatment") +
     geom_line() +
     geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
     theme_classic() +
-    theme(legend.position = "bottom")
+    theme(legend.position = "top") +
+    theme(axis.text.x = element_text(size = 6)) +
+    scale_x_continuous(breaks = 0:12)
 
-Rohan.GFP100.timecourse.plot <- August.2025.darwin.data %>%
-    filter(Block == "Rohan") %>%
-    ggplot(
-        aes(x=Day, y=log10(normalized.GFP100), color=Plasmid, group = interaction(Replicate, Plasmid))) +
-    scale_color_manual(values = PLASMID_COLORSCALE) +
-    facet_grid(Treatment~Replicate) +
-    theme(legend.position = "bottom") +
-    ggtitle("Rohan's Block") +
-    geom_line() +
-    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
-    theme_classic() +
-    theme(legend.position = "bottom")
 
-Grayson.GFP55.timecourse.plot <- August.2025.darwin.data %>%
-    filter(Block == "Grayson") %>%
+## Kanamycin+ treatment goes into Supplementary Figure S7.
+S7Fig <- August.2025.darwin.data %>%
+    filter(Treatment == "Kan-") %>%
     ggplot(
         aes(x=Day, y=log10(normalized.GFP55), color=Plasmid, group = interaction(Replicate, Plasmid))) +
     scale_color_manual(values = PLASMID_COLORSCALE) +
-    facet_grid(Treatment~Replicate) +
+    facet_grid(Block~Replicate) +
     theme(legend.position = "bottom") +
-    ggtitle("Grayson's Block") +
+    ggtitle("August 2025 experiment, Kanamycin- treatment") +
     geom_line() +
     geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
     theme_classic() +
-    theme(legend.position = "bottom")
+    theme(legend.position = "top") +
+    theme(axis.text.x = element_text(size = 6)) +
+    scale_x_continuous(breaks = 0:12)
 
-Grayson.GFP100.timecourse.plot <- August.2025.darwin.data %>%
-    filter(Block == "Grayson") %>%
-    ggplot(
-        aes(x=Day, y=log10(normalized.GFP100), color=Plasmid, group = interaction(Replicate, Plasmid))) +
-    scale_color_manual(values = PLASMID_COLORSCALE) +
-    facet_grid(Treatment~Replicate) +
-    theme(legend.position = "bottom") +
-    ggtitle("Grayson's Block") +
-    geom_line() +
-    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
-    theme_classic() +
-    theme(legend.position = "bottom")
+## save figures.
+ggsave("../results/Fig5F.pdf", Fig5F, height=4, width=8)
+ggsave("../results/S7Fig.pdf", S7Fig, height=4,  width=8)
 
-
-ggsave("../results/August-2025-Rohan-GFP55-plot.pdf",Rohan.GFP55.timecourse.plot, height=4, width=7)
-ggsave("../results/August-2025-Rohan-GFP100-plot.pdf",Rohan.GFP100.timecourse.plot, height=4, width=7)
-
-ggsave("../results/August-2025-Grayson-GFP55-plot.pdf",Grayson.GFP55.timecourse.plot, height=4,  width=7)
-ggsave("../results/August-2025-Grayson-GFP100-plot.pdf",Grayson.GFP100.timecourse.plot, height=4, width=7)
-
-
-#####################################################
-## normalize GFP values by the p15A samples, which don't have tetA-GFP on plasmid.
-## assume that there is one tetA-GFP copy on the chromosome.
-## This can be an internal control for double-checking qPCR calculations.
-
-p15A.darwin.data.for.normalization <- August.2025.darwin.data %>%
-    filter(Plasmid == "p15A") %>%
-    select(Replicate, Treatment, Block, uL_measurement, transfer_dilution, Tet, Day, Date,
-           normalized.GFP55, normalized.GFP100, log.normalized.GFP55, log.normalized.GFP100) %>%
-    rename(
-        p15A.normalized.GFP55 = normalized.GFP55,
-        p15A.normalized.GFP100 = normalized.GFP100,
-        p15A.log.normalized.GFP55 = log.normalized.GFP55,
-        p15A.log.normalized.GFP100 = log.normalized.GFP100)
-
-
-p15A.normalized.Rohan.GFP55.timecourse.plot <- August.2025.darwin.data %>%
-    ## add additional columns from p15A.darwin.data.for.normalization
-    left_join(p15A.darwin.data.for.normalization) %>%
-    mutate(p15A.normalized.GFP55 = 10^(log.normalized.GFP55 - p15A.log.normalized.GFP55)) %>%
-    mutate(p15A.normalized.GFP100 = 10^(log.normalized.GFP100 - p15A.log.normalized.GFP100)) %>%   
-    filter(Block == "Rohan") %>%
-    ggplot(
-        aes(x=Day, y=p15A.normalized.GFP55, color=Plasmid, group = interaction(Replicate, Plasmid))) +
-    scale_color_manual(values = PLASMID_COLORSCALE) +
-    facet_grid(Treatment~Replicate) +
-    theme(legend.position = "bottom") +
-    ggtitle("Rohan's Block") +
-    geom_line() +
-    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
-    theme_classic() +
-    theme(legend.position = "bottom")
-
-p15A.normalized.Rohan.GFP100.timecourse.plot <- August.2025.darwin.data %>%
-    ## add additional columns from p15A.darwin.data.for.normalization
-    left_join(p15A.darwin.data.for.normalization) %>%
-    mutate(p15A.normalized.GFP55 = 10^(log.normalized.GFP55 - p15A.log.normalized.GFP55)) %>%
-    mutate(p15A.normalized.GFP100 = 10^(log.normalized.GFP100 - p15A.log.normalized.GFP100)) %>%
-    filter(Block == "Rohan") %>%
-    ggplot(
-        aes(x=Day, y=p15A.normalized.GFP100, color=Plasmid, group = interaction(Replicate, Plasmid))) +
-    scale_color_manual(values = PLASMID_COLORSCALE) +
-    facet_grid(Treatment~Replicate) +
-    theme(legend.position = "bottom") +
-    ggtitle("Rohan's Block") +
-    geom_line() +
-    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
-    theme_classic() +
-    theme(legend.position = "bottom")
-
-p15A.normalized.Grayson.GFP55.timecourse.plot <- August.2025.darwin.data %>%
-    ## add additional columns from p15A.darwin.data.for.normalization
-    left_join(p15A.darwin.data.for.normalization) %>%
-    mutate(p15A.normalized.GFP55 = 10^(log.normalized.GFP55 - p15A.log.normalized.GFP55)) %>%
-    mutate(p15A.normalized.GFP100 = 10^(log.normalized.GFP100 - p15A.log.normalized.GFP100)) %>%
-    filter(Block == "Grayson") %>%
-    ggplot(
-        aes(x=Day, y=p15A.normalized.GFP55, color=Plasmid, group = interaction(Replicate, Plasmid))) +
-    scale_color_manual(values = PLASMID_COLORSCALE) +
-    facet_grid(Treatment~Replicate) +
-    theme(legend.position = "bottom") +
-    ggtitle("Grayson's Block") +
-    geom_line() +
-    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
-    theme_classic() +
-    theme(legend.position = "bottom")
-
-p15A.normalized.Grayson.GFP100.timecourse.plot <- August.2025.darwin.data %>%
-    left_join(p15A.darwin.data.for.normalization) %>%
-    mutate(p15A.normalized.GFP55 = 10^(log.normalized.GFP55 - p15A.log.normalized.GFP55)) %>%
-    mutate(p15A.normalized.GFP100 = 10^(log.normalized.GFP100 - p15A.log.normalized.GFP100)) %>%
-    filter(Block == "Grayson") %>%
-    ggplot(
-        aes(x=Day, y=p15A.normalized.GFP100, color=Plasmid, group = interaction(Replicate, Plasmid))) +
-    scale_color_manual(values = PLASMID_COLORSCALE) +
-    facet_grid(Treatment~Replicate) +
-    theme(legend.position = "bottom") +
-    ggtitle("Grayson's Block") +
-    geom_line() +
-    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
-    theme_classic() +
-    theme(legend.position = "bottom")
-
-
-ggsave("../results/August-2025-Rohan-p15A-normalized-GFP55-plot.pdf",p15A.normalized.Rohan.GFP55.timecourse.plot, height=4, width=7)
-ggsave("../results/August-2025-Rohan-p15A-normalized-GFP100-plot.pdf",p15A.normalized.Rohan.GFP100.timecourse.plot, height=4, width=7)
-
-ggsave("../results/August-2025-Grayson-p15A-normalized-GFP55-plot.pdf",p15A.normalized.Grayson.GFP55.timecourse.plot, height=4,  width=7)
-ggsave("../results/August-2025-Grayson-p15A-normalized-GFP100-plot.pdf",p15A.normalized.Grayson.GFP100.timecourse.plot, height=4, width=7)
 
