@@ -123,10 +123,10 @@ ggsave("../results/Fig2E.pdf", Fig2E, width=7, height=2.25)
 calc.probe.fold.differences.for.August.2025.data <- function(well.df, use.Yuanchi.calibration=FALSE) {
     ## this helper function calculates probe fold differences per well.
 
-    ## numbers calculated from my standard curve calibrations, omitting p15A.
-    CmR.amplification.factor <- 2.14
-    KanR.amplification.factor <- 2.23
-    TetR.amplification.factor <- 2.18
+    ## numbers calculated from average slopes from my calibration data.
+    CmR.amplification.factor <- 2.25
+    KanR.amplification.factor <- 2.38
+    TetR.amplification.factor <- 2.24
 
     if (use.Yuanchi.calibration) {
         ## Use the calculation method in Yuanchi's paper.
@@ -142,10 +142,10 @@ calc.probe.fold.differences.for.August.2025.data <- function(well.df, use.Yuanch
     T <- filter(well.df, probe_target == 'tetA')$cycle_at_threshold
     K <- filter(well.df, probe_target == 'kanR')$cycle_at_threshold
 
-    ## subtract one to account for the tetA copy on the chromosome.
+    ## note that there is one tetA copy on the chromosome (not accounted for here).
     K.per.C <- (CmR.amplification.factor^C)/(KanR.amplification.factor^K) ##2^(C - K)/K.per.C.constant
-    T.per.C <- (CmR.amplification.factor^C)/(TetR.amplification.factor^T - 1) ##2^(C - T)/T.per.C.constant
-    T.per.K <- (KanR.amplification.factor^K)/(TetR.amplification.factor^T - 1)##2^(K - T)/T.per.K.constant
+    T.per.C <- (CmR.amplification.factor^C)/(TetR.amplification.factor^T) ##2^(C - T)/T.per.C.constant
+    T.per.K <- (KanR.amplification.factor^K)/(TetR.amplification.factor^T) ##2^(K - T)/T.per.K.constant
 
 
     return.df <- data.frame(
@@ -168,30 +168,43 @@ calc.probe.fold.differences.for.August.2025.data <- function(well.df, use.Yuanch
 ##################################################################
 ## analyze calibration curve data collected on August 13 2025.
 August.2025.calibration.data <- read.csv("../data/qPCR-data/2025-08-13_Rohan_Grayson_Calibration_Expt.csv") %>%
-    mutate(TechnicalReplicate = as.factor(TechnicalReplicate)) %>%
-    filter(Plasmid != "p15A")
+    mutate(TechnicalReplicate = as.factor(TechnicalReplicate))
 
 ## visualize the data.
 initial_calibration_fig <- August.2025.calibration.data %>%
     ggplot(aes(x = LogDilutionFactor, y=cycle_at_threshold, color=Plasmid, shape=TechnicalReplicate)) +
     geom_point() +
-    facet_grid(TechnicalReplicate~ probe_target) +
+    facet_grid(Plasmid~ probe_target) +
     theme_classic()
 
 initial_calibration_fig
 
 
-## calculate linear regressions for each probe_target, plasmid, TechnicalReplicate
-CT_regression_df <- August.2025.calibration.data %>%
-    group_by(probe_target) %>%
-    do(broom::tidy(lm(cycle_at_threshold ~ LogDilutionFactor, data = .))) %>%
+## calculate linear regressions for each probe_target, Plasmid, TechnicalReplicate
+CT.regression.df <- August.2025.calibration.data %>%
+##    tidyr::nest(.by = c(probe_target, Plasmid), .key="qPCR.data") %>%
+    tidyr::nest(.by = c(probe_target, Plasmid, TechnicalReplicate), .key="qPCR.data") %>%
+    mutate(
+        lm_fit = purrr::map(qPCR.data , function(x) lm(cycle_at_threshold ~ LogDilutionFactor, data = x)),
+        tidy_lm_fit = map(lm_fit, broom::tidy),
+        glance_lm_fit = map(lm_fit, broom::glance)
+    ) %>%
+    unnest(tidy_lm_fit) %>%
+    ## drop the nested list-columns, and drop the statistic and p.value columns
+    ## which have a naming collision with output from broom::glance().
+    dplyr::select(-qPCR.data, -lm_fit, -statistic, -p.value) %>%
+    unnest(glance_lm_fit) %>%
+    ## drop the intercept terms, since we just want the slope.
     filter(term == "LogDilutionFactor") %>%
-    tidyr::pivot_wider(
-    names_from = term,
-    values_from = estimate) %>%
-    rename(slope = LogDilutionFactor) %>%
+    rename(slope = estimate) %>%
+    select(probe_target, Plasmid, slope, r.squared, TechnicalReplicate) %>%
     mutate(amplification_factor = 10^-(1/slope))
 
+average.slope.df <- CT.regression.df %>%
+    group_by(probe_target) %>%
+    summarize(
+        mean_slope = mean(slope),
+        mean_amplification_factor = mean(amplification_factor))
 
 
 ##################################################################
@@ -285,10 +298,10 @@ full.results <- rbind(
     Day9.results, Day10.results, Day12.results) %>%
     mutate(Replicate=as.factor(Replicate)) %>%
     mutate(Day=as.factor(Day)) %>%
-    mutate(Plasmid=factor(Plasmid, levels = c("pUC", "CloDF13", "pBR322", "p15A"))) %>%
+    mutate(Plasmid=factor(Plasmid, levels = c("pUC", "CloDF13", "pBR322", "p15A"))) #%>%
     ## it looks like the transposon did not jump onto the plasmid of the p15A clone.
     ## let's remove this from the analysis.
-    filter(Plasmid != "p15A")
+    #filter(Plasmid != "p15A")
 
 
 Grayson.plasmids.per.chromosome.fig <- full.results %>%
@@ -417,3 +430,8 @@ Rohan.transposons.per.chromosome.fig <- full.results %>%
 
 Rohan.transposons.per.chromosome.fig
 ggsave("../results/August2025-Rohan-transposons-per-chromosome-fig.pdf", Rohan.transposons.per.chromosome.fig)
+
+
+test <- full.results %>% filter(Plasmid == "p15A")
+
+test
