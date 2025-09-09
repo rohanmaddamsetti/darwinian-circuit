@@ -41,13 +41,13 @@ Fig5F <- August.2025.darwin.data %>%
     filter(Treatment == "Kan+") %>%
     ggplot(
         aes(x=Day, y=log10(normalized.GFP55), color=Plasmid, group = interaction(Replicate, Plasmid))) +
-    scale_color_manual(values = PLASMID_COLORSCALE) +
-    facet_grid(Block~Replicate) +
-    theme(legend.position = "bottom") +
-    ggtitle("August 2025 experiment, Kanamycin+ treatment") +
     geom_line() +
     geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
     theme_classic() +
+    ylab("log10(GFP/OD600)") +
+    ggtitle("August 2025 experiment, Kanamycin+ treatment") +
+    scale_color_manual(values = PLASMID_COLORSCALE) +
+    facet_grid(Block~Replicate) +
     theme(legend.position = "top") +
     theme(axis.text.x = element_text(size = 6)) +
     scale_x_continuous(breaks = 0:12)
@@ -58,19 +58,19 @@ S7Fig <- August.2025.darwin.data %>%
     filter(Treatment == "Kan-") %>%
     ggplot(
         aes(x=Day, y=log10(normalized.GFP55), color=Plasmid, group = interaction(Replicate, Plasmid))) +
-    scale_color_manual(values = PLASMID_COLORSCALE) +
-    facet_grid(Block~Replicate) +
-    theme(legend.position = "bottom") +
-    ggtitle("August 2025 experiment, Kanamycin- treatment") +
     geom_line() +
     geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
     theme_classic() +
+    ylab("log10(GFP/OD600)") +
+    ggtitle("August 2025 experiment, Kanamycin- treatment") +
+    scale_color_manual(values = PLASMID_COLORSCALE) +
+    facet_grid(Block~Replicate) +
     theme(legend.position = "top") +
     theme(axis.text.x = element_text(size = 6)) +
     scale_x_continuous(breaks = 0:12)
 
 ## save figures.
-ggsave("../results/Fig5F.pdf", Fig5F, height=4, width=8)
-ggsave("../results/S7Fig.pdf", S7Fig, height=4,  width=8)
+ggsave("../results/Fig5F.pdf", Fig5F, height=3.5, width=8)
+ggsave("../results/S7Fig.pdf", S7Fig, height=3.5,width=8)
 
 
