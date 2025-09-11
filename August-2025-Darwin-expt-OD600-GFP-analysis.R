@@ -69,8 +69,42 @@ S7Fig <- August.2025.darwin.data %>%
     theme(axis.text.x = element_text(size = 6)) +
     scale_x_continuous(breaks = 0:12)
 
+## Make a Supplementary Figure showing OD600 in all treatments.
+
+S8Fig <- August.2025.darwin.data %>%
+    ggplot(
+        aes(x=Day, y=OD600, color=Plasmid, group = interaction(Replicate, Plasmid))) +
+    geom_line() +
+    geom_vline(xintercept = AUG_2025_TET_SELECTION_DAYS, linetype = "dashed", color = "gray") +
+    theme_classic() +
+    ylab("OD600") +
+    ggtitle("August 2025 experiment") +
+    scale_color_manual(values = PLASMID_COLORSCALE) +
+    facet_grid(Treatment~Block) +
+    theme(legend.position = "top") +
+    theme(axis.text.x = element_text(size = 6)) +
+    scale_x_continuous(breaks = 0:12)
+
+
+## calculate differences in mean OD600 between Blocks.
+
+## mean OD600 in G-block over time is 0.506
+mean(filter(August.2025.darwin.data, Block=="G-block")$OD600)
+## mean OD600 in G-block over time is 0.693
+mean(filter(August.2025.darwin.data, Block=="R-block")$OD600)
+
+wilcox.test( ## the means are significantly different, p < 0.000001
+    filter(August.2025.darwin.data, Block=="G-block")$OD600,
+    filter(August.2025.darwin.data, Block=="R-block")$OD600)
+
+## calculate differences in variance in OD600 between Block,
+## using the Brown-Forsythe test
+car::leveneTest(OD600 ~ Block, data = August.2025.darwin.data, center = median)
+
+
 ## save figures.
 ggsave("../results/Fig5F.pdf", Fig5F, height=3.5, width=8)
 ggsave("../results/S7Fig.pdf", S7Fig, height=3.5,width=8)
+ggsave("../results/S8Fig.pdf", S8Fig, height=3.5,width=8)
 
 
